@@ -1,5 +1,6 @@
 package com.chessplatform.engine;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,6 +31,24 @@ public class Board {
         return board;
     }
 
+    /**
+     * Tablero vacío, sin ninguna pieza colocada. Pensado para tests (construir posiciones
+     * arbitrarias sin pasar por setupStartingPosition) y para el generador de puzzles en
+     * Fase 2 (reconstruir posiciones intermedias de una partida ya jugada).
+     */
+    public static Board empty() {
+        return new Board();
+    }
+
+    /**
+     * Coloca una pieza directamente en una casilla, sin pasar por applyMove ni validar
+     * legalidad. Uso exclusivo para tests y reconstrucción de posiciones — el flujo normal
+     * de una partida siempre pasa por applyMove().
+     */
+    public void placePiece(Square square, Piece piece) {
+        squares[square.index()] = piece;
+    }
+
     private void setupStartingPosition() {
         PieceType[] backRank = {
                 PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN,
@@ -51,16 +70,58 @@ public class Board {
         return turn;
     }
 
+    // Desplazamientos (file, rank) de las 8 posibles jugadas de un caballo.
+    private static final int[] KNIGHT_FILE_OFFSETS = {1, 2, 2, 1, -1, -2, -2, -1};
+    private static final int[] KNIGHT_RANK_OFFSETS = {2, 1, -1, -2, -2, -1, 1, 2};
+
     /**
      * Genera los movimientos legales para la posición actual.
      *
-     * TODO (Fase 1): implementar generación por tipo de pieza + filtrado de jugadas que
-     * dejarían al propio rey en jaque. De momento devuelve lista vacía — placeholder para
-     * poder arrancar el resto del sistema (WebSocket, persistencia) antes de cerrar el
-     * motor de reglas por completo.
+     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — de momento solo caballo, el
+     * resto de tipos de pieza siguen pendientes (ver switch más abajo). Además, todavía no
+     * se filtran jugadas que dejarían al propio rey en jaque: eso llega en cuanto
+     * isInCheck() esté implementado, que a su vez necesita poder generar los ataques de
+     * todas las piezas, no solo sus movimientos legales (un peón ataca en diagonal aunque
+     * no pueda "mover" en diagonal salvo captura).
      */
     public List<Move> legalMoves() {
-        return List.of();
+        List<Move> moves = new ArrayList<>();
+        for (int i = 0; i < 64; i++) {
+            Piece piece = squares[i];
+            if (piece == null || piece.color() != turn) {
+                continue;
+            }
+            Square from = new Square(i);
+            switch (piece.type()) {
+                case KNIGHT -> moves.addAll(generateKnightMoves(from));
+                // TODO: PAWN, BISHOP, ROOK, QUEEN, KING
+                default -> {
+                }
+            }
+        }
+        return moves;
+    }
+
+    private List<Move> generateKnightMoves(Square from) {
+        List<Move> moves = new ArrayList<>();
+        Piece knight = pieceAt(from);
+
+        for (int i = 0; i < KNIGHT_FILE_OFFSETS.length; i++) {
+            int targetFile = from.file() + KNIGHT_FILE_OFFSETS[i];
+            int targetRank = from.rank() + KNIGHT_RANK_OFFSETS[i];
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue; // fuera del tablero
+            }
+
+            Square to = Square.of(targetFile, targetRank);
+            Piece occupant = pieceAt(to);
+            if (occupant == null || occupant.color() != knight.color()) {
+                moves.add(new Move(from, to));
+            }
+            // Si occupant es del mismo color, no se añade — no se puede capturar pieza propia.
+        }
+
+        return moves;
     }
 
     /**
