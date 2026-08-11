@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Platform</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>♟️ Chess Platform</h1>
+            <div id="connection-status" class="status status--disconnected">Desconectado</div>
+        </header>
+
+        <main>
+            <div id="board" class="board"></div>
+
+            <aside class="sidebar">
+                <div class="clock">
+                    <div id="clock-black" class="clock__player">10:00</div>
+                    <div id="clock-white" class="clock__player">10:00</div>
+                </div>
+                <div id="move-list" class="move-list"></div>
+                <div class="controls">
+                    <button id="join-btn">Unirse a partida</button>
+                    <button id="resign-btn" disabled>Rendirse</button>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="js/board.js"></script>
+    <script src="js/websocket-client.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

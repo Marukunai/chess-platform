@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: chess-platform-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chess_platform
+    username: chess_admin
+    password: changeme_local_only
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:changeme_generate_a_long_random_secret}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+logging:
+  level:
+    com.chessplatform: DEBUG

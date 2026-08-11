@@ -1,0 +1,134 @@
+:root {
+    --square-light: #f0d9b5;
+    --square-dark: #b58863;
+    --accent: #4caf50;
+    --bg: #1e1e1e;
+    --text: #f0f0f0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+#app {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+}
+
+.status--disconnected {
+    background: #5c2b2b;
+}
+
+.status--connected {
+    background: #2b5c33;
+}
+
+main {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: min(600px, 90vw);
+    aspect-ratio: 1 / 1;
+    border: 2px solid #333;
+}
+
+.square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(1.2rem, 4vw, 2.2rem);
+    user-select: none;
+    cursor: pointer;
+}
+
+.square--light {
+    background: var(--square-light);
+}
+
+.square--dark {
+    background: var(--square-dark);
+}
+
+.square--selected {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+}
+
+.sidebar {
+    flex: 1;
+    min-width: 200px;
+}
+
+.clock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.clock__player {
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+    background: #2a2a2a;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.move-list {
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 0.75rem;
+    height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    margin-bottom: 1rem;
+}
+
+.controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+button {
+    flex: 1;
+    padding: 0.6rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+button:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
