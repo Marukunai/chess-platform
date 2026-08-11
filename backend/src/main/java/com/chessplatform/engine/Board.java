@@ -1,5 +1,6 @@
 package com.chessplatform.engine;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,6 +31,24 @@ public class Board {
         return board;
     }
 
+    /**
+     * Tablero vacío, sin ninguna pieza colocada. Pensado para tests (construir posiciones
+     * arbitrarias sin pasar por setupStartingPosition) y para el generador de puzzles en
+     * Fase 2 (reconstruir posiciones intermedias de una partida ya jugada).
+     */
+    public static Board empty() {
+        return new Board();
+    }
+
+    /**
+     * Coloca una pieza directamente en una casilla, sin pasar por applyMove ni validar
+     * legalidad. Uso exclusivo para tests y reconstrucción de posiciones — el flujo normal
+     * de una partida siempre pasa por applyMove().
+     */
+    public void placePiece(Square square, Piece piece) {
+        squares[square.index()] = piece;
+    }
+
     private void setupStartingPosition() {
         PieceType[] backRank = {
                 PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN,
@@ -51,16 +70,107 @@ public class Board {
         return turn;
     }
 
+    // Desplazamientos (file, rank) de las 8 posibles jugadas de un caballo.
+    private static final int[] KNIGHT_FILE_OFFSETS = {1, 2, 2, 1, -1, -2, -2, -1};
+    private static final int[] KNIGHT_RANK_OFFSETS = {2, 1, -1, -2, -2, -1, 1, 2};
+
+    // Direcciones (file, rank) por rayo para piezas deslizantes.
+    private static final int[][] ROOK_DIRECTIONS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    private static final int[][] BISHOP_DIRECTIONS = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+    private static final int[][] QUEEN_DIRECTIONS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
+
     /**
      * Genera los movimientos legales para la posición actual.
      *
-     * TODO (Fase 1): implementar generación por tipo de pieza + filtrado de jugadas que
-     * dejarían al propio rey en jaque. De momento devuelve lista vacía — placeholder para
-     * poder arrancar el resto del sistema (WebSocket, persistencia) antes de cerrar el
-     * motor de reglas por completo.
+     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — caballo y piezas
+     * deslizantes (torre/alfil/dama) ya implementados, quedan pendientes rey y peón (ver
+     * switch más abajo). Además, todavía no se filtran jugadas que dejarían al propio rey
+     * en jaque: eso llega en cuanto isInCheck() esté implementado, que a su vez necesita
+     * poder generar los ataques de todas las piezas, no solo sus movimientos legales (un
+     * peón ataca en diagonal aunque no pueda "mover" en diagonal salvo captura).
      */
     public List<Move> legalMoves() {
-        return List.of();
+        List<Move> moves = new ArrayList<>();
+        for (int i = 0; i < 64; i++) {
+            Piece piece = squares[i];
+            if (piece == null || piece.color() != turn) {
+                continue;
+            }
+            Square from = new Square(i);
+            switch (piece.type()) {
+                case KNIGHT -> moves.addAll(generateKnightMoves(from));
+                case ROOK -> moves.addAll(generateSlidingMoves(from, ROOK_DIRECTIONS));
+                case BISHOP -> moves.addAll(generateSlidingMoves(from, BISHOP_DIRECTIONS));
+                case QUEEN -> moves.addAll(generateSlidingMoves(from, QUEEN_DIRECTIONS));
+                // TODO: PAWN, KING
+                default -> {
+                }
+            }
+        }
+        return moves;
+    }
+
+    private List<Move> generateKnightMoves(Square from) {
+        List<Move> moves = new ArrayList<>();
+        Piece knight = pieceAt(from);
+
+        for (int i = 0; i < KNIGHT_FILE_OFFSETS.length; i++) {
+            int targetFile = from.file() + KNIGHT_FILE_OFFSETS[i];
+            int targetRank = from.rank() + KNIGHT_RANK_OFFSETS[i];
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue; // fuera del tablero
+            }
+
+            Square to = Square.of(targetFile, targetRank);
+            Piece occupant = pieceAt(to);
+            if (occupant == null || occupant.color() != knight.color()) {
+                moves.add(new Move(from, to));
+            }
+            // Si occupant es del mismo color, no se añade — no se puede capturar pieza propia.
+        }
+
+        return moves;
+    }
+
+    /**
+     * Generación compartida para torre/alfil/dama: lanza un rayo por cada dirección hasta
+     * salirse del tablero, chocar con una pieza propia (rayo termina, sin incluir esa
+     * casilla) o chocar con una pieza enemiga (rayo termina, incluyendo esa casilla como
+     * captura).
+     */
+    private List<Move> generateSlidingMoves(Square from, int[][] directions) {
+        List<Move> moves = new ArrayList<>();
+        Piece piece = pieceAt(from);
+
+        for (int[] direction : directions) {
+            int file = from.file();
+            int rank = from.rank();
+
+            while (true) {
+                file += direction[0];
+                rank += direction[1];
+                if (file < 0 || file > 7 || rank < 0 || rank > 7) {
+                    break; // fuera del tablero, fin del rayo
+                }
+
+                Square to = Square.of(file, rank);
+                Piece occupant = pieceAt(to);
+
+                if (occupant == null) {
+                    moves.add(new Move(from, to));
+                    continue; // casilla vacía, el rayo continúa
+                }
+
+                if (occupant.color() != piece.color()) {
+                    moves.add(new Move(from, to)); // captura válida
+                }
+                break; // pieza propia o enemiga: el rayo no puede seguir más allá
+            }
+        }
+
+        return moves;
     }
 
     /**
