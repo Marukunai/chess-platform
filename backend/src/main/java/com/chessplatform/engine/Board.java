@@ -84,12 +84,14 @@ public class Board {
     /**
      * Genera los movimientos legales para la posición actual.
      *
-     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — caballo y piezas
-     * deslizantes (torre/alfil/dama) ya implementados, quedan pendientes rey y peón (ver
-     * switch más abajo). Además, todavía no se filtran jugadas que dejarían al propio rey
-     * en jaque: eso llega en cuanto isInCheck() esté implementado, que a su vez necesita
-     * poder generar los ataques de todas las piezas, no solo sus movimientos legales (un
-     * peón ataca en diagonal aunque no pueda "mover" en diagonal salvo captura).
+     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — caballo, piezas deslizantes
+     * (torre/alfil/dama) y rey ya implementados, queda pendiente el peón (ver switch más
+     * abajo). Además, todavía no se filtran jugadas que dejarían al propio rey en jaque
+     * (esto incluye que el rey "pueda" moverse a una casilla atacada, lo cual es ilegal en
+     * ajedrez real): eso llega en cuanto isInCheck() esté implementado, que a su vez
+     * necesita poder generar los ataques de todas las piezas, no solo sus movimientos
+     * legales (un peón ataca en diagonal aunque no pueda "mover" en diagonal salvo
+     * captura).
      */
     public List<Move> legalMoves() {
         List<Move> moves = new ArrayList<>();
@@ -104,7 +106,8 @@ public class Board {
                 case ROOK -> moves.addAll(generateSlidingMoves(from, ROOK_DIRECTIONS));
                 case BISHOP -> moves.addAll(generateSlidingMoves(from, BISHOP_DIRECTIONS));
                 case QUEEN -> moves.addAll(generateSlidingMoves(from, QUEEN_DIRECTIONS));
-                // TODO: PAWN, KING
+                case KING -> moves.addAll(generateKingMoves(from));
+                // TODO: PAWN
                 default -> {
                 }
             }
@@ -168,6 +171,30 @@ public class Board {
                 }
                 break; // pieza propia o enemiga: el rayo no puede seguir más allá
             }
+        }
+
+        return moves;
+    }
+
+    private List<Move> generateKingMoves(Square from) {
+        List<Move> moves = new ArrayList<>();
+        Piece king = pieceAt(from);
+
+        // Reutiliza las 8 direcciones de la dama, pero se detiene tras un solo paso —
+        // el rey no desliza.
+        for (int[] direction : QUEEN_DIRECTIONS) {
+            int targetFile = from.file() + direction[0];
+            int targetRank = from.rank() + direction[1];
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue; // fuera del tablero
+            }
+
+            Square to = Square.of(targetFile, targetRank);
+            Piece occupant = pieceAt(to);
+            if (occupant == null || occupant.color() != king.color()) {
+                moves.add(new Move(from, to));
+            }
+            // Si occupant es del mismo color, no se añade — no se puede capturar pieza propia.
         }
 
         return moves;
