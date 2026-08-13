@@ -5,15 +5,21 @@ const BACKEND_WS_URL = 'http://localhost:8080/ws';
 
 let stompClient = null;
 
-function connect(onConnected) {
+// El JWT va como cabecera Authorization dentro del propio CONNECT de STOMP, no en el
+// handshake HTTP (los navegadores no dejan poner cabeceras propias ahí) — lo valida
+// StompAuthChannelInterceptor en el backend. Sin token válido, el servidor cierra la
+// conexión durante el CONNECT.
+function connect(token, onConnected) {
     const socket = new SockJS(BACKEND_WS_URL);
     stompClient = Stomp.over(socket);
 
-    stompClient.connect({}, () => {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    stompClient.connect(headers, () => {
         setConnectionStatus(true);
         if (onConnected) onConnected();
     }, (error) => {
-        console.error('Error de conexión WebSocket:', error);
+        console.error('Error de conexión WebSocket (¿token inválido o caducado?):', error);
         setConnectionStatus(false);
     });
 }
@@ -28,6 +34,10 @@ function subscribeToGame(gameId, onMessage) {
 
 function sendMove(gameId, move) {
     stompClient.send(`/app/game/${gameId}/move`, {}, JSON.stringify(move));
+}
+
+function sendResign(gameId) {
+    stompClient.send(`/app/game/${gameId}/resign`, {}, JSON.stringify({ gameId }));
 }
 
 function setConnectionStatus(connected) {
