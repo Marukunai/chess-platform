@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BoardTest {
 
@@ -362,5 +363,96 @@ class BoardTest {
                 .count();
 
         assertThat(pawnMoves).isEqualTo(16); // 8 peones x 2 movimientos (empuje simple + doble)
+    }
+
+    @Test
+    void kingNotInCheckWhenNoAttackersPresent() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 3), new Piece(Color.WHITE, PieceType.KING)); // e4
+
+        assertThat(board.isInCheck(Color.WHITE)).isFalse();
+    }
+
+    @Test
+    void kingInCheckFromRookAlongSameRank() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        board.placePiece(Square.of(0, 0), new Piece(Color.BLACK, PieceType.ROOK)); // a1, misma fila
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+    }
+
+    @Test
+    void kingInCheckFromBishopAlongDiagonal() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(0, 0), new Piece(Color.BLACK, PieceType.BISHOP)); // a1, misma diagonal
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+    }
+
+    @Test
+    void kingInCheckFromQueenAlongFile() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(3, 7), new Piece(Color.BLACK, PieceType.QUEEN)); // d8, misma columna
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+    }
+
+    @Test
+    void kingInCheckFromKnight() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(1, 2), new Piece(Color.BLACK, PieceType.KNIGHT)); // b3
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+    }
+
+    @Test
+    void whiteKingInCheckFromBlackPawnDiagonalAttack() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        board.placePiece(Square.of(3, 1), new Piece(Color.BLACK, PieceType.PAWN)); // d2, ataca hacia rank menor
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+    }
+
+    @Test
+    void blackKingInCheckFromWhitePawnDiagonalAttack() {
+        // Confirma la asimetría de dirección: un peón blanco ataca hacia rank mayor,
+        // justo lo contrario que el negro del test anterior.
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 4), new Piece(Color.BLACK, PieceType.KING)); // e5
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.PAWN)); // d4
+
+        assertThat(board.isInCheck(Color.BLACK)).isTrue();
+    }
+
+    @Test
+    void kingNotInCheckWhenAttackerIsBlockedByInterveningPiece() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(0, 3), new Piece(Color.BLACK, PieceType.ROOK)); // a4, misma fila
+        board.placePiece(Square.of(2, 3), new Piece(Color.WHITE, PieceType.PAWN)); // c4, bloquea el rayo
+
+        assertThat(board.isInCheck(Color.WHITE)).isFalse();
+    }
+
+    @Test
+    void kingNotInCheckFromOwnPieceAlignedLikeAnAttacker() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(0, 3), new Piece(Color.WHITE, PieceType.ROOK)); // a4, misma fila, pero propia
+
+        assertThat(board.isInCheck(Color.WHITE)).isFalse();
+    }
+
+    @Test
+    void isInCheckThrowsWhenKingIsMissingFromTheBoard() {
+        Board board = Board.empty(); // sin ningún rey colocado
+
+        assertThatThrownBy(() -> board.isInCheck(Color.WHITE))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

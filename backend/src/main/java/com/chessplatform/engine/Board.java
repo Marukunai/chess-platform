@@ -105,8 +105,8 @@ public class Board {
      * cosas pendientes para Fase 1:
      *  1. Enroque — se añade junto con el resto de casos especiales.
      *  2. Filtrar jugadas que dejarían al propio rey en jaque (incluye que el rey "pueda"
-     *     moverse a una casilla atacada) — necesita isInCheck() implementado, que a su vez
-     *     necesita poder generar los ataques de todas las piezas, no solo sus movimientos.
+     *     moverse a una casilla atacada) — isInCheck() ya está implementado (ver más
+     *     abajo), pero legalMoves() todavía no lo usa; ese filtrado es el siguiente paso.
      */
     public List<Move> legalMoves() {
         List<Move> moves = new ArrayList<>();
@@ -290,8 +290,133 @@ public class Board {
     }
 
     public boolean isInCheck(Color color) {
-        // TODO (Fase 1): detectar si el rey de `color` está atacado
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        Square kingSquare = findKing(color);
+        if (kingSquare == null) {
+            throw new IllegalStateException("No hay rey de color " + color + " en el tablero");
+        }
+        return isSquareAttacked(kingSquare, color.opposite());
+    }
+
+    private Square findKing(Color color) {
+        for (int i = 0; i < 64; i++) {
+            Piece piece = squares[i];
+            if (piece != null && piece.color() == color && piece.type() == PieceType.KING) {
+                return new Square(i);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * ¿Está `square` amenazada por alguna pieza de `byColor`? A diferencia de la
+     * generación de movimientos, esto no comprueba si una pieza "puede moverse" a
+     * `square` — un peón amenaza en diagonal exista o no algo que capturar ahí, cosa que
+     * no ocurre con su movimiento normal. Público porque el enroque (Fase 1, casos
+     * especiales) también lo va a necesitar: no se puede enrocar a través de una casilla
+     * atacada.
+     */
+    public boolean isSquareAttacked(Square square, Color byColor) {
+        return isAttackedByPawn(square, byColor)
+                || isAttackedByKnight(square, byColor)
+                || isAttackedByKing(square, byColor)
+                || isAttackedBySlidingPiece(square, byColor, ROOK_DIRECTIONS, PieceType.ROOK, PieceType.QUEEN)
+                || isAttackedBySlidingPiece(square, byColor, BISHOP_DIRECTIONS, PieceType.BISHOP, PieceType.QUEEN);
+    }
+
+    private boolean isAttackedByPawn(Square square, Color byColor) {
+        // Un peón de byColor ataca en diagonal hacia delante (en su propia dirección de
+        // avance). Buscamos "hacia atrás" desde `square`: si hay un peón de byColor una
+        // fila detrás (respecto a su dirección de ataque) y una columna a cualquier lado,
+        // esa pieza ataca `square`.
+        int attackDirection = byColor == Color.WHITE ? 1 : -1;
+        int sourceRank = square.rank() - attackDirection;
+        if (sourceRank < 0 || sourceRank > 7) {
+            return false;
+        }
+
+        for (int fileOffset : new int[]{-1, 1}) {
+            int sourceFile = square.file() + fileOffset;
+            if (sourceFile < 0 || sourceFile > 7) {
+                continue;
+            }
+            Piece occupant = pieceAt(Square.of(sourceFile, sourceRank));
+            if (occupant != null && occupant.color() == byColor && occupant.type() == PieceType.PAWN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAttackedByKnight(Square square, Color byColor) {
+        for (int i = 0; i < KNIGHT_FILE_OFFSETS.length; i++) {
+            int targetFile = square.file() + KNIGHT_FILE_OFFSETS[i];
+            int targetRank = square.rank() + KNIGHT_RANK_OFFSETS[i];
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue;
+            }
+            Piece occupant = pieceAt(Square.of(targetFile, targetRank));
+            if (occupant != null && occupant.color() == byColor && occupant.type() == PieceType.KNIGHT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAttackedByKing(Square square, Color byColor) {
+        for (int[] direction : QUEEN_DIRECTIONS) {
+            int targetFile = square.file() + direction[0];
+            int targetRank = square.rank() + direction[1];
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue;
+            }
+            Piece occupant = pieceAt(Square.of(targetFile, targetRank));
+            if (occupant != null && occupant.color() == byColor && occupant.type() == PieceType.KING) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Lanza un rayo por cada dirección desde `square`. La primera pieza que encuentra en
+     * cada rayo decide: si es de byColor y su tipo está en matchingTypes, hay ataque. Si
+     * es cualquier otra pieza (propia, enemiga de otro tipo), bloquea el rayo — no importa
+     * si el "verdadero" atacante está más allá, no puede atacar a través de una pieza.
+     */
+    private boolean isAttackedBySlidingPiece(Square square, Color byColor, int[][] directions,
+                                             PieceType... matchingTypes) {
+        for (int[] direction : directions) {
+            int file = square.file();
+            int rank = square.rank();
+
+            while (true) {
+                file += direction[0];
+                rank += direction[1];
+                if (file < 0 || file > 7 || rank < 0 || rank > 7) {
+                    break;
+                }
+
+                Piece occupant = pieceAt(Square.of(file, rank));
+                if (occupant == null) {
+                    continue; // casilla vacía, el rayo sigue
+                }
+
+                if (occupant.color() == byColor && matchesAny(occupant.type(), matchingTypes)) {
+                    return true;
+                }
+                break; // cualquier pieza bloquea el rayo, sea o no la que buscamos
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesAny(PieceType type, PieceType[] candidates) {
+        for (PieceType candidate : candidates) {
+            if (candidate == type) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean isCheckmate() {
