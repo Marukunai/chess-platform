@@ -67,4 +67,15 @@ public class User {
     public double getVolatility() {
         return volatility;
     }
+
+    /**
+     * Aplica el resultado de GlickoRatingService tras una partida. Método de dominio en
+     * vez de setters sueltos — deja claro que los tres valores se actualizan siempre
+     * juntos (son el resultado de un mismo cálculo Glicko-2), nunca por separado.
+     */
+    public void applyRatingUpdate(double rating, double ratingDeviation, double volatility) {
+        this.rating = rating;
+        this.ratingDeviation = ratingDeviation;
+        this.volatility = volatility;
+    }
 }
