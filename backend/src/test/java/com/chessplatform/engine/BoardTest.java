@@ -705,4 +705,170 @@ class BoardTest {
         assertThat(board.isStalemate()).isTrue();
         assertThat(board.isCheckmate()).isFalse();
     }
+
+    @Test
+    void whiteCanCastleBothSidesWhenPathIsClearAndNotAttacked() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        assertThat(kingMoves).hasSize(7); // 5 normales + enroque corto y largo
+        assertThat(kingMoves).extracting(Move::to)
+                .contains(Square.of(6, 0), Square.of(2, 0)); // g1, c1
+    }
+
+    @Test
+    void whiteCannotCastleKingsideWhenPathIsBlocked() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+        board.placePiece(Square.of(5, 0), new Piece(Color.WHITE, PieceType.KNIGHT)); // f1, bloquea el paso
+
+        // Filtramos por el rey: la propia torre en h1 tiene un movimiento normal a g1
+        // (deslizar por la fila), que contaminaría el "doesNotContain" si no aislamos.
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        // g1 solo es alcanzable enrocando (está a 2 casillas) — su ausencia aquí confirma
+        // que el enroque específicamente se bloqueó, no que f1 esté ocupado sin más.
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(6, 0));
+    }
+
+    @Test
+    void whiteCannotCastleWhenKingIsCurrentlyInCheck() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+        board.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.ROOK)); // e8, jaque por columna
+
+        List<Move> kingMoves = board.legalMoves();
+
+        assertThat(kingMoves).extracting(Move::to)
+                .doesNotContain(Square.of(6, 0), Square.of(2, 0)); // ni g1 ni c1
+    }
+
+    @Test
+    void whiteCannotCastleKingsideWhenTransitSquareIsAttacked() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+        board.placePiece(Square.of(5, 7), new Piece(Color.BLACK, PieceType.ROOK)); // f8, ataca f1 (de paso)
+
+        // Filtramos por el rey: la torre en h1 también podría deslizar hasta g1 como
+        // movimiento normal, contaminando el "doesNotContain" si no aislamos.
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(6, 0)); // g1 bloqueado
+        assertThat(kingMoves).extracting(Move::to).contains(Square.of(2, 0)); // c1 no se ve afectado
+    }
+
+    @Test
+    void whiteCannotCastleKingsideWhenDestinationSquareIsAttacked() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+        board.placePiece(Square.of(6, 7), new Piece(Color.BLACK, PieceType.ROOK)); // g8, ataca g1 directamente
+
+        // Mismo motivo: aislamos los movimientos del rey frente a los de la torre en h1.
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(6, 0)); // g1 bloqueado
+        assertThat(kingMoves).extracting(Move::to).contains(Square.of(2, 0)); // c1 no se ve afectado
+    }
+
+    @Test
+    void whiteCannotCastleQueensideAfterRookHasMovedAndReturned() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        assertThat(board.canCastleQueenside(Color.WHITE)).isTrue();
+
+        // Ta1-a2 y de vuelta Ta2-a1: los dos applyMove() alternan turno automáticamente
+        // (blanco->negro->blanco), así que no hace falta setTurn() entre medias.
+        board.applyMove(new Move(Square.of(0, 0), Square.of(0, 1)));
+        board.applyMove(new Move(Square.of(0, 1), Square.of(0, 0)));
+
+        assertThat(board.canCastleQueenside(Color.WHITE)).isFalse(); // el derecho no vuelve
+
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(2, 0)); // c1
+    }
+
+    @Test
+    void whiteCannotCastleWhenNoRookIsPhysicallyPresentAtTheCorner() {
+        // Los flags de enroque parten en true incluso en un tablero vacío — esto
+        // comprueba la verificación defensiva de que de verdad hay una torre en la
+        // esquina, no solo confiar en el flag.
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1, sin ninguna torre en el tablero
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+
+        List<Move> kingMoves = board.legalMoves();
+
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(6, 0), Square.of(2, 0));
+    }
+
+    @Test
+    void blackCanCastleKingsideSymmetricToWhite() {
+        Board board = Board.empty();
+        board.setTurn(Color.BLACK);
+        Square kingSquare = Square.of(4, 7); // e8
+        board.placePiece(kingSquare, new Piece(Color.BLACK, PieceType.KING));
+        board.placePiece(Square.of(7, 7), new Piece(Color.BLACK, PieceType.ROOK)); // h8
+
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        assertThat(kingMoves).extracting(Move::to).contains(Square.of(6, 7)); // g8
+    }
+
+    @Test
+    void applyMoveExecutesKingsideCastlingByAlsoMovingTheRook() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK)); // h1
+
+        board.applyMove(new Move(Square.of(4, 0), Square.of(6, 0))); // e1-g1
+
+        assertThat(board.pieceAt(Square.of(6, 0))).isEqualTo(new Piece(Color.WHITE, PieceType.KING)); // g1
+        assertThat(board.pieceAt(Square.of(5, 0))).isEqualTo(new Piece(Color.WHITE, PieceType.ROOK)); // f1
+        assertThat(board.pieceAt(Square.of(4, 0))).isNull(); // e1
+        assertThat(board.pieceAt(Square.of(7, 0))).isNull(); // h1
+    }
+
+    @Test
+    void applyMoveExecutesQueensideCastlingByAlsoMovingTheRook() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+
+        board.applyMove(new Move(Square.of(4, 0), Square.of(2, 0))); // e1-c1
+
+        assertThat(board.pieceAt(Square.of(2, 0))).isEqualTo(new Piece(Color.WHITE, PieceType.KING)); // c1
+        assertThat(board.pieceAt(Square.of(3, 0))).isEqualTo(new Piece(Color.WHITE, PieceType.ROOK)); // d1
+        assertThat(board.pieceAt(Square.of(4, 0))).isNull(); // e1
+        assertThat(board.pieceAt(Square.of(0, 0))).isNull(); // a1
+    }
 }
