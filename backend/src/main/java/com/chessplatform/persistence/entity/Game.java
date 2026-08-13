@@ -27,11 +27,15 @@ public class Game {
     @Column(nullable = false)
     private String result; // "1-0" | "0-1" | "1/2-1/2"
 
+    // Jugadas en notación UCI separadas por espacios ("e2e4 e7e5 g1f3 ..."), no PGN real
+    // (eso — notación algebraica con desambiguación, símbolos de jaque/mate — sigue
+    // siendo su propio ítem de Fase 2: importación/exportación de PGN). El servidor
+    // reconstruye la secuencia de posiciones a partir de esto — ver GameReplayService.
     @Column(columnDefinition = "TEXT")
-    private String pgn;
+    private String moveList;
 
     @Column(nullable = false)
-    private String timeControl; // ej. "blitz-5+3"
+    private String timeControl; // ej. "5+3"
 
     @Column(nullable = false, updatable = false)
     private Instant playedAt = Instant.now();
@@ -66,11 +70,19 @@ public class Game {
         this.result = result;
     }
 
-    public String getPgn() {
-        return pgn;
+    public String getMoveList() {
+        return moveList;
     }
 
-    public void setPgn(String pgn) {
-        this.pgn = pgn;
+    public void setMoveList(String moveList) {
+        this.moveList = moveList;
+    }
+
+    public String getTimeControl() {
+        return timeControl;
+    }
+
+    public Instant getPlayedAt() {
+        return playedAt;
     }
 }

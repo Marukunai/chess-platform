@@ -142,4 +142,34 @@ document.addEventListener('DOMContentLoaded', () => {
             sendResign(currentGameId);
         }
     });
+
+    document.getElementById('history-btn').addEventListener('click', async () => {
+        const userId = getUserIdFromToken(getStoredToken());
+        try {
+            const games = await fetchUserHistory(userId);
+            renderHistoryList(games, async (gameId) => {
+                try {
+                    const game = await fetchGameDetail(gameId);
+                    openReplay(game);
+                    showScreen('replay-screen');
+                } catch (error) {
+                    alert(error.message);
+                }
+            });
+            showScreen('history-screen');
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+    document.getElementById('history-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
+    document.getElementById('replay-back-btn').addEventListener('click', () => {
+        showScreen('history-screen');
+    });
+
+    document.getElementById('replay-prev-btn').addEventListener('click', replayGoToPrevious);
+    document.getElementById('replay-next-btn').addEventListener('click', replayGoToNext);
 });

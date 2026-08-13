@@ -199,3 +199,31 @@ button.secondary {
     margin: 0 auto;
     padding: 1.5rem;
 }
+
+/* ---- Historial y reproducción de partidas ---- */
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.history-item {
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+
+.history-item:hover {
+    background: #3a3a3a;
+}
+
+#replay-info {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}

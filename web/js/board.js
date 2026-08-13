@@ -42,12 +42,19 @@ function parseFen(fen) {
 /**
  * legalMovesUci determina qué se puede seleccionar/mover — pasa la lista real solo
  * cuando es tu turno (ver main.js), y una lista vacía cuando no lo es, así el tablero
- * queda "de solo lectura" sin necesidad de una comprobación de turno aparte aquí.
+ * queda "de solo lectura" sin necesidad de una comprobación de turno aparte aquí. Lo
+ * mismo se aprovecha para el tablero de reproducción del historial (ver history.js):
+ * pasando siempre [] queda de solo lectura sin necesitar ningún camino especial aquí.
+ *
+ * boardElementId: a qué <div> pintar — 'board' (partida en vivo) por defecto, o
+ * 'replay-board' al reproducir una partida del historial. Ambos tableros nunca están
+ * visibles a la vez (pantallas mutuamente excluyentes), así que compartir el estado de
+ * selección global es seguro.
  */
-function renderBoard(fen, legalMovesUci) {
+function renderBoard(fen, legalMovesUci, boardElementId = 'board') {
     currentLegalMovesUci = legalMovesUci || [];
     const rows = parseFen(fen);
-    const boardEl = document.getElementById('board');
+    const boardEl = document.getElementById(boardElementId);
     boardEl.innerHTML = '';
     selectedSquareEl = null;
     selectedAlgebraic = null;
