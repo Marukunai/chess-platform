@@ -28,8 +28,15 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
-        // TODO (Fase 1): añadir JwtAuthenticationFilter antes de
-        // UsernamePasswordAuthenticationFilter para validar el token en cada request.
+        // /ws/** queda público a propósito a nivel HTTP: el handshake de WebSocket no
+        // puede llevar cabecera Authorization (los navegadores no lo permiten en la
+        // petición de upgrade). La identidad real se valida más abajo, en el propio
+        // frame STOMP CONNECT — ver StompAuthChannelInterceptor en realtime/config.
+        //
+        // TODO: cuando exista el primer endpoint REST más allá de /api/auth/** que
+        // necesite identidad (perfil, historial de partidas...), añadir aquí un
+        // JwtAuthenticationFilter clásico antes de UsernamePasswordAuthenticationFilter.
+        // No lo añado todavía porque no habría ningún endpoint que lo necesitara.
 
         return http.build();
     }

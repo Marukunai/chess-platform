@@ -15,6 +15,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,14 +23,10 @@ import java.util.Optional;
  * Punto de entrada STOMP para mensajes de partida.
  *
  * Los clientes se suscriben a /topic/game/{gameId} y envían jugadas a
- * /app/game/{gameId}/move.
- *
- * Nota de seguridad (Fase 1, deuda técnica conocida y deliberada): todavía no se verifica
- * que el remitente de una jugada sea realmente el dueño de las piezas que mueve — eso
- * necesita resolver la identidad real vía el Principal de la sesión STOMP, que depende de
- * que auth/ (JWT + Spring Security) esté completado y conectado al handshake de
- * WebSocket. Por ahora cualquier cliente conectado a una partida puede mover cualquier
- * color. Se soluciona antes de exponer esto fuera de desarrollo local.
+ * /app/game/{gameId}/move. El Principal de cada método lo resuelve Spring
+ * automáticamente a partir de lo que StompAuthChannelInterceptor fijó durante el CONNECT
+ * (ver realtime/config) — no hace falta revalidar el token aquí, solo comprobar que la
+ * identidad ya verificada corresponde al jugador que debería estar moviendo.
  */
 @Controller
 public class GameWebSocketController {
@@ -44,13 +41,18 @@ public class GameWebSocketController {
     }
 
     @MessageMapping("/game/{gameId}/move")
-    public void handleMove(@DestinationVariable String gameId, MoveMessage message) {
+    public void handleMove(@DestinationVariable String gameId, MoveMessage message, Principal principal) {
         Optional<GameSession> maybeSession = sessionRegistry.find(gameId);
         if (maybeSession.isEmpty()) {
             sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
             return;
         }
         GameSession session = maybeSession.get();
+
+        if (!isPlayersTurn(session, principal)) {
+            sendError(gameId, "NOT_YOUR_TURN", "No puedes mover: no es tu turno o no perteneces a esta partida");
+            return;
+        }
 
         Move move;
         try {
@@ -80,7 +82,7 @@ public class GameWebSocketController {
     }
 
     @MessageMapping("/game/{gameId}/resign")
-    public void handleResign(@DestinationVariable String gameId, ResignMessage message) {
+    public void handleResign(@DestinationVariable String gameId, ResignMessage message, Principal principal) {
         Optional<GameSession> maybeSession = sessionRegistry.find(gameId);
         if (maybeSession.isEmpty()) {
             sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
@@ -88,7 +90,14 @@ public class GameWebSocketController {
         }
         GameSession session = maybeSession.get();
 
-        boolean whiteResigns = session.whitePlayerId().equals(message.playerId());
+        String userId = principal != null ? principal.getName() : null;
+        boolean whiteResigns = session.whitePlayerId().equals(userId);
+        boolean blackResigns = session.blackPlayerId().equals(userId);
+        if (!whiteResigns && !blackResigns) {
+            sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
+            return;
+        }
+
         String result = whiteResigns ? "0-1" : "1-0";
 
         messagingTemplate.convertAndSend(
@@ -96,6 +105,22 @@ public class GameWebSocketController {
                 new GameOverMessage(gameId, result, "resignation")
         );
         sessionRegistry.remove(gameId);
+    }
+
+    /**
+     * ¿La identidad ya verificada en `principal` corresponde al jugador a quien le toca
+     * mover ahora mismo? Cubre a la vez dos casos con una sola comprobación: un jugador
+     * intentando mover fuera de su turno, y alguien ajeno a la partida intentando mover
+     * sin más — ninguno de los dos coincidirá nunca con expectedPlayerId.
+     */
+    private boolean isPlayersTurn(GameSession session, Principal principal) {
+        if (principal == null) {
+            return false;
+        }
+        String expectedPlayerId = session.board().turn() == Color.WHITE
+                ? session.whitePlayerId()
+                : session.blackPlayerId();
+        return expectedPlayerId.equals(principal.getName());
     }
 
     /**
