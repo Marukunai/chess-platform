@@ -1,29 +1,145 @@
-// Punto de entrada del cliente web. De momento solo renderiza el tablero y deja
-// preparados los botones — la lógica real de unirse a una partida está pendiente de que
-// el backend tenga matchmaking + GameSession funcionando de extremo a extremo.
+// Orquesta las tres pantallas (auth -> lobby -> partida) y conecta los mensajes de
+// WebSocket con el tablero. Punto de entrada del cliente web.
+
+let currentGameId = null;
+let currentTurn = null;
+let gameSubscription = null;
+let matchmakingSubscription = null;
+
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
+    document.getElementById(screenId).removeAttribute('hidden');
+}
+
+function formatClock(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+// Los tres tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
+// (GameStateSyncMessage, GameOverMessage, ErrorMessage) tienen formas distintas — los
+// distinguimos por un campo que solo tiene cada uno, en vez de un campo "type" aparte.
+function handleGameMessage(message) {
+    if ('boardFen' in message) {
+        handleStateSync(message);
+    } else if ('result' in message) {
+        handleGameOver(message);
+    } else if ('code' in message) {
+        document.getElementById('game-message').textContent = message.message;
+    }
+}
+
+function handleStateSync(state) {
+    document.getElementById('clock-white').textContent = formatClock(state.whiteTimeRemainingMs);
+    document.getElementById('clock-black').textContent = formatClock(state.blackTimeRemainingMs);
+
+    currentTurn = state.turn;
+    const isMyTurn = state.turn === myColor;
+    const turnLabel = state.turn === 'white' ? 'blancas' : 'negras';
+    document.getElementById('turn-indicator').textContent =
+        isMyTurn ? 'Te toca mover' : `Esperando a ${turnLabel}`;
+
+    // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
+    // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
+    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : []);
+
+    document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
+}
+
+function handleGameOver(gameOver) {
+    document.getElementById('game-message').textContent =
+        `Partida terminada: ${gameOver.result} (${gameOver.reason})`;
+    currentGameId = null;
+}
+
+function connectAndGoToLobby(token) {
+    connect(token, () => {
+        const userId = getUserIdFromToken(token);
+        showScreen('lobby-screen');
+
+        matchmakingSubscription = subscribeToMatchmaking(userId, (message) => {
+            if (message.gameId) {
+                onMatchFound(message);
+            } else if (message.code) {
+                document.getElementById('matchmaking-status').textContent = message.message;
+            }
+        });
+    }, () => {
+        clearStoredToken();
+        showScreen('auth-screen');
+        document.getElementById('auth-error').textContent = 'Sesión caducada o token inválido, vuelve a entrar.';
+    });
+}
+
+function onMatchFound(match) {
+    currentGameId = match.gameId;
+    myColor = match.color;
+
+    if (matchmakingSubscription) {
+        matchmakingSubscription.unsubscribe();
+        matchmakingSubscription = null;
+    }
+
+    gameSubscription = subscribeToGame(currentGameId, handleGameMessage);
+    joinGame(currentGameId); // pide el estado inicial de la partida
+    showScreen('game-screen');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-    renderInitialPosition();
-
-    document.getElementById('join-btn').addEventListener('click', () => {
-        // TODO (Fase 1): sustituir este prompt() por un formulario de login real en
-        // cuanto exista una pantalla de autenticación en el cliente web — de momento es
-        // la forma más rápida de probar el flujo completo (login por API + JWT en el
-        // CONNECT de STOMP) sin construir esa pantalla todavía.
-        const token = prompt('Pega aquí tu token JWT (obtenido de POST /api/auth/login):');
-        if (!token) {
-            return;
+    // El tablero necesita saber a quién avisar cuando el jugador elige una jugada.
+    onMoveAttempt = (move) => {
+        if (currentGameId) {
+            sendMove(currentGameId, move);
         }
+    };
 
-        connect(token, () => {
-            console.log('Conectado — unirse a partida pendiente de implementar (matchmaking)');
-            // TODO (Fase 1): enviar solicitud de matchmaking, esperar asignación de
-            // gameId, suscribirse a /topic/game/{gameId}.
-        });
+    // Si ya había un token guardado de una visita anterior, saltamos directo al lobby
+    // en vez de pedir login otra vez.
+    const storedToken = getStoredToken();
+    if (storedToken) {
+        connectAndGoToLobby(storedToken);
+    }
+
+    document.getElementById('auth-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const username = document.getElementById('auth-username').value;
+        const password = document.getElementById('auth-password').value;
+        try {
+            const token = await loginUser(username, password);
+            connectAndGoToLobby(token);
+        } catch (error) {
+            document.getElementById('auth-error').textContent = error.message;
+        }
+    });
+
+    document.getElementById('register-btn').addEventListener('click', async () => {
+        const username = document.getElementById('auth-username').value;
+        const password = document.getElementById('auth-password').value;
+        try {
+            const token = await registerUser(username, password);
+            connectAndGoToLobby(token);
+        } catch (error) {
+            document.getElementById('auth-error').textContent = error.message;
+        }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        clearStoredToken();
+        disconnect();
+        showScreen('auth-screen');
+    });
+
+    document.getElementById('find-match-btn').addEventListener('click', () => {
+        const timeControl = document.getElementById('time-control-select').value;
+        document.getElementById('matchmaking-status').textContent = 'Buscando rival...';
+        joinMatchmakingQueue(timeControl);
     });
 
     document.getElementById('resign-btn').addEventListener('click', () => {
-        // TODO (Fase 1): enviar mensaje RESIGN al backend
-        console.log('Rendirse — pendiente de implementar');
+        if (currentGameId) {
+            sendResign(currentGameId);
+        }
     });
 });
