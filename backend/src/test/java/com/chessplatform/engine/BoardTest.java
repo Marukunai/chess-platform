@@ -143,4 +143,56 @@ class BoardTest {
 
         assertThat(board.legalMoves()).hasSize(14 + 13); // torre + alfil desde la misma casilla
     }
+
+    @Test
+    void kingInCenterOfEmptyBoardHasEightMoves() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+
+        assertThat(board.legalMoves()).hasSize(8);
+    }
+
+    @Test
+    void kingInCornerOfEmptyBoardHasOnlyThreeMoves() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.KING)); // a1
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(3);
+        assertThat(moves).extracting(Move::to)
+                .containsExactlyInAnyOrder(Square.of(1, 0), Square.of(0, 1), Square.of(1, 1)); // b1, a2, b2
+    }
+
+    @Test
+    void kingCannotCaptureOwnPiece() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(3, 4), new Piece(Color.WHITE, PieceType.PAWN)); // d5, adyacente
+
+        assertThat(board.legalMoves()).hasSize(7);
+    }
+
+    @Test
+    void kingCanCaptureAdjacentEnemyPiece() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(8); // sigue teniendo 8 destinos, uno de ellos es captura
+        assertThat(moves).extracting(Move::to).contains(Square.of(3, 4));
+    }
+
+    @Test
+    void kingOnInitialBoardHasNoMovesSurroundedByOwnPieces() {
+        // Caso límite distinto al de bloqueo parcial: aquí las 8 direcciones están
+        // ocupadas por piezas propias a la vez.
+        Board board = Board.initial();
+
+        long whiteKingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(Square.of(4, 0)))
+                .count();
+
+        assertThat(whiteKingMoves).isZero();
+    }
 }
