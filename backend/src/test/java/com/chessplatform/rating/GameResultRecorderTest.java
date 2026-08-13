@@ -1,5 +1,7 @@
 package com.chessplatform.rating;
 
+import com.chessplatform.engine.Move;
+import com.chessplatform.engine.Square;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.GameRepository;
@@ -104,5 +106,23 @@ class GameResultRecorderTest {
 
         assertThat(white.getRating()).isCloseTo(1500.0, within(0.001));
         assertThat(black.getRating()).isCloseTo(1500.0, within(0.001));
+    }
+
+    @Test
+    void recordSavesTheMoveListFromTheSessionsBoard() {
+        User white = new User("white-user", "hash");
+        User black = new User("black-user", "hash");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+
+        GameSession session = newSession();
+        session.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+        session.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // e7-e5
+
+        recorder.record(session, "1-0");
+
+        ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(savedGame.capture());
+        assertThat(savedGame.getValue().getMoveList()).isEqualTo("e2e4 e7e5");
     }
 }

@@ -42,6 +42,7 @@
             </select>
             <button id="find-match-btn">Buscar partida</button>
             <p id="matchmaking-status"></p>
+            <button id="history-btn" class="secondary">Ver historial</button>
             <button id="logout-btn" class="secondary">Cerrar sesión</button>
         </section>
 
@@ -64,12 +65,37 @@
                 </aside>
             </main>
         </section>
+
+        <!-- Pantalla de historial de partidas -->
+        <section id="history-screen" class="screen" hidden>
+            <h2>Historial de partidas</h2>
+            <div id="history-list" class="history-list"></div>
+            <button id="history-back-btn" class="secondary">Volver</button>
+        </section>
+
+        <!-- Pantalla de reproducción de una partida -->
+        <section id="replay-screen" class="screen" hidden>
+            <main>
+                <div id="replay-board" class="board"></div>
+
+                <aside class="sidebar">
+                    <p id="replay-info"></p>
+                    <p id="replay-move-counter" class="turn-indicator"></p>
+                    <div class="controls">
+                        <button id="replay-prev-btn">◀ Anterior</button>
+                        <button id="replay-next-btn">Siguiente ▶</button>
+                    </div>
+                    <button id="replay-back-btn" class="secondary">Volver al historial</button>
+                </aside>
+            </main>
+        </section>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
+    <script src="js/history.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>
 </body>

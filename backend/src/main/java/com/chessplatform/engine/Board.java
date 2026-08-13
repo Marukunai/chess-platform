@@ -13,6 +13,7 @@ import java.util.List;
 public class Board {
 
     private final Piece[] squares = new Piece[64];
+    private final List<Move> moveHistory = new ArrayList<>();
     private Color turn = Color.WHITE;
     private boolean whiteCanCastleKingside = true;
     private boolean whiteCanCastleQueenside = true;
@@ -74,6 +75,7 @@ public class Board {
     public Board copy() {
         Board copy = new Board();
         System.arraycopy(this.squares, 0, copy.squares, 0, 64);
+        copy.moveHistory.addAll(this.moveHistory);
         copy.turn = this.turn;
         copy.whiteCanCastleKingside = this.whiteCanCastleKingside;
         copy.whiteCanCastleQueenside = this.whiteCanCastleQueenside;
@@ -83,6 +85,17 @@ public class Board {
         copy.halfmoveClock = this.halfmoveClock;
         copy.fullmoveNumber = this.fullmoveNumber;
         return copy;
+    }
+
+    /**
+     * Historial de jugadas aplicadas desde el inicio de la partida, en orden. Lo usa
+     * GameResultRecorder para guardar la partida en Postgres — con esto más
+     * Board.toFen() y Move.toUci()/fromUci(), el servidor puede reconstruir cualquier
+     * posición intermedia de una partida ya jugada sin que el cliente necesite saber
+     * nada de reglas de ajedrez (ver GameReplayService).
+     */
+    public List<Move> moveHistory() {
+        return List.copyOf(moveHistory);
     }
 
     public boolean canCastleKingside(Color color) {
@@ -459,6 +472,8 @@ public class Board {
             fullmoveNumber++;
         }
         turn = turn.opposite();
+
+        moveHistory.add(move);
     }
 
     /**

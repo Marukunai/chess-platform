@@ -928,4 +928,27 @@ class BoardTest {
         assertThat(Move.fromUci("e7e8q"))
                 .isEqualTo(new Move(Square.of(4, 6), Square.of(4, 7), PieceType.QUEEN));
     }
+
+    @Test
+    void moveHistoryRecordsMovesInOrderAsTheyAreApplied() {
+        Board board = Board.initial();
+
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+        board.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // e7-e5
+
+        assertThat(board.moveHistory()).containsExactly(
+                new Move(Square.of(4, 1), Square.of(4, 3)),
+                new Move(Square.of(4, 6), Square.of(4, 4))
+        );
+    }
+
+    @Test
+    void copyIncludesTheMoveHistorySoFar() {
+        Board board = Board.initial();
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+
+        Board copy = board.copy();
+
+        assertThat(copy.moveHistory()).containsExactly(new Move(Square.of(4, 1), Square.of(4, 3)));
+    }
 }

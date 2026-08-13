@@ -1,5 +1,6 @@
 package com.chessplatform.rating;
 
+import com.chessplatform.engine.Move;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.GameRepository;
@@ -10,6 +11,7 @@ import com.chessplatform.realtime.GameSession;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Lo que pasa "de fondo" cuando una partida termina: actualizar el rating Glicko-2 de
@@ -62,6 +64,9 @@ public class GameResultRecorder {
         String timeControlLabel = "%d+%d".formatted(session.initialTime().toMinutes(), session.increment().getSeconds());
         Game game = new Game(white, black, timeControlLabel);
         game.setResult(result);
+        game.setMoveList(session.board().moveHistory().stream()
+                .map(Move::toUci)
+                .collect(Collectors.joining(" ")));
         gameRepository.save(game);
     }
 
