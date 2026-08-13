@@ -3,10 +3,10 @@ package com.chessplatform.realtime.controller;
 import com.chessplatform.engine.Board;
 import com.chessplatform.engine.Color;
 import com.chessplatform.engine.Move;
+import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import com.chessplatform.realtime.dto.ErrorMessage;
-import com.chessplatform.realtime.dto.GameOverMessage;
 import com.chessplatform.realtime.dto.GameStateSyncMessage;
 import com.chessplatform.realtime.dto.MoveMessage;
 import com.chessplatform.realtime.dto.ResignMessage;
@@ -33,11 +33,14 @@ public class GameWebSocketController {
 
     private final GameSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
+    private final GameEndNotifier gameEndNotifier;
 
     public GameWebSocketController(GameSessionRegistry sessionRegistry,
-                                   SimpMessagingTemplate messagingTemplate) {
+                                   SimpMessagingTemplate messagingTemplate,
+                                   GameEndNotifier gameEndNotifier) {
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
+        this.gameEndNotifier = gameEndNotifier;
     }
 
     @MessageMapping("/game/{gameId}/move")
@@ -99,12 +102,7 @@ public class GameWebSocketController {
         }
 
         String result = whiteResigns ? "0-1" : "1-0";
-
-        messagingTemplate.convertAndSend(
-                "/topic/game/%s".formatted(gameId),
-                new GameOverMessage(gameId, result, "resignation")
-        );
-        sessionRegistry.remove(gameId);
+        gameEndNotifier.endGame(session, result, "resignation");
     }
 
     /**
@@ -141,11 +139,7 @@ public class GameWebSocketController {
                     : "1/2-1/2";
             String reason = inCheck ? "checkmate" : "stalemate";
 
-            messagingTemplate.convertAndSend(
-                    "/topic/game/%s".formatted(gameId),
-                    new GameOverMessage(gameId, result, reason)
-            );
-            sessionRegistry.remove(gameId);
+            gameEndNotifier.endGame(session, result, reason);
             return;
         }
 
