@@ -21,8 +21,12 @@ public record Square(int index) {
     }
 
     public static Square fromAlgebraic(String algebraic) {
-        // TODO (Fase 1): parsear notación algebraica ("e4", etc.)
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        if (algebraic == null || algebraic.length() != 2) {
+            throw new IllegalArgumentException("Notación algebraica inválida: " + algebraic);
+        }
+        int file = algebraic.charAt(0) - 'a';
+        int rank = algebraic.charAt(1) - '1';
+        return Square.of(file, rank); // Square.of ya valida los límites del tablero
     }
 
     public int file() {

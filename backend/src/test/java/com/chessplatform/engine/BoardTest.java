@@ -871,4 +871,61 @@ class BoardTest {
         assertThat(board.pieceAt(Square.of(4, 0))).isNull(); // e1
         assertThat(board.pieceAt(Square.of(0, 0))).isNull(); // a1
     }
+
+    @Test
+    void toFenMatchesStandardStartingPosition() {
+        Board board = Board.initial();
+
+        assertThat(board.toFen())
+                .isEqualTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    }
+
+    @Test
+    void toFenReflectsAMoveTurnChangeAndEnPassantTarget() {
+        Board board = Board.initial();
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // 1. e4
+
+        // FEN estándar y muy citado tras 1.e4: turno negro, e3 como objetivo de captura
+        // al paso, contador de 50 movimientos a 0 (jugada de peón), enroque intacto.
+        assertThat(board.toFen())
+                .isEqualTo("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+    }
+
+    @Test
+    void fromAlgebraicParsesCorrectSquares() {
+        assertThat(Square.fromAlgebraic("a1")).isEqualTo(Square.of(0, 0));
+        assertThat(Square.fromAlgebraic("h8")).isEqualTo(Square.of(7, 7));
+        assertThat(Square.fromAlgebraic("e4")).isEqualTo(Square.of(4, 3));
+    }
+
+    @Test
+    void fromAlgebraicRejectsInvalidInput() {
+        assertThatThrownBy(() -> Square.fromAlgebraic("e")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Square.fromAlgebraic("z9")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void moveToUciFormatsPlainMoveCorrectly() {
+        Move move = new Move(Square.of(4, 1), Square.of(4, 3)); // e2-e4
+
+        assertThat(move.toUci()).isEqualTo("e2e4");
+    }
+
+    @Test
+    void moveToUciIncludesPromotionLetter() {
+        Move move = new Move(Square.of(4, 6), Square.of(4, 7), PieceType.QUEEN); // e7-e8=Q
+
+        assertThat(move.toUci()).isEqualTo("e7e8q");
+    }
+
+    @Test
+    void moveFromUciParsesPlainMove() {
+        assertThat(Move.fromUci("e2e4")).isEqualTo(new Move(Square.of(4, 1), Square.of(4, 3)));
+    }
+
+    @Test
+    void moveFromUciParsesPromotion() {
+        assertThat(Move.fromUci("e7e8q"))
+                .isEqualTo(new Move(Square.of(4, 6), Square.of(4, 7), PieceType.QUEEN));
+    }
 }

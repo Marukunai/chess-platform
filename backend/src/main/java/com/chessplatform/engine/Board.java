@@ -652,6 +652,53 @@ public class Board {
         return !isInCheck(turn) && legalMoves().isEmpty();
     }
 
+    /**
+     * Representación FEN completa de la posición actual: colocación de piezas, turno,
+     * derechos de enroque, casilla de captura al paso, contador de 50 movimientos y
+     * número de jugada. Reutiliza pieceChar() (el mismo mapeo que usa toString()) para no
+     * duplicar la conversión pieza→letra.
+     */
+    public String toFen() {
+        StringBuilder fen = new StringBuilder();
+
+        for (int rank = 7; rank >= 0; rank--) {
+            int emptyRun = 0;
+            for (int file = 0; file < 8; file++) {
+                Piece piece = squares[Square.of(file, rank).index()];
+                if (piece == null) {
+                    emptyRun++;
+                    continue;
+                }
+                if (emptyRun > 0) {
+                    fen.append(emptyRun);
+                    emptyRun = 0;
+                }
+                fen.append(pieceChar(piece));
+            }
+            if (emptyRun > 0) {
+                fen.append(emptyRun);
+            }
+            if (rank > 0) {
+                fen.append('/');
+            }
+        }
+
+        fen.append(' ').append(turn == Color.WHITE ? 'w' : 'b');
+
+        String castling = ""
+                + (whiteCanCastleKingside ? "K" : "")
+                + (whiteCanCastleQueenside ? "Q" : "")
+                + (blackCanCastleKingside ? "k" : "")
+                + (blackCanCastleQueenside ? "q" : "");
+        fen.append(' ').append(castling.isEmpty() ? "-" : castling);
+
+        fen.append(' ').append(enPassantTarget == null ? "-" : enPassantTarget.toAlgebraic());
+        fen.append(' ').append(halfmoveClock);
+        fen.append(' ').append(fullmoveNumber);
+
+        return fen.toString();
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
