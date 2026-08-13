@@ -1,9 +1,11 @@
 package com.chessplatform.realtime.controller;
 
+import com.chessplatform.engine.Move;
+import com.chessplatform.engine.Square;
+import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import com.chessplatform.realtime.dto.ErrorMessage;
-import com.chessplatform.realtime.dto.GameOverMessage;
 import com.chessplatform.realtime.dto.GameStateSyncMessage;
 import com.chessplatform.realtime.dto.MoveMessage;
 import com.chessplatform.realtime.dto.ResignMessage;
@@ -31,9 +33,10 @@ import static org.mockito.Mockito.when;
 /**
  * Tests con Mockito, sin contexto de Spring — no hace falta levantar un servidor
  * WebSocket real para comprobar que el controlador toma las decisiones correctas
- * (validar identidad, validar la jugada, aplicar, difundir), solo verificar cómo llama a
- * sus dos colaboradores. El Principal se simula directamente (UsernamePasswordAuthenticationToken)
- * en vez de pasar por StompAuthChannelInterceptor de verdad — ese ya tiene su propio test.
+ * (validar identidad, validar la jugada, aplicar, difundir, terminar la partida), solo
+ * verificar cómo llama a sus colaboradores. El Principal se simula directamente
+ * (UsernamePasswordAuthenticationToken) en vez de pasar por StompAuthChannelInterceptor
+ * de verdad — ese ya tiene su propio test.
  */
 @ExtendWith(MockitoExtension.class)
 class GameWebSocketControllerTest {
@@ -44,11 +47,14 @@ class GameWebSocketControllerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private GameEndNotifier gameEndNotifier;
+
     private GameWebSocketController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new GameWebSocketController(sessionRegistry, messagingTemplate);
+        controller = new GameWebSocketController(sessionRegistry, messagingTemplate, gameEndNotifier);
     }
 
     private static GameSession newSession() {
@@ -133,6 +139,25 @@ class GameWebSocketControllerTest {
     }
 
     @Test
+    void handleMoveEndsTheGameOnCheckmate() {
+        // Mate del necio: la partida legal más corta que termina en jaque mate.
+        // 1. f3 e5  2. g4 Qh4#
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        session.applyMove(new Move(Square.of(5, 1), Square.of(5, 2))); // 1. f3
+        session.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // 1... e5
+        session.applyMove(new Move(Square.of(6, 1), Square.of(6, 3))); // 2. g4
+
+        // 2... Qh4#, enviada por black-player a través del controlador de verdad
+        controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "d8", "h4", null),
+                principalFor("black-player"));
+
+        verify(gameEndNotifier).endGame(session, "0-1", "checkmate"); // ganan negras
+        verify(messagingTemplate, never()).convertAndSend(anyString(), org.mockito.ArgumentMatchers.any(Object.class));
+    }
+
+    @Test
     void handleJoinSendsCurrentStateWhenGameExists() {
         GameSession session = newSession();
         when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
@@ -163,13 +188,7 @@ class GameWebSocketControllerTest {
         controller.handleResign(session.gameId(), new ResignMessage(session.gameId()),
                 principalFor("white-player"));
 
-        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
-        assertThat(payload.getValue()).isInstanceOf(GameOverMessage.class);
-        GameOverMessage gameOver = (GameOverMessage) payload.getValue();
-        assertThat(gameOver.result()).isEqualTo("0-1"); // ganan negras
-        assertThat(gameOver.reason()).isEqualTo("resignation");
-        verify(sessionRegistry).remove(session.gameId());
+        verify(gameEndNotifier).endGame(session, "0-1", "resignation"); // ganan negras
     }
 
     @Test
@@ -183,6 +202,6 @@ class GameWebSocketControllerTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
         assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("FORBIDDEN");
-        verify(sessionRegistry, never()).remove(anyString()); // no debería tocar el registro para eliminar la partida
+        verify(gameEndNotifier, never()).endGame(org.mockito.ArgumentMatchers.any(), anyString(), anyString());
     }
 }

@@ -2,6 +2,8 @@ package com.chessplatform.realtime;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -30,5 +32,15 @@ public class GameSessionRegistry {
 
     public int activeCount() {
         return activeSessions.size();
+    }
+
+    /**
+     * Copia inmutable de las partidas activas ahora mismo — usado por GameTimeoutService
+     * para recorrerlas en su barrido periódico. Es una copia a propósito: quien la
+     * recorra puede eliminar partidas del registro real durante la iteración (p. ej. al
+     * detectar un timeout) sin arriesgarse a una ConcurrentModificationException.
+     */
+    public Collection<GameSession> allSessions() {
+        return List.copyOf(activeSessions.values());
     }
 }
