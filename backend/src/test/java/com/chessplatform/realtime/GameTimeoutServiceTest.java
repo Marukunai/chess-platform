@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.realtime.dto.GameOverMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,13 +56,16 @@ class GameTimeoutServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private GameResultRecorder gameResultRecorder;
+
     private GameSessionRegistry sessionRegistry;
     private GameTimeoutService timeoutService;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
-        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate);
+        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder);
         timeoutService = new GameTimeoutService(sessionRegistry, gameEndNotifier);
     }
 

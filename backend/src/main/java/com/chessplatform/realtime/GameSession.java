@@ -24,6 +24,7 @@ public class GameSession {
     private final String blackPlayerId;
     private final Board board;
     private final Clock clock;
+    private final Duration initialTime;
 
     private Duration whiteTimeRemaining;
     private Duration blackTimeRemaining;
@@ -48,6 +49,7 @@ public class GameSession {
         this.board = Board.initial();
         this.whiteTimeRemaining = initialTime;
         this.blackTimeRemaining = initialTime;
+        this.initialTime = initialTime;
         this.increment = increment;
         this.clock = clock;
         this.lastMoveTimestamp = Instant.now(clock);
@@ -112,5 +114,19 @@ public class GameSession {
 
     public String blackPlayerId() {
         return blackPlayerId;
+    }
+
+    /**
+     * Tiempo inicial y el incremento del time control de esta partida — usados por
+     * GameResultRecorder para etiquetar la partida guardada (p. ej. "5+3"), ya que
+     * whiteTimeRemaining/blackTimeRemaining cambian con cada jugada y no sirven para
+     * saber cuál era el time control original una vez la partida está en curso.
+     */
+    public Duration initialTime() {
+        return initialTime;
+    }
+
+    public Duration increment() {
+        return increment;
     }
 }
