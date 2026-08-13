@@ -17,6 +17,11 @@ spring:
 
 server:
   port: 8080
+  error:
+    # Por defecto Spring Boot oculta el mensaje de la excepción en la respuesta JSON de
+    # error (razonable en producción, pero así AuthController.register()/login() nunca
+    # llegarían a mostrar sus mensajes al cliente). Lo activamos para desarrollo local.
+    include-message: always
 
 jwt:
   secret: ${JWT_SECRET:changeme_generate_a_long_random_secret}

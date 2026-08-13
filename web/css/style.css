@@ -132,3 +132,70 @@ button:disabled {
     background: #555;
     cursor: not-allowed;
 }
+
+/* ---- Pantallas (auth / lobby / partida) ---- */
+
+.screen[hidden] {
+    display: none;
+}
+
+.screen {
+    max-width: 400px;
+    margin: 2rem auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.screen h2 {
+    margin-bottom: 0.5rem;
+}
+
+#auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+#auth-form input,
+#time-control-select {
+    padding: 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+button.secondary {
+    background: #444;
+}
+
+.error-text {
+    color: #ff6b6b;
+    min-height: 1.2em;
+}
+
+.turn-indicator {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.game-message {
+    color: #ffd166;
+    min-height: 1.2em;
+}
+
+#game-screen main {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}

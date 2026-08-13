@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Platform</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <div id="app">
         <header>
@@ -13,27 +15,63 @@
             <div id="connection-status" class="status status--disconnected">Desconectado</div>
         </header>
 
-        <main>
-            <div id="board" class="board"></div>
+        <!-- Pantalla de login / registro -->
+        <section id="auth-screen" class="screen">
+            <h2>Entrar</h2>
+            <form id="auth-form">
+                <input type="text" id="auth-username" placeholder="Usuario" required autocomplete="username">
+                <input type="password" id="auth-password" placeholder="Contraseña (mín. 8 caracteres)" required
+                    autocomplete="current-password">
+                <div class="auth-buttons">
+                    <button type="submit" id="login-btn">Entrar</button>
+                    <button type="button" id="register-btn" class="secondary">Crear cuenta</button>
+                </div>
+            </form>
+            <p id="auth-error" class="error-text"></p>
+        </section>
 
-            <aside class="sidebar">
-                <div class="clock">
-                    <div id="clock-black" class="clock__player">10:00</div>
-                    <div id="clock-white" class="clock__player">10:00</div>
-                </div>
-                <div id="move-list" class="move-list"></div>
-                <div class="controls">
-                    <button id="join-btn">Unirse a partida</button>
-                    <button id="resign-btn" disabled>Rendirse</button>
-                </div>
-            </aside>
-        </main>
+        <!-- Pantalla de lobby / matchmaking -->
+        <section id="lobby-screen" class="screen" hidden>
+            <h2>Buscar partida</h2>
+            <label for="time-control-select">Control de tiempo</label>
+            <select id="time-control-select">
+                <option value="BULLET">Bullet (1+0)</option>
+                <option value="BLITZ" selected>Blitz (5+3)</option>
+                <option value="RAPID">Rápidas (10+5)</option>
+                <option value="CLASSICAL">Clásicas (30+20)</option>
+            </select>
+            <button id="find-match-btn">Buscar partida</button>
+            <p id="matchmaking-status"></p>
+            <button id="logout-btn" class="secondary">Cerrar sesión</button>
+        </section>
+
+        <!-- Pantalla de partida -->
+        <section id="game-screen" class="screen" hidden>
+            <main>
+                <div id="board" class="board"></div>
+
+                <aside class="sidebar">
+                    <div class="clock">
+                        <div id="clock-black" class="clock__player">--:--</div>
+                        <div id="clock-white" class="clock__player">--:--</div>
+                    </div>
+                    <div id="turn-indicator" class="turn-indicator"></div>
+                    <p id="game-message" class="game-message"></p>
+                    <div id="move-list" class="move-list"></div>
+                    <div class="controls">
+                        <button id="resign-btn">Rendirse</button>
+                    </div>
+                </aside>
+            </main>
+        </section>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>
 </body>
+
 </html>
