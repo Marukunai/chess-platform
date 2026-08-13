@@ -49,6 +49,22 @@ public class Board {
         squares[square.index()] = piece;
     }
 
+    /**
+     * Fija manualmente el turno activo. Uso exclusivo para tests — en el flujo normal de
+     * una partida el turno lo alterna applyMove() tras cada jugada.
+     */
+    public void setTurn(Color color) {
+        this.turn = color;
+    }
+
+    /**
+     * Fija manualmente la casilla objetivo de captura al paso. Uso exclusivo para tests —
+     * en el flujo normal de una partida la fija applyMove() tras un doble paso de peón.
+     */
+    public void setEnPassantTarget(Square square) {
+        this.enPassantTarget = square;
+    }
+
     private void setupStartingPosition() {
         PieceType[] backRank = {
                 PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN,
@@ -84,14 +100,13 @@ public class Board {
     /**
      * Genera los movimientos legales para la posición actual.
      *
-     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — caballo, piezas deslizantes
-     * (torre/alfil/dama) y rey ya implementados, queda pendiente el peón (ver switch más
-     * abajo). Además, todavía no se filtran jugadas que dejarían al propio rey en jaque
-     * (esto incluye que el rey "pueda" moverse a una casilla atacada, lo cual es ilegal en
-     * ajedrez real): eso llega en cuanto isInCheck() esté implementado, que a su vez
-     * necesita poder generar los ataques de todas las piezas, no solo sus movimientos
-     * legales (un peón ataca en diagonal aunque no pueda "mover" en diagonal salvo
-     * captura).
+     * Con esto las 6 piezas ya generan movimientos PSEUDO-legales, incluyendo las reglas
+     * especiales del peón (doble paso inicial, captura al paso, coronación). Quedan dos
+     * cosas pendientes para Fase 1:
+     *  1. Enroque — se añade junto con el resto de casos especiales.
+     *  2. Filtrar jugadas que dejarían al propio rey en jaque (incluye que el rey "pueda"
+     *     moverse a una casilla atacada) — necesita isInCheck() implementado, que a su vez
+     *     necesita poder generar los ataques de todas las piezas, no solo sus movimientos.
      */
     public List<Move> legalMoves() {
         List<Move> moves = new ArrayList<>();
@@ -107,9 +122,7 @@ public class Board {
                 case BISHOP -> moves.addAll(generateSlidingMoves(from, BISHOP_DIRECTIONS));
                 case QUEEN -> moves.addAll(generateSlidingMoves(from, QUEEN_DIRECTIONS));
                 case KING -> moves.addAll(generateKingMoves(from));
-                // TODO: PAWN
-                default -> {
-                }
+                case PAWN -> moves.addAll(generatePawnMoves(from));
             }
         }
         return moves;
@@ -198,6 +211,72 @@ public class Board {
         }
 
         return moves;
+    }
+
+    private static final PieceType[] PROMOTION_TYPES = {
+            PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT
+    };
+
+    private List<Move> generatePawnMoves(Square from) {
+        List<Move> moves = new ArrayList<>();
+        Piece pawn = pieceAt(from);
+        boolean isWhite = pawn.color() == Color.WHITE;
+
+        int direction = isWhite ? 1 : -1;
+        int startingRank = isWhite ? 1 : 6;
+        int promotionRank = isWhite ? 7 : 0;
+
+        int file = from.file();
+        int rank = from.rank();
+
+        // Empuje simple + doble paso inicial. El doble paso solo es posible si el peón
+        // sigue en su fila de partida Y la casilla intermedia (el propio empuje simple)
+        // también está libre — no se puede "saltar" sobre una pieza.
+        int oneStepRank = rank + direction;
+        if (oneStepRank >= 0 && oneStepRank <= 7 && pieceAt(Square.of(file, oneStepRank)) == null) {
+            addPawnMove(moves, from, Square.of(file, oneStepRank), promotionRank);
+
+            int twoStepRank = rank + 2 * direction;
+            if (rank == startingRank && pieceAt(Square.of(file, twoStepRank)) == null) {
+                moves.add(new Move(from, Square.of(file, twoStepRank)));
+            }
+        }
+
+        // Capturas diagonales, incluyendo captura al paso: el peón puede mover en
+        // diagonal si hay una pieza enemiga en esa casilla, o si esa casilla es
+        // enPassantTarget (el peón enemigo que hizo doble paso "queda atrás", no en la
+        // propia casilla destino — así se representa la captura al paso en UCI/FEN).
+        for (int fileOffset : new int[]{-1, 1}) {
+            int targetFile = file + fileOffset;
+            int targetRank = rank + direction;
+            if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) {
+                continue;
+            }
+
+            Square to = Square.of(targetFile, targetRank);
+            Piece occupant = pieceAt(to);
+            boolean isEnPassantCapture = to.equals(enPassantTarget);
+
+            if ((occupant != null && occupant.color() != pawn.color()) || isEnPassantCapture) {
+                addPawnMove(moves, from, to, promotionRank);
+            }
+        }
+
+        return moves;
+    }
+
+    /**
+     * Añade una jugada de peón, expandiéndola a las 4 posibles coronaciones
+     * (dama/torre/alfil/caballo) si la casilla destino es la última fila.
+     */
+    private void addPawnMove(List<Move> moves, Square from, Square to, int promotionRank) {
+        if (to.rank() == promotionRank) {
+            for (PieceType promotionType : PROMOTION_TYPES) {
+                moves.add(new Move(from, to, promotionType));
+            }
+        } else {
+            moves.add(new Move(from, to));
+        }
     }
 
     /**

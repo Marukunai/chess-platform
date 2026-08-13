@@ -51,10 +51,18 @@ class BoardTest {
     @Test
     void knightCannotCaptureOwnPiece() {
         Board board = Board.empty();
-        board.placePiece(Square.of(4, 4), new Piece(Color.WHITE, PieceType.KNIGHT)); // e5
+        Square knightSquare = Square.of(4, 4); // e5
+        board.placePiece(knightSquare, new Piece(Color.WHITE, PieceType.KNIGHT));
         board.placePiece(Square.of(6, 5), new Piece(Color.WHITE, PieceType.PAWN)); // g6, uno de los 8 destinos
 
-        assertThat(board.legalMoves()).hasSize(7);
+        // Filtramos por la casilla de origen del caballo: la pieza "decoy" colocada para
+        // bloquear una de sus capturas es un peón, y ahora que el peón también genera sus
+        // propios movimientos, contaminaría el recuento si no aislamos los del caballo.
+        List<Move> knightMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(knightSquare))
+                .toList();
+
+        assertThat(knightMoves).hasSize(7);
     }
 
     @Test
@@ -98,13 +106,20 @@ class BoardTest {
     @Test
     void rookStopsAtOwnPieceAndDoesNotCaptureIt() {
         Board board = Board.empty();
-        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
+        Square rookSquare = Square.of(3, 3); // d4
+        board.placePiece(rookSquare, new Piece(Color.WHITE, PieceType.ROOK));
         board.placePiece(Square.of(3, 5), new Piece(Color.WHITE, PieceType.PAWN)); // d6, bloquea el rayo vertical
 
-        List<Move> moves = board.legalMoves();
+        // Filtramos por la casilla de origen de la torre: el peón bloqueador también
+        // genera su propio movimiento (d6-d7), que si no se aísla contamina el "to" que
+        // estamos comprobando aquí.
+        List<Move> rookMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(rookSquare))
+                .toList();
+
         // Vertical hacia arriba: solo d5 (1 casilla, no llega a d6 ni más allá).
-        assertThat(moves).extracting(Move::to).doesNotContain(Square.of(3, 5), Square.of(3, 6), Square.of(3, 7));
-        assertThat(moves).extracting(Move::to).contains(Square.of(3, 4)); // d5 sigue siendo válida
+        assertThat(rookMoves).extracting(Move::to).doesNotContain(Square.of(3, 5), Square.of(3, 6), Square.of(3, 7));
+        assertThat(rookMoves).extracting(Move::to).contains(Square.of(3, 4)); // d5 sigue siendo válida
     }
 
     @Test
@@ -166,10 +181,17 @@ class BoardTest {
     @Test
     void kingCannotCaptureOwnPiece() {
         Board board = Board.empty();
-        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        Square kingSquare = Square.of(3, 3); // d4
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
         board.placePiece(Square.of(3, 4), new Piece(Color.WHITE, PieceType.PAWN)); // d5, adyacente
 
-        assertThat(board.legalMoves()).hasSize(7);
+        // Igual que en el caballo: aislamos los movimientos del rey, porque el peón
+        // bloqueador ahora también genera el suyo propio (d5-d6).
+        List<Move> kingMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(kingSquare))
+                .toList();
+
+        assertThat(kingMoves).hasSize(7);
     }
 
     @Test
@@ -194,5 +216,151 @@ class BoardTest {
                 .count();
 
         assertThat(whiteKingMoves).isZero();
+    }
+
+    @Test
+    void whitePawnOnStartingRankHasSingleAndDoublePush() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(2);
+        assertThat(moves).extracting(Move::to)
+                .containsExactlyInAnyOrder(Square.of(4, 2), Square.of(4, 3)); // e3, e4
+    }
+
+    @Test
+    void whitePawnNotOnStartingRankHasOnlySinglePush() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 2), new Piece(Color.WHITE, PieceType.PAWN)); // e3
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(1);
+        assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 3)); // e4
+    }
+
+    @Test
+    void whitePawnBlockedDirectlyAheadCannotPushAtAll() {
+        // Un peón nunca captura en línea recta, así que una pieza justo delante lo
+        // bloquea por completo — a diferencia de una torre, no puede "capturarla".
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
+        board.placePiece(Square.of(4, 2), new Piece(Color.BLACK, PieceType.KNIGHT)); // e3
+
+        assertThat(board.legalMoves()).isEmpty();
+    }
+
+    @Test
+    void whitePawnDoublePushBlockedWhenTargetOccupiedButSingleStepStillAllowed() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
+        board.placePiece(Square.of(4, 3), new Piece(Color.BLACK, PieceType.KNIGHT)); // e4, dos casillas por delante
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(1);
+        assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 2)); // e3, el doble paso no es posible
+    }
+
+    @Test
+    void whitePawnCapturesDiagonallyOnBothSides() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 3), new Piece(Color.WHITE, PieceType.PAWN)); // e4
+        board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
+        board.placePiece(Square.of(5, 4), new Piece(Color.BLACK, PieceType.PAWN)); // f5
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(3); // empuje simple + 2 capturas
+        assertThat(moves).extracting(Move::to)
+                .containsExactlyInAnyOrder(Square.of(4, 4), Square.of(3, 4), Square.of(5, 4));
+    }
+
+    @Test
+    void whitePawnCannotCaptureOwnPieceDiagonally() {
+        Board board = Board.empty();
+        Square pawnSquare = Square.of(4, 3); // e4
+        board.placePiece(pawnSquare, new Piece(Color.WHITE, PieceType.PAWN));
+        board.placePiece(Square.of(3, 4), new Piece(Color.WHITE, PieceType.PAWN)); // d5
+        board.placePiece(Square.of(5, 4), new Piece(Color.WHITE, PieceType.PAWN)); // f5
+
+        // Los dos peones "propios" colocados en diagonal ahora también generan sus
+        // propios empujes (d5-d6, f5-f6) — aislamos por casilla de origen para comprobar
+        // solo los movimientos del peón bajo test.
+        List<Move> pawnMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(pawnSquare))
+                .toList();
+
+        assertThat(pawnMoves).hasSize(1); // solo el empuje simple, ninguna captura
+        assertThat(pawnMoves.get(0).to()).isEqualTo(Square.of(4, 4));
+    }
+
+    @Test
+    void whitePawnCanCaptureEnPassant() {
+        // Simula la posición justo después de que negras hayan hecho doble paso d7-d5:
+        // el peón blanco en e5 puede capturarlo "al paso", aterrizando en d6 (casilla
+        // vacía) en vez de en d5 (donde de hecho está el peón negro capturado).
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 4), new Piece(Color.WHITE, PieceType.PAWN)); // e5
+        board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
+        board.setEnPassantTarget(Square.of(3, 5)); // d6
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(2); // empuje simple a e6 + captura al paso a d6
+        assertThat(moves).extracting(Move::to)
+                .containsExactlyInAnyOrder(Square.of(4, 5), Square.of(3, 5));
+    }
+
+    @Test
+    void whitePawnPromotesToAllFourPiecesOnPush() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 6), new Piece(Color.WHITE, PieceType.PAWN)); // e7
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(4);
+        assertThat(moves).allMatch(m -> m.to().equals(Square.of(4, 7))); // e8
+        assertThat(moves).extracting(Move::promotionType)
+                .containsExactlyInAnyOrder(PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT);
+    }
+
+    @Test
+    void whitePawnPromotesToAllFourPiecesOnCapture() {
+        Board board = Board.empty();
+        Square pawnSquare = Square.of(4, 6); // e7
+        board.placePiece(pawnSquare, new Piece(Color.WHITE, PieceType.PAWN));
+        board.placePiece(Square.of(4, 7), new Piece(Color.WHITE, PieceType.ROOK)); // e8, bloquea el empuje recto
+        board.placePiece(Square.of(5, 7), new Piece(Color.BLACK, PieceType.KNIGHT)); // f8, capturable en diagonal
+
+        // La torre colocada para bloquear el empuje recto también genera sus propios
+        // movimientos (torre ya implementada) — aislamos por casilla de origen del peón.
+        List<Move> pawnMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(pawnSquare))
+                .toList();
+
+        assertThat(pawnMoves).hasSize(4); // solo la captura, el empuje recto está bloqueado
+        assertThat(pawnMoves).allMatch(m -> m.to().equals(Square.of(5, 7)));
+        assertThat(pawnMoves).extracting(Move::promotionType)
+                .containsExactlyInAnyOrder(PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT);
+    }
+
+    @Test
+    void blackPawnMovesInTheOppositeDirection() {
+        Board board = Board.empty();
+        board.setTurn(Color.BLACK);
+        board.placePiece(Square.of(4, 6), new Piece(Color.BLACK, PieceType.PAWN)); // e7
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).hasSize(2);
+        assertThat(moves).extracting(Move::to)
+                .containsExactlyInAnyOrder(Square.of(4, 5), Square.of(4, 4)); // e6, e5
+    }
+
+    @Test
+    void allWhitePawnsOnInitialBoardHaveTwoMovesEach() {
+        Board board = Board.initial();
+
+        long pawnMoves = board.legalMoves().stream()
+                .filter(m -> m.from().rank() == 1)
+                .count();
+
+        assertThat(pawnMoves).isEqualTo(16); // 8 peones x 2 movimientos (empuje simple + doble)
     }
 }
