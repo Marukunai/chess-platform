@@ -83,4 +83,64 @@ class BoardTest {
 
         assertThat(whiteKnightMoves).isEqualTo(4);
     }
+
+    @Test
+    void rookInCenterOfEmptyBoardHasFourteenMoves() {
+        // Una torre en un tablero vacío siempre ve 7 casillas en horizontal + 7 en
+        // vertical, sea cual sea la casilla de partida (a diferencia del alfil, no
+        // depende de estar cerca de un borde).
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
+
+        assertThat(board.legalMoves()).hasSize(14);
+    }
+
+    @Test
+    void rookStopsAtOwnPieceAndDoesNotCaptureIt() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
+        board.placePiece(Square.of(3, 5), new Piece(Color.WHITE, PieceType.PAWN)); // d6, bloquea el rayo vertical
+
+        List<Move> moves = board.legalMoves();
+        // Vertical hacia arriba: solo d5 (1 casilla, no llega a d6 ni más allá).
+        assertThat(moves).extracting(Move::to).doesNotContain(Square.of(3, 5), Square.of(3, 6), Square.of(3, 7));
+        assertThat(moves).extracting(Move::to).contains(Square.of(3, 4)); // d5 sigue siendo válida
+    }
+
+    @Test
+    void rookCanCaptureEnemyPieceButNotPassThroughIt() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
+        board.placePiece(Square.of(3, 5), new Piece(Color.BLACK, PieceType.PAWN)); // d6
+
+        List<Move> moves = board.legalMoves();
+        assertThat(moves).extracting(Move::to).contains(Square.of(3, 5)); // captura en d6 sí es válida
+        assertThat(moves).extracting(Move::to).doesNotContain(Square.of(3, 6), Square.of(3, 7)); // pero no más allá
+    }
+
+    @Test
+    void bishopInCenterOfEmptyBoardHasThirteenMoves() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.BISHOP)); // d4
+
+        assertThat(board.legalMoves()).hasSize(13);
+    }
+
+    @Test
+    void bishopInCornerOfEmptyBoardHasOnlySevenMoves() {
+        // Desde a1 solo hay una diagonal posible (hacia h8), las otras tres se salen del
+        // tablero inmediatamente.
+        Board board = Board.empty();
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.BISHOP)); // a1
+
+        assertThat(board.legalMoves()).hasSize(7);
+    }
+
+    @Test
+    void queenInCenterOfEmptyBoardCombinesRookAndBishopMoves() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.QUEEN)); // d4
+
+        assertThat(board.legalMoves()).hasSize(14 + 13); // torre + alfil desde la misma casilla
+    }
 }

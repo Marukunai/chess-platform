@@ -74,15 +74,22 @@ public class Board {
     private static final int[] KNIGHT_FILE_OFFSETS = {1, 2, 2, 1, -1, -2, -2, -1};
     private static final int[] KNIGHT_RANK_OFFSETS = {2, 1, -1, -2, -2, -1, 1, 2};
 
+    // Direcciones (file, rank) por rayo para piezas deslizantes.
+    private static final int[][] ROOK_DIRECTIONS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    private static final int[][] BISHOP_DIRECTIONS = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+    private static final int[][] QUEEN_DIRECTIONS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
+
     /**
      * Genera los movimientos legales para la posición actual.
      *
-     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — de momento solo caballo, el
-     * resto de tipos de pieza siguen pendientes (ver switch más abajo). Además, todavía no
-     * se filtran jugadas que dejarían al propio rey en jaque: eso llega en cuanto
-     * isInCheck() esté implementado, que a su vez necesita poder generar los ataques de
-     * todas las piezas, no solo sus movimientos legales (un peón ataca en diagonal aunque
-     * no pueda "mover" en diagonal salvo captura).
+     * TODO (Fase 1): esto genera movimientos PSEUDO-legales — caballo y piezas
+     * deslizantes (torre/alfil/dama) ya implementados, quedan pendientes rey y peón (ver
+     * switch más abajo). Además, todavía no se filtran jugadas que dejarían al propio rey
+     * en jaque: eso llega en cuanto isInCheck() esté implementado, que a su vez necesita
+     * poder generar los ataques de todas las piezas, no solo sus movimientos legales (un
+     * peón ataca en diagonal aunque no pueda "mover" en diagonal salvo captura).
      */
     public List<Move> legalMoves() {
         List<Move> moves = new ArrayList<>();
@@ -94,7 +101,10 @@ public class Board {
             Square from = new Square(i);
             switch (piece.type()) {
                 case KNIGHT -> moves.addAll(generateKnightMoves(from));
-                // TODO: PAWN, BISHOP, ROOK, QUEEN, KING
+                case ROOK -> moves.addAll(generateSlidingMoves(from, ROOK_DIRECTIONS));
+                case BISHOP -> moves.addAll(generateSlidingMoves(from, BISHOP_DIRECTIONS));
+                case QUEEN -> moves.addAll(generateSlidingMoves(from, QUEEN_DIRECTIONS));
+                // TODO: PAWN, KING
                 default -> {
                 }
             }
@@ -119,6 +129,45 @@ public class Board {
                 moves.add(new Move(from, to));
             }
             // Si occupant es del mismo color, no se añade — no se puede capturar pieza propia.
+        }
+
+        return moves;
+    }
+
+    /**
+     * Generación compartida para torre/alfil/dama: lanza un rayo por cada dirección hasta
+     * salirse del tablero, chocar con una pieza propia (rayo termina, sin incluir esa
+     * casilla) o chocar con una pieza enemiga (rayo termina, incluyendo esa casilla como
+     * captura).
+     */
+    private List<Move> generateSlidingMoves(Square from, int[][] directions) {
+        List<Move> moves = new ArrayList<>();
+        Piece piece = pieceAt(from);
+
+        for (int[] direction : directions) {
+            int file = from.file();
+            int rank = from.rank();
+
+            while (true) {
+                file += direction[0];
+                rank += direction[1];
+                if (file < 0 || file > 7 || rank < 0 || rank > 7) {
+                    break; // fuera del tablero, fin del rayo
+                }
+
+                Square to = Square.of(file, rank);
+                Piece occupant = pieceAt(to);
+
+                if (occupant == null) {
+                    moves.add(new Move(from, to));
+                    continue; // casilla vacía, el rayo continúa
+                }
+
+                if (occupant.color() != piece.color()) {
+                    moves.add(new Move(from, to)); // captura válida
+                }
+                break; // pieza propia o enemiga: el rayo no puede seguir más allá
+            }
         }
 
         return moves;
