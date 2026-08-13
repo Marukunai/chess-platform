@@ -35,7 +35,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(4, 4), new Piece(Color.WHITE, PieceType.KNIGHT)); // e5
 
-        assertThat(board.legalMoves()).hasSize(8);
+        assertThat(board.pseudoLegalMoves()).hasSize(8);
     }
 
     @Test
@@ -43,7 +43,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.KNIGHT)); // a1
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(2);
         assertThat(moves).extracting(Move::to)
                 .containsExactlyInAnyOrder(Square.of(1, 2), Square.of(2, 1)); // b3, c2
@@ -59,7 +59,9 @@ class BoardTest {
         // Filtramos por la casilla de origen del caballo: la pieza "decoy" colocada para
         // bloquear una de sus capturas es un peón, y ahora que el peón también genera sus
         // propios movimientos, contaminaría el recuento si no aislamos los del caballo.
-        List<Move> knightMoves = board.legalMoves().stream()
+        // Usamos pseudoLegalMoves() (no legalMoves()) porque esto prueba geometría pura,
+        // no legalidad bajo jaque — no hay rey en este tablero.
+        List<Move> knightMoves = board.pseudoLegalMoves().stream()
                 .filter(m -> m.from().equals(knightSquare))
                 .toList();
 
@@ -72,7 +74,7 @@ class BoardTest {
         board.placePiece(Square.of(4, 4), new Piece(Color.WHITE, PieceType.KNIGHT)); // e5
         board.placePiece(Square.of(6, 5), new Piece(Color.BLACK, PieceType.PAWN)); // g6
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(8); // sigue teniendo 8 destinos, uno de ellos es captura
         assertThat(moves).extracting(Move::to).contains(Square.of(6, 5));
     }
@@ -101,7 +103,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
 
-        assertThat(board.legalMoves()).hasSize(14);
+        assertThat(board.pseudoLegalMoves()).hasSize(14);
     }
 
     @Test
@@ -113,8 +115,8 @@ class BoardTest {
 
         // Filtramos por la casilla de origen de la torre: el peón bloqueador también
         // genera su propio movimiento (d6-d7), que si no se aísla contamina el "to" que
-        // estamos comprobando aquí.
-        List<Move> rookMoves = board.legalMoves().stream()
+        // estamos comprobando aquí. pseudoLegalMoves() porque no hay rey en este tablero.
+        List<Move> rookMoves = board.pseudoLegalMoves().stream()
                 .filter(m -> m.from().equals(rookSquare))
                 .toList();
 
@@ -129,7 +131,7 @@ class BoardTest {
         board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.ROOK)); // d4
         board.placePiece(Square.of(3, 5), new Piece(Color.BLACK, PieceType.PAWN)); // d6
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).extracting(Move::to).contains(Square.of(3, 5)); // captura en d6 sí es válida
         assertThat(moves).extracting(Move::to).doesNotContain(Square.of(3, 6), Square.of(3, 7)); // pero no más allá
     }
@@ -139,7 +141,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.BISHOP)); // d4
 
-        assertThat(board.legalMoves()).hasSize(13);
+        assertThat(board.pseudoLegalMoves()).hasSize(13);
     }
 
     @Test
@@ -149,7 +151,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.BISHOP)); // a1
 
-        assertThat(board.legalMoves()).hasSize(7);
+        assertThat(board.pseudoLegalMoves()).hasSize(7);
     }
 
     @Test
@@ -157,7 +159,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.QUEEN)); // d4
 
-        assertThat(board.legalMoves()).hasSize(14 + 13); // torre + alfil desde la misma casilla
+        assertThat(board.pseudoLegalMoves()).hasSize(14 + 13); // torre + alfil desde la misma casilla
     }
 
     @Test
@@ -197,13 +199,34 @@ class BoardTest {
 
     @Test
     void kingCanCaptureAdjacentEnemyPiece() {
+        // pseudoLegalMoves(): esto prueba mecánica de captura pura, no legalidad bajo
+        // jaque — no hay rey negro en este tablero, y el peón negro colocado aquí sí
+        // ataca en diagonal (ver kingCannotMoveIntoSquareAttackedByEnemyPawn más abajo
+        // para el test que sí comprueba ese filtrado con legalMoves()).
         Board board = Board.empty();
         board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
         board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(8); // sigue teniendo 8 destinos, uno de ellos es captura
         assertThat(moves).extracting(Move::to).contains(Square.of(3, 4));
+    }
+
+    @Test
+    void kingCannotMoveIntoSquareAttackedByEnemyPawn() {
+        // El peón negro en d5 ataca en diagonal hacia c4 y e4 (no hacia delante en línea
+        // recta) — el rey puede capturarlo, pero no puede "esquivarlo" pisando esas dos
+        // casillas, que seguirían estando bajo ataque.
+        Board board = Board.empty();
+        board.placePiece(Square.of(3, 3), new Piece(Color.WHITE, PieceType.KING)); // d4
+        board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
+
+        List<Move> kingMoves = board.legalMoves();
+
+        assertThat(kingMoves).hasSize(6); // 8 pseudo-legales menos c4 y e4
+        assertThat(kingMoves).extracting(Move::to)
+                .doesNotContain(Square.of(2, 3), Square.of(4, 3)); // c4, e4
+        assertThat(kingMoves).extracting(Move::to).contains(Square.of(3, 4)); // d5 sigue siendo captura válida
     }
 
     @Test
@@ -224,7 +247,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(2);
         assertThat(moves).extracting(Move::to)
                 .containsExactlyInAnyOrder(Square.of(4, 2), Square.of(4, 3)); // e3, e4
@@ -235,7 +258,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(4, 2), new Piece(Color.WHITE, PieceType.PAWN)); // e3
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(1);
         assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 3)); // e4
     }
@@ -248,7 +271,7 @@ class BoardTest {
         board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
         board.placePiece(Square.of(4, 2), new Piece(Color.BLACK, PieceType.KNIGHT)); // e3
 
-        assertThat(board.legalMoves()).isEmpty();
+        assertThat(board.pseudoLegalMoves()).isEmpty();
     }
 
     @Test
@@ -257,7 +280,7 @@ class BoardTest {
         board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
         board.placePiece(Square.of(4, 3), new Piece(Color.BLACK, PieceType.KNIGHT)); // e4, dos casillas por delante
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(1);
         assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 2)); // e3, el doble paso no es posible
     }
@@ -269,7 +292,7 @@ class BoardTest {
         board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
         board.placePiece(Square.of(5, 4), new Piece(Color.BLACK, PieceType.PAWN)); // f5
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(3); // empuje simple + 2 capturas
         assertThat(moves).extracting(Move::to)
                 .containsExactlyInAnyOrder(Square.of(4, 4), Square.of(3, 4), Square.of(5, 4));
@@ -286,7 +309,7 @@ class BoardTest {
         // Los dos peones "propios" colocados en diagonal ahora también generan sus
         // propios empujes (d5-d6, f5-f6) — aislamos por casilla de origen para comprobar
         // solo los movimientos del peón bajo test.
-        List<Move> pawnMoves = board.legalMoves().stream()
+        List<Move> pawnMoves = board.pseudoLegalMoves().stream()
                 .filter(m -> m.from().equals(pawnSquare))
                 .toList();
 
@@ -304,7 +327,7 @@ class BoardTest {
         board.placePiece(Square.of(3, 4), new Piece(Color.BLACK, PieceType.PAWN)); // d5
         board.setEnPassantTarget(Square.of(3, 5)); // d6
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(2); // empuje simple a e6 + captura al paso a d6
         assertThat(moves).extracting(Move::to)
                 .containsExactlyInAnyOrder(Square.of(4, 5), Square.of(3, 5));
@@ -315,7 +338,7 @@ class BoardTest {
         Board board = Board.empty();
         board.placePiece(Square.of(4, 6), new Piece(Color.WHITE, PieceType.PAWN)); // e7
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(4);
         assertThat(moves).allMatch(m -> m.to().equals(Square.of(4, 7))); // e8
         assertThat(moves).extracting(Move::promotionType)
@@ -331,8 +354,8 @@ class BoardTest {
         board.placePiece(Square.of(5, 7), new Piece(Color.BLACK, PieceType.KNIGHT)); // f8, capturable en diagonal
 
         // La torre colocada para bloquear el empuje recto también genera sus propios
-        // movimientos (torre ya implementada) — aislamos por casilla de origen del peón.
-        List<Move> pawnMoves = board.legalMoves().stream()
+        // movimientos — aislamos por casilla de origen del peón.
+        List<Move> pawnMoves = board.pseudoLegalMoves().stream()
                 .filter(m -> m.from().equals(pawnSquare))
                 .toList();
 
@@ -348,7 +371,7 @@ class BoardTest {
         board.setTurn(Color.BLACK);
         board.placePiece(Square.of(4, 6), new Piece(Color.BLACK, PieceType.PAWN)); // e7
 
-        List<Move> moves = board.legalMoves();
+        List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(2);
         assertThat(moves).extracting(Move::to)
                 .containsExactlyInAnyOrder(Square.of(4, 5), Square.of(4, 4)); // e6, e5
@@ -454,5 +477,232 @@ class BoardTest {
 
         assertThatThrownBy(() -> board.isInCheck(Color.WHITE))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void copyIsIndependentFromTheOriginalBoard() {
+        Board original = Board.empty();
+        original.placePiece(Square.of(4, 4), new Piece(Color.WHITE, PieceType.KING)); // e5
+
+        Board copy = original.copy();
+        copy.placePiece(Square.of(0, 0), new Piece(Color.BLACK, PieceType.ROOK)); // a1, solo en la copia
+
+        assertThat(original.pieceAt(Square.of(0, 0))).isNull();
+        assertThat(copy.pieceAt(Square.of(0, 0))).isNotNull();
+    }
+
+    @Test
+    void applyMoveMovesThePieceAndClearsTheOriginSquare() {
+        Board board = Board.empty();
+        Square from = Square.of(4, 1); // e2
+        Square to = Square.of(4, 3); // e4
+        board.placePiece(from, new Piece(Color.WHITE, PieceType.PAWN));
+
+        board.applyMove(new Move(from, to));
+
+        assertThat(board.pieceAt(from)).isNull();
+        assertThat(board.pieceAt(to)).isEqualTo(new Piece(Color.WHITE, PieceType.PAWN));
+    }
+
+    @Test
+    void applyMoveRemovesTheCapturedPiece() {
+        Board board = Board.empty();
+        Square from = Square.of(3, 3); // d4
+        Square to = Square.of(4, 4); // e5
+        board.placePiece(from, new Piece(Color.WHITE, PieceType.BISHOP));
+        board.placePiece(to, new Piece(Color.BLACK, PieceType.KNIGHT));
+
+        board.applyMove(new Move(from, to));
+
+        assertThat(board.pieceAt(to)).isEqualTo(new Piece(Color.WHITE, PieceType.BISHOP));
+    }
+
+    @Test
+    void applyMoveHandlesEnPassantCaptureRemovingThePassedPawn() {
+        Board board = Board.empty();
+        Square from = Square.of(4, 4); // e5
+        Square to = Square.of(3, 5); // d6, casilla vacía
+        Square capturedPawnSquare = Square.of(3, 4); // d5, donde de verdad está el peón negro
+        board.placePiece(from, new Piece(Color.WHITE, PieceType.PAWN));
+        board.placePiece(capturedPawnSquare, new Piece(Color.BLACK, PieceType.PAWN));
+        board.setEnPassantTarget(to);
+
+        board.applyMove(new Move(from, to));
+
+        assertThat(board.pieceAt(to)).isEqualTo(new Piece(Color.WHITE, PieceType.PAWN));
+        assertThat(board.pieceAt(capturedPawnSquare)).isNull(); // el peón capturado desaparece
+    }
+
+    @Test
+    void applyMovePromotesPawnToRequestedType() {
+        Board board = Board.empty();
+        Square from = Square.of(4, 6); // e7
+        Square to = Square.of(4, 7); // e8
+        board.placePiece(from, new Piece(Color.WHITE, PieceType.PAWN));
+
+        board.applyMove(new Move(from, to, PieceType.QUEEN));
+
+        assertThat(board.pieceAt(to)).isEqualTo(new Piece(Color.WHITE, PieceType.QUEEN));
+    }
+
+    @Test
+    void applyMoveSetsEnPassantTargetOnlyAfterADoublePush() {
+        Board board = Board.empty();
+        Square from = Square.of(4, 1); // e2
+        Square to = Square.of(4, 3); // e4, doble paso
+        board.placePiece(from, new Piece(Color.WHITE, PieceType.PAWN));
+
+        board.applyMove(new Move(from, to));
+
+        assertThat(board.enPassantTarget()).isEqualTo(Square.of(4, 2)); // e3
+    }
+
+    @Test
+    void applyMoveClearsEnPassantTargetAfterANonDoublePushMove() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 1), new Piece(Color.WHITE, PieceType.PAWN)); // e2
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4, fija d.. e3 target
+        assertThat(board.enPassantTarget()).isEqualTo(Square.of(4, 2)); // e3
+
+        // Cualquier otra jugada (que no sea otro doble paso) debe limpiarlo.
+        board.placePiece(Square.of(0, 6), new Piece(Color.BLACK, PieceType.PAWN)); // a7
+        board.applyMove(new Move(Square.of(0, 6), Square.of(0, 5))); // a7-a6, empuje simple
+
+        assertThat(board.enPassantTarget()).isNull();
+    }
+
+    @Test
+    void applyMoveResetsHalfmoveClockOnPawnMoveOrCapture() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(1, 3), new Piece(Color.WHITE, PieceType.KNIGHT)); // b4
+        board.placePiece(Square.of(2, 5), new Piece(Color.BLACK, PieceType.PAWN)); // c6
+
+        // Jugada de una pieza que no es peón ni captura: el contador sube.
+        board.applyMove(new Move(Square.of(1, 3), Square.of(3, 4))); // Nb4-d5
+        assertThat(board.halfmoveClock()).isEqualTo(1);
+
+        // Captura: el contador se reinicia a 0.
+        board.applyMove(new Move(Square.of(3, 4), Square.of(2, 5))); // Nd5xc6
+        assertThat(board.halfmoveClock()).isZero();
+    }
+
+    @Test
+    void applyMoveIncrementsFullmoveNumberOnlyAfterBlacksMove() {
+        Board board = Board.initial();
+        assertThat(board.fullmoveNumber()).isEqualTo(1);
+
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4 (blancas)
+        assertThat(board.fullmoveNumber()).isEqualTo(1); // todavía no sube
+
+        board.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // e7-e5 (negras)
+        assertThat(board.fullmoveNumber()).isEqualTo(2); // ahora sí
+    }
+
+    @Test
+    void applyMoveInvalidatesCastlingRightsWhenKingMoves() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        assertThat(board.canCastleKingside(Color.WHITE)).isTrue();
+        assertThat(board.canCastleQueenside(Color.WHITE)).isTrue();
+
+        board.applyMove(new Move(Square.of(4, 0), Square.of(4, 1))); // Ke1-e2
+
+        assertThat(board.canCastleKingside(Color.WHITE)).isFalse();
+        assertThat(board.canCastleQueenside(Color.WHITE)).isFalse();
+    }
+
+    @Test
+    void applyMoveInvalidatesCastlingRightWhenRookMovesFromItsOriginalSquare() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK)); // a1
+        assertThat(board.canCastleQueenside(Color.WHITE)).isTrue();
+
+        board.applyMove(new Move(Square.of(0, 0), Square.of(0, 4))); // Ta1-a5
+
+        assertThat(board.canCastleQueenside(Color.WHITE)).isFalse();
+        assertThat(board.canCastleKingside(Color.WHITE)).isTrue(); // el otro lado no se ve afectado
+    }
+
+    @Test
+    void applyMoveInvalidatesCastlingRightWhenAnUnmovedRookIsCaptured() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(0, 7), new Piece(Color.BLACK, PieceType.ROOK)); // a8, sin mover
+        board.placePiece(Square.of(1, 6), new Piece(Color.WHITE, PieceType.BISHOP)); // b7
+        assertThat(board.canCastleQueenside(Color.BLACK)).isTrue();
+
+        board.applyMove(new Move(Square.of(1, 6), Square.of(0, 7))); // Bb7xa8
+
+        assertThat(board.canCastleQueenside(Color.BLACK)).isFalse();
+    }
+
+    @Test
+    void pinnedRookCanOnlyMoveAlongThePinLine() {
+        // Torre blanca clavada por una torre negra en la misma columna que el rey: puede
+        // moverse a lo largo de esa columna (incluida la captura de la pieza que clava),
+        // pero no puede salirse de ella sin dejar al rey en jaque.
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1
+        Square rookSquare = Square.of(4, 3); // e4
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(rookSquare, new Piece(Color.WHITE, PieceType.ROOK));
+        board.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.ROOK)); // e8
+
+        List<Move> rookMoves = board.legalMoves().stream()
+                .filter(m -> m.from().equals(rookSquare))
+                .toList();
+
+        assertThat(rookMoves).hasSize(6); // e2, e3, e5, e6, e7, e8 (captura)
+        assertThat(rookMoves).extracting(Move::to).allMatch(square -> square.file() == 4);
+    }
+
+    @Test
+    void kingCannotMoveToASquareStillAttackedAlongTheSameRank() {
+        Board board = Board.empty();
+        Square kingSquare = Square.of(4, 0); // e1, en jaque desde a1
+        board.placePiece(kingSquare, new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 0), new Piece(Color.BLACK, PieceType.ROOK)); // a1
+
+        List<Move> kingMoves = board.legalMoves();
+
+        assertThat(kingMoves).hasSize(3); // d2, e2, f2 — d1 y f1 siguen en la fila atacada
+        assertThat(kingMoves).extracting(Move::to).doesNotContain(Square.of(3, 0), Square.of(5, 0));
+    }
+
+    @Test
+    void initialBoardHasExactlyTwentyLegalMovesForWhite() {
+        // Comprobación clásica: la posición inicial tiene exactamente 20 jugadas posibles
+        // (16 de peones + 4 de caballos) — si esto falla, algo se rompió en la tubería
+        // completa de generación + filtrado, no en una pieza aislada.
+        Board board = Board.initial();
+
+        assertThat(board.legalMoves()).hasSize(20);
+        assertThat(board.isCheckmate()).isFalse();
+        assertThat(board.isStalemate()).isFalse();
+    }
+
+    @Test
+    void classicBackRankCheckmate() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.KING)); // h1
+        board.placePiece(Square.of(6, 1), new Piece(Color.WHITE, PieceType.PAWN)); // g2
+        board.placePiece(Square.of(7, 1), new Piece(Color.WHITE, PieceType.PAWN)); // h2
+        board.placePiece(Square.of(0, 0), new Piece(Color.BLACK, PieceType.ROOK)); // a1
+
+        assertThat(board.isInCheck(Color.WHITE)).isTrue();
+        assertThat(board.legalMoves()).isEmpty();
+        assertThat(board.isCheckmate()).isTrue();
+        assertThat(board.isStalemate()).isFalse();
+    }
+
+    @Test
+    void classicStalemateWithLoneKingAndOpposingQueen() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.KING)); // a1
+        board.placePiece(Square.of(2, 1), new Piece(Color.BLACK, PieceType.QUEEN)); // c2
+
+        assertThat(board.isInCheck(Color.WHITE)).isFalse(); // el rey en sí no está atacado
+        assertThat(board.legalMoves()).isEmpty(); // pero las 3 casillas de huida sí lo están
+        assertThat(board.isStalemate()).isTrue();
+        assertThat(board.isCheckmate()).isFalse();
     }
 }

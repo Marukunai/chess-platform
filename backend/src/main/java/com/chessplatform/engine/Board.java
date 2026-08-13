@@ -65,6 +65,46 @@ public class Board {
         this.enPassantTarget = square;
     }
 
+    /**
+     * Copia profunda del tablero (las piezas son records inmutables, así que basta con
+     * copiar el array). Se usa para simular una jugada sin mutar el tablero real — ver
+     * legalMoves() — y más adelante la usará el generador de puzzles (Fase 2) para
+     * explorar variantes sin afectar la posición original.
+     */
+    public Board copy() {
+        Board copy = new Board();
+        System.arraycopy(this.squares, 0, copy.squares, 0, 64);
+        copy.turn = this.turn;
+        copy.whiteCanCastleKingside = this.whiteCanCastleKingside;
+        copy.whiteCanCastleQueenside = this.whiteCanCastleQueenside;
+        copy.blackCanCastleKingside = this.blackCanCastleKingside;
+        copy.blackCanCastleQueenside = this.blackCanCastleQueenside;
+        copy.enPassantTarget = this.enPassantTarget;
+        copy.halfmoveClock = this.halfmoveClock;
+        copy.fullmoveNumber = this.fullmoveNumber;
+        return copy;
+    }
+
+    public boolean canCastleKingside(Color color) {
+        return color == Color.WHITE ? whiteCanCastleKingside : blackCanCastleKingside;
+    }
+
+    public boolean canCastleQueenside(Color color) {
+        return color == Color.WHITE ? whiteCanCastleQueenside : blackCanCastleQueenside;
+    }
+
+    public Square enPassantTarget() {
+        return enPassantTarget;
+    }
+
+    public int halfmoveClock() {
+        return halfmoveClock;
+    }
+
+    public int fullmoveNumber() {
+        return fullmoveNumber;
+    }
+
     private void setupStartingPosition() {
         PieceType[] backRank = {
                 PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN,
@@ -98,17 +138,41 @@ public class Board {
     };
 
     /**
-     * Genera los movimientos legales para la posición actual.
+     * Devuelve los movimientos legales para la posición actual: los pseudo-legales,
+     * filtrados para excluir cualquier jugada que deje al propio rey en jaque. El único
+     * caso especial que falta para Fase 1 es el enroque (se añade junto con el resto de
+     * casos especiales — generarlo como jugada, no el filtrado en sí).
      *
-     * Con esto las 6 piezas ya generan movimientos PSEUDO-legales, incluyendo las reglas
-     * especiales del peón (doble paso inicial, captura al paso, coronación). Quedan dos
-     * cosas pendientes para Fase 1:
-     *  1. Enroque — se añade junto con el resto de casos especiales.
-     *  2. Filtrar jugadas que dejarían al propio rey en jaque (incluye que el rey "pueda"
-     *     moverse a una casilla atacada) — isInCheck() ya está implementado (ver más
-     *     abajo), pero legalMoves() todavía no lo usa; ese filtrado es el siguiente paso.
+     * Implementación: por cada pseudo-legal se simula sobre una COPIA del tablero
+     * (copy() + applyMove()) y se descarta si el propio rey queda en jaque tras aplicarla.
+     * Es más lento que filtrar sin copiar, pero mucho más simple de razonar y sin riesgo
+     * de estados a medio deshacer — coherente con priorizar legibilidad sobre rendimiento
+     * en este módulo (ver ADR-001). Como efecto colateral cómodo: al mover el rey de
+     * verdad en la copia para comprobar sus propias casillas de huida, evita el bug
+     * clásico de que el rey "tape su propio rayo de escape" al preguntar si una casilla
+     * está atacada sin haberlo movido primero.
      */
     public List<Move> legalMoves() {
+        Color mover = turn;
+        List<Move> legalMoves = new ArrayList<>();
+        for (Move move : pseudoLegalMoves()) {
+            Board simulation = this.copy();
+            simulation.applyMove(move);
+            if (!simulation.isInCheck(mover)) {
+                legalMoves.add(move);
+            }
+        }
+        return legalMoves;
+    }
+
+    /**
+     * Genera movimientos pseudo-legales (sin filtrar por jaque). Nivel de acceso de
+     * paquete a propósito: legalMoves() lo usa internamente, y los tests del mismo
+     * paquete lo llaman directamente para probar la geometría de cada pieza en
+     * aislamiento, sin tener que colocar un rey en el tablero solo para satisfacer el
+     * filtrado de legalMoves().
+     */
+    List<Move> pseudoLegalMoves() {
         List<Move> moves = new ArrayList<>();
         for (int i = 0; i < 64; i++) {
             Piece piece = squares[i];
@@ -282,11 +346,92 @@ public class Board {
     /**
      * Aplica una jugada al tablero. Asume que ya ha sido validada como legal.
      *
-     * TODO (Fase 1): mover la pieza + casos especiales (enroque, en passant, coronación) +
-     * actualizar halfmoveClock/fullmoveNumber/turn/enPassantTarget/derechos de enroque.
+     * No genera ni ejecuta enroque (todavía no se generan jugadas de enroque en
+     * legalMoves(), así que nunca debería llegar aquí una — se añade junto con el resto
+     * de casos especiales).
      */
     public void applyMove(Move move) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        Square from = move.from();
+        Square to = move.to();
+        Piece movingPiece = pieceAt(from);
+        if (movingPiece == null) {
+            throw new IllegalArgumentException("No hay ninguna pieza en la casilla de origen: " + from.toAlgebraic());
+        }
+
+        boolean isPawnMove = movingPiece.type() == PieceType.PAWN;
+        boolean isCapture = pieceAt(to) != null;
+
+        // Captura al paso: el peón mueve en diagonal a una casilla VACÍA que coincide con
+        // enPassantTarget — el peón capturado está en la misma fila que `from`, no en `to`.
+        boolean isEnPassantCapture = isPawnMove && !isCapture && to.equals(enPassantTarget)
+                && from.file() != to.file();
+        if (isEnPassantCapture) {
+            Square capturedPawnSquare = Square.of(to.file(), from.rank());
+            squares[capturedPawnSquare.index()] = null;
+            isCapture = true;
+        }
+
+        // Los derechos de enroque se actualizan ANTES de mover, para poder leer todavía
+        // qué había en `to` si esta jugada captura una torre sin mover.
+        updateCastlingRightsAfterMove(from, movingPiece);
+        if (isCapture && !isEnPassantCapture) {
+            updateCastlingRightsAfterCaptureAt(to);
+        }
+
+        squares[from.index()] = null;
+        squares[to.index()] = move.isPromotion() ? new Piece(movingPiece.color(), move.promotionType()) : movingPiece;
+
+        // enPassantTarget solo es válido durante la jugada inmediatamente posterior a un
+        // doble paso — se resetea siempre, y se vuelve a fijar solo si esta jugada lo fue.
+        boolean isDoublePush = isPawnMove && Math.abs(to.rank() - from.rank()) == 2;
+        enPassantTarget = isDoublePush ? Square.of(from.file(), (from.rank() + to.rank()) / 2) : null;
+
+        // Regla de los 50 movimientos: se reinicia con cualquier jugada de peón o captura.
+        halfmoveClock = (isPawnMove || isCapture) ? 0 : halfmoveClock + 1;
+
+        if (turn == Color.BLACK) {
+            fullmoveNumber++;
+        }
+        turn = turn.opposite();
+    }
+
+    private void updateCastlingRightsAfterMove(Square from, Piece movingPiece) {
+        if (movingPiece.type() == PieceType.KING) {
+            if (movingPiece.color() == Color.WHITE) {
+                whiteCanCastleKingside = false;
+                whiteCanCastleQueenside = false;
+            } else {
+                blackCanCastleKingside = false;
+                blackCanCastleQueenside = false;
+            }
+        } else if (movingPiece.type() == PieceType.ROOK) {
+            invalidateCastlingRightForRookSquare(from, movingPiece.color());
+        }
+    }
+
+    private void updateCastlingRightsAfterCaptureAt(Square square) {
+        Piece captured = pieceAt(square);
+        if (captured != null && captured.type() == PieceType.ROOK) {
+            invalidateCastlingRightForRookSquare(square, captured.color());
+        }
+    }
+
+    private void invalidateCastlingRightForRookSquare(Square rookSquare, Color color) {
+        if (color == Color.WHITE) {
+            if (rookSquare.equals(Square.of(0, 0))) {
+                whiteCanCastleQueenside = false; // a1
+            }
+            if (rookSquare.equals(Square.of(7, 0))) {
+                whiteCanCastleKingside = false; // h1
+            }
+        } else {
+            if (rookSquare.equals(Square.of(0, 7))) {
+                blackCanCastleQueenside = false; // a8
+            }
+            if (rookSquare.equals(Square.of(7, 7))) {
+                blackCanCastleKingside = false; // h8
+            }
+        }
     }
 
     public boolean isInCheck(Color color) {
@@ -420,13 +565,11 @@ public class Board {
     }
 
     public boolean isCheckmate() {
-        // TODO (Fase 1): jaque + sin movimientos legales
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        return isInCheck(turn) && legalMoves().isEmpty();
     }
 
     public boolean isStalemate() {
-        // TODO (Fase 1): sin jaque + sin movimientos legales
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        return !isInCheck(turn) && legalMoves().isEmpty();
     }
 
     @Override
