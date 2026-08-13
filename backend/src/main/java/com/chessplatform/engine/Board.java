@@ -139,9 +139,9 @@ public class Board {
 
     /**
      * Devuelve los movimientos legales para la posición actual: los pseudo-legales,
-     * filtrados para excluir cualquier jugada que deje al propio rey en jaque. El único
-     * caso especial que falta para Fase 1 es el enroque (se añade junto con el resto de
-     * casos especiales — generarlo como jugada, no el filtrado en sí).
+     * filtrados para excluir cualquier jugada que deje al propio rey en jaque. Con el
+     * enroque ya generado (ver generateCastlingMoves()), el motor de reglas cubre las
+     * 8 tareas previstas para Fase 1.
      *
      * Implementación: por cada pseudo-legal se simula sobre una COPIA del tablero
      * (copy() + applyMove()) y se descarta si el propio rey queda en jaque tras aplicarla.
@@ -185,7 +185,10 @@ public class Board {
                 case ROOK -> moves.addAll(generateSlidingMoves(from, ROOK_DIRECTIONS));
                 case BISHOP -> moves.addAll(generateSlidingMoves(from, BISHOP_DIRECTIONS));
                 case QUEEN -> moves.addAll(generateSlidingMoves(from, QUEEN_DIRECTIONS));
-                case KING -> moves.addAll(generateKingMoves(from));
+                case KING -> {
+                    moves.addAll(generateKingMoves(from));
+                    moves.addAll(generateCastlingMoves(from));
+                }
                 case PAWN -> moves.addAll(generatePawnMoves(from));
             }
         }
@@ -277,6 +280,64 @@ public class Board {
         return moves;
     }
 
+    /**
+     * Genera las jugadas de enroque disponibles (0, 1 o 2). Representadas como un
+     * movimiento normal del rey de 2 casillas — e1-g1 para el corto, e1-c1 para el largo —
+     * el mismo formato que usa UCI, así que applyMove() solo necesita detectar la
+     * distancia recorrida para saber que también tiene que mover la torre.
+     *
+     * A diferencia del resto de generateXxxMoves(), aquí SÍ se comprueba el jaque
+     * directamente durante la generación (no se deja solo al filtrado de legalMoves()) —
+     * es una condición intrínseca de la regla, no un efecto colateral de otra cosa.
+     */
+    private List<Move> generateCastlingMoves(Square from) {
+        List<Move> moves = new ArrayList<>();
+        Piece king = pieceAt(from);
+        Color color = king.color();
+        int rank = color == Color.WHITE ? 0 : 7;
+
+        if (isInCheck(color)) {
+            return moves; // no se puede enrocar estando ya en jaque
+        }
+
+        if (canCastleKingside(color) && canCastleTowards(color, rank, true)) {
+            moves.add(new Move(from, Square.of(6, rank)));
+        }
+        if (canCastleQueenside(color) && canCastleTowards(color, rank, false)) {
+            moves.add(new Move(from, Square.of(2, rank)));
+        }
+        return moves;
+    }
+
+    private boolean canCastleTowards(Color color, int rank, boolean kingside) {
+        // Comprobación defensiva: no fiarse solo del flag, verificar que de verdad hay
+        // una torre propia sin mover en la esquina correspondiente.
+        Square rookSquare = Square.of(kingside ? 7 : 0, rank);
+        Piece rook = pieceAt(rookSquare);
+        if (rook == null || rook.type() != PieceType.ROOK || rook.color() != color) {
+            return false;
+        }
+
+        int[] mustBeEmpty = kingside ? new int[]{5, 6} : new int[]{1, 2, 3};
+        for (int file : mustBeEmpty) {
+            if (pieceAt(Square.of(file, rank)) != null) {
+                return false;
+            }
+        }
+
+        // Casillas por las que el rey pasa de verdad (incluido el destino) — no pueden
+        // estar atacadas. La casilla de origen ya se comprobó vía isInCheck() más arriba.
+        int[] mustNotBeAttacked = kingside ? new int[]{5, 6} : new int[]{2, 3};
+        Color opponent = color.opposite();
+        for (int file : mustNotBeAttacked) {
+            if (isSquareAttacked(Square.of(file, rank), opponent)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static final PieceType[] PROMOTION_TYPES = {
             PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT
     };
@@ -345,10 +406,6 @@ public class Board {
 
     /**
      * Aplica una jugada al tablero. Asume que ya ha sido validada como legal.
-     *
-     * No genera ni ejecuta enroque (todavía no se generan jugadas de enroque en
-     * legalMoves(), así que nunca debería llegar aquí una — se añade junto con el resto
-     * de casos especiales).
      */
     public void applyMove(Move move) {
         Square from = move.from();
@@ -360,6 +417,11 @@ public class Board {
 
         boolean isPawnMove = movingPiece.type() == PieceType.PAWN;
         boolean isCapture = pieceAt(to) != null;
+
+        // Enroque: el rey se mueve 2 casillas — nunca es una captura (el destino siempre
+        // está vacío, comprobado en generateCastlingMoves), así que no interfiere con la
+        // lógica de captura/en passant de más abajo.
+        boolean isCastling = movingPiece.type() == PieceType.KING && Math.abs(to.file() - from.file()) == 2;
 
         // Captura al paso: el peón mueve en diagonal a una casilla VACÍA que coincide con
         // enPassantTarget — el peón capturado está en la misma fila que `from`, no en `to`.
@@ -381,6 +443,10 @@ public class Board {
         squares[from.index()] = null;
         squares[to.index()] = move.isPromotion() ? new Piece(movingPiece.color(), move.promotionType()) : movingPiece;
 
+        if (isCastling) {
+            moveRookForCastling(from, to);
+        }
+
         // enPassantTarget solo es válido durante la jugada inmediatamente posterior a un
         // doble paso — se resetea siempre, y se vuelve a fijar solo si esta jugada lo fue.
         boolean isDoublePush = isPawnMove && Math.abs(to.rank() - from.rank()) == 2;
@@ -393,6 +459,20 @@ public class Board {
             fullmoveNumber++;
         }
         turn = turn.opposite();
+    }
+
+    /**
+     * Mueve la torre correspondiente durante un enroque. kingFrom/kingTo ya reflejan el
+     * movimiento del rey (2 casillas); a partir de ahí se deduce lado y fila.
+     */
+    private void moveRookForCastling(Square kingFrom, Square kingTo) {
+        int rank = kingFrom.rank();
+        boolean kingside = kingTo.file() > kingFrom.file();
+        Square rookFrom = Square.of(kingside ? 7 : 0, rank);
+        Square rookTo = Square.of(kingside ? 5 : 3, rank);
+
+        squares[rookTo.index()] = squares[rookFrom.index()];
+        squares[rookFrom.index()] = null;
     }
 
     private void updateCastlingRightsAfterMove(Square from, Piece movingPiece) {
