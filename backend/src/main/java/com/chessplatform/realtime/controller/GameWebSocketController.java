@@ -52,26 +52,33 @@ public class GameWebSocketController {
         }
         GameSession session = maybeSession.get();
 
-        if (!isPlayersTurn(session, principal)) {
-            sendError(gameId, "NOT_YOUR_TURN", "No puedes mover: no es tu turno o no perteneces a esta partida");
-            return;
-        }
+        // Sincronizado sobre la propia partida (ver javadoc de GameSession): sin esto,
+        // dos jugadas casi simultáneas para la misma partida podrían pasar la
+        // comprobación de legalidad las dos ANTES de que cualquiera mute el tablero, y
+        // aplicarse ambas. El bloqueo es por partida, no global — otras partidas no se
+        // ven afectadas.
+        synchronized (session) {
+            if (!isPlayersTurn(session, principal)) {
+                sendError(gameId, "NOT_YOUR_TURN", "No puedes mover: no es tu turno o no perteneces a esta partida");
+                return;
+            }
 
-        Move move;
-        try {
-            move = message.toEngineMove();
-        } catch (IllegalArgumentException e) {
-            sendError(gameId, "MALFORMED_MOVE", "No se pudo interpretar la jugada: " + e.getMessage());
-            return;
-        }
+            Move move;
+            try {
+                move = message.toEngineMove();
+            } catch (IllegalArgumentException e) {
+                sendError(gameId, "MALFORMED_MOVE", "No se pudo interpretar la jugada: " + e.getMessage());
+                return;
+            }
 
-        if (!session.board().legalMoves().contains(move)) {
-            sendError(gameId, "ILLEGAL_MOVE", "Jugada no legal en la posición actual: " + move.toUci());
-            return;
-        }
+            if (!session.board().legalMoves().contains(move)) {
+                sendError(gameId, "ILLEGAL_MOVE", "Jugada no legal en la posición actual: " + move.toUci());
+                return;
+            }
 
-        session.applyMove(move);
-        broadcastUpdatedState(session);
+            session.applyMove(move);
+            broadcastUpdatedState(session);
+        }
     }
 
     @MessageMapping("/game/{gameId}/join")
@@ -81,7 +88,10 @@ public class GameWebSocketController {
             sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
             return;
         }
-        broadcastUpdatedState(maybeSession.get());
+        GameSession session = maybeSession.get();
+        synchronized (session) {
+            broadcastUpdatedState(session);
+        }
     }
 
     @MessageMapping("/game/{gameId}/resign")
@@ -93,16 +103,18 @@ public class GameWebSocketController {
         }
         GameSession session = maybeSession.get();
 
-        String userId = principal != null ? principal.getName() : null;
-        boolean whiteResigns = session.whitePlayerId().equals(userId);
-        boolean blackResigns = session.blackPlayerId().equals(userId);
-        if (!whiteResigns && !blackResigns) {
-            sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
-            return;
-        }
+        synchronized (session) {
+            String userId = principal != null ? principal.getName() : null;
+            boolean whiteResigns = session.whitePlayerId().equals(userId);
+            boolean blackResigns = session.blackPlayerId().equals(userId);
+            if (!whiteResigns && !blackResigns) {
+                sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
+                return;
+            }
 
-        String result = whiteResigns ? "0-1" : "1-0";
-        gameEndNotifier.endGame(session, result, "resignation");
+            String result = whiteResigns ? "0-1" : "1-0";
+            gameEndNotifier.endGame(session, result, "resignation");
+        }
     }
 
     /**
