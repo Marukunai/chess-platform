@@ -124,3 +124,19 @@ sería duplicar lógica ya construida, testeada y de confianza en el motor Java 
 que valida las partidas en vivo). El cliente se limita a recorrer un array de FEN con el
 mismo `renderBoard()` que ya usa para la partida en directo — cero lógica de ajedrez en
 el navegador, en ningún sitio.
+
+## ADR-012: Ventana de gracia de reconexión — 30 segundos, independiente del reloj
+
+**Decisión:** al desconectarse, un jugador tiene 30 segundos para volver a conectar
+antes de que la partida se dé por abandonada. Es una condición aparte del timeout por
+reloj (ADR-004): el reloj sigue corriendo mientras el jugador está desconectado (no se
+pausa), y si los dos jugadores están desconectados a la vez cuando se cumple la
+ventana, se declaran tablas en vez de dar la victoria arbitrariamente a quien se
+comprueba primero.
+
+**Motivo:** sin esta ventana, un jugador que pierde la conexión con un control de
+tiempo largo (p. ej. clásicas, 30+20) podría dejar al rival esperando minutos u horas
+hasta que el reloj se agote solo, aunque esté claro desde el principio que no va a
+volver. 30 segundos es un valor de partida razonable sin datos propios de uso real que
+lo justifiquen mejor — vale la pena ajustarlo si en el futuro se observa que es
+demasiado corto o largo en la práctica.

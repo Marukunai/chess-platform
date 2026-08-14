@@ -158,11 +158,6 @@ de las decisiones clave tomadas al arrancar el proyecto y su justificación.
 Cosas que sé que faltan ahora mismo, documentadas a propósito en vez de dejarlas como
 sorpresa — cada una tiene su `TODO` correspondiente en el código:
 
-- **Sin ventana de gracia al reconectar**: si un jugador pierde la conexión a mitad de
-  partida, el reloj sigue corriendo (correcto — es *server-authoritative*, no depende de
-  que el cliente siga conectado), pero no hay ningún periodo de gracia para volver a
-  conectarse antes de que el tiempo se agote. Simplemente pierde por tiempo si no
-  regresa a tiempo. Ver `TODO` en `GameSession`.
 - **CORS abierto a cualquier origen** (`setAllowedOriginPatterns("*")`, tanto en
   `SecurityConfig` como en `WebSocketConfig`) — correcto para desarrollo local, pero hay
   que restringirlo al dominio real antes de cualquier despliegue accesible desde fuera.
