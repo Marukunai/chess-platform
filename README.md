@@ -1,5 +1,7 @@
 # ♟️ Chess Platform — Plataforma de Ajedrez Online en Tiempo Real
 
+[![Backend CI](https://github.com/Marukunai/chess-platform/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Marukunai/chess-platform/actions/workflows/backend-ci.yml)
+
 Plataforma de ajedrez online multiplataforma (web + Android) donde dos jugadores pueden
 jugar partidas en tiempo real, con sistema de rating Glicko-2, bots basados en Stockfish y
 generación automática de puzzles tácticos a partir de partidas jugadas.
@@ -14,9 +16,9 @@ ajedrez externo.
 ### Fase 1 — MVP (en desarrollo)
 
 - [ ] Motor de reglas de ajedrez propio (movimientos legales, jaque, jaque mate, ahogado,
-      enroque, en passant, coronación, tablas por repetición/50 movimientos)
+  enroque, en passant, coronación, tablas por repetición/50 movimientos)
 - [ ] Partidas 1v1 en tiempo real vía STOMP sobre WebSocket, con reloj configurable
-      (bullet/blitz/rápidas/clásicas)
+  (bullet/blitz/rápidas/clásicas)
 - [ ] Autenticación JWT
 - [ ] Rating Glicko-2 actualizado tras cada partida
 - [ ] Matchmaking básico por cola, emparejando por rating cercano
