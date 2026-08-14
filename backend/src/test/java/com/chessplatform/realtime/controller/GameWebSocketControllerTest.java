@@ -22,6 +22,7 @@ import java.security.Principal;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -261,5 +262,44 @@ class GameWebSocketControllerTest {
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
         assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("FORBIDDEN");
         verify(gameEndNotifier, never()).endGame(org.mockito.ArgumentMatchers.any(), anyString(), anyString());
+    }
+
+    @Test
+    void concurrentMovesForTheSameGameDoNotBothGetApplied() throws InterruptedException {
+        // Regresión directa del hallazgo de condición de carrera: dos hilos mandando la
+        // MISMA jugada casi a la vez para la misma partida. Sin sincronizar sobre la
+        // GameSession, los dos podrían pasar la comprobación de legalidad antes de que
+        // cualquiera mute el tablero, y aplicarse las dos. Con el bloqueo, el segundo ve
+        // el tablero ya actualizado por el primero (turno ya cambiado a negras), así que
+        // se rechaza — solo una jugada debería quedar en el historial.
+        //
+        // Es un test con hilos reales, así que depende algo del scheduling del SO — pero
+        // arrancar ambos con un CountDownLatch maximiza las probabilidades de solape, y
+        // sessionRegistry/messagingTemplate/gameEndNotifier son mocks de Mockito, seguros
+        // de invocar desde varios hilos sin más.
+        GameSession session = newSession(); // le toca a blancas
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        MoveMessage move = new MoveMessage(session.gameId(), "e2", "e4", null);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        Runnable attempt = () -> {
+            try {
+                startLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            controller.handleMove(session.gameId(), move, principalFor("white-player"));
+        };
+
+        Thread first = new Thread(attempt);
+        Thread second = new Thread(attempt);
+        first.start();
+        second.start();
+        startLatch.countDown(); // suelta a los dos casi a la vez
+        first.join();
+        second.join();
+
+        assertThat(session.board().moveHistory()).hasSize(1);
     }
 }

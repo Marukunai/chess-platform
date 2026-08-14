@@ -29,10 +29,17 @@ public class GameTimeoutService {
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
     public void tick() {
         for (GameSession session : sessionRegistry.allSessions()) {
-            Color playerToMove = session.board().turn();
-            if (session.isTimeout(playerToMove)) {
-                String result = playerToMove == Color.WHITE ? "0-1" : "1-0";
-                gameEndNotifier.endGame(session, result, "timeout");
+            // Este barrido corre en su propio hilo programado, totalmente
+            // independiente de los hilos que procesan mensajes STOMP — sin
+            // sincronizar sobre la partida, podría solaparse con una jugada
+            // procesándose justo en ese instante (ver el mismo bloqueo en
+            // GameWebSocketController).
+            synchronized (session) {
+                Color playerToMove = session.board().turn();
+                if (session.isTimeout(playerToMove)) {
+                    String result = playerToMove == Color.WHITE ? "0-1" : "1-0";
+                    gameEndNotifier.endGame(session, result, "timeout");
+                }
             }
         }
     }

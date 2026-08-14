@@ -16,6 +16,17 @@ import java.util.UUID;
  * Reloj server-authoritative (ver ADR-004): no hay un hilo haciendo tick por partida. Se
  * guarda el tiempo restante de cada jugador junto al timestamp de la última jugada, y el
  * tiempo consumido se calcula bajo demanda (ver timeRemaining()).
+ *
+ * Concurrencia: esta clase NO es internamente thread-safe. Los mensajes STOMP de un
+ * mismo cliente pueden procesarse en hilos distintos, y GameTimeoutService corre en su
+ * propio hilo programado — así que dos operaciones sobre la MISMA partida (dos jugadas,
+ * o una jugada y el barrido de timeout) podrían solaparse sin ninguna protección.
+ * Cualquier código que lea o mute el estado de una GameSession (tablero, reloj) debe
+ * hacerlo dentro de un bloque {@code synchronized (session)} — ver
+ * GameWebSocketController y GameTimeoutService para los puntos ya cubiertos.
+ * Sincronizar sobre la propia instancia (no sobre GameSessionRegistry ni un candado
+ * global) mantiene el bloqueo acotado a una sola partida: dos partidas distintas nunca
+ * se bloquean entre sí.
  */
 public class GameSession {
 
