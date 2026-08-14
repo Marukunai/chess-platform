@@ -1,0 +1,34 @@
+# Blueprint de Render — despliega backend + cliente web de una vez.
+# https://render.com/docs/blueprint-spec
+#
+# El backend necesita Postgres, pero deliberadamente NO se define aquí como "databases:"
+# (el Postgres gratuito propio de Render caduca a los 30 días) — se usa Neon en su
+# lugar, cuyo nivel gratuito es permanente. Por eso SPRING_DATASOURCE_* van con
+# "sync: false": hay que rellenarlos a mano en el dashboard tras crear la base en Neon.
+services:
+  - type: web
+    name: chess-platform-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false # jdbc:postgresql://<host-de-neon>/<db>?sslmode=require
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true # Render genera un valor aleatorio seguro él solo
+      - key: JWT_EXPIRATION_MS
+        value: "86400000"
+      - key: ALLOWED_ORIGIN
+        sync: false # URL del static site de abajo, una vez desplegado (https://chess-platform-web.onrender.com)
+
+  - type: web
+    name: chess-platform-web
+    runtime: static
+    staticPublishPath: ./web
+    plan: free

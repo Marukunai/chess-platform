@@ -1,8 +1,8 @@
 // Login/registro contra la API REST (/api/auth/**) — HTTP normal, no pasa por
 // WebSocket. El JWT que devuelve se guarda en localStorage para no tener que volver a
 // hacer login en cada recarga de página.
+// BACKEND_HTTP_URL viene de config.js (cargado antes que este archivo en index.html).
 
-const BACKEND_HTTP_URL = 'http://localhost:8080';
 const TOKEN_STORAGE_KEY = 'chess-platform-token';
 
 async function registerUser(username, password) {

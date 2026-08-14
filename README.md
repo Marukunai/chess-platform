@@ -148,6 +148,53 @@ Android, sería razonable reconsiderar y extraerlo — no es el caso ahora.
 Ver [`CONTRIBUTING.md`](./CONTRIBUTING.md) para convención de ramas, commits (Conventional
 Commits) y qué archivos se suben al repositorio.
 
+## Demo pública (despliegue)
+
+Backend en [Render](https://render.com) (*free tier*, Docker) + base de datos en
+[Neon](https://neon.tech) (*free tier* permanente — deliberadamente no el Postgres
+propio de Render, que caduca a los 30 días) + cliente web como *static site*, también en
+Render. Todo definido en [`render.yaml`](./render.yaml) como *Blueprint*.
+
+### 1. Crea la base de datos en Neon
+
+1. [neon.tech](https://neon.tech) → crea una cuenta (sin tarjeta) → *New Project*.
+2. Copia la cadena de conexión que te da
+   (`postgresql://usuario:contraseña@host/db?sslmode=require`) — la necesitas en el
+   paso 3, separada en sus partes.
+
+### 2. Despliega el Blueprint en Render
+
+1. [render.com](https://render.com) → crea una cuenta (sin tarjeta) → *New* → *Blueprint*.
+2. Conecta el repositorio de GitHub.
+3. Render detecta `render.yaml` solo y propone los dos servicios
+   (`chess-platform-backend` y `chess-platform-web`) — confirma.
+
+### 3. Rellena las variables de entorno del backend
+
+En el dashboard de Render, en `chess-platform-backend` → *Environment*:
+
+| Variable | Valor |
+|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<host-de-neon>/<db>?sslmode=require` |
+| `SPRING_DATASOURCE_USERNAME` | El usuario de la cadena de conexión de Neon |
+| `SPRING_DATASOURCE_PASSWORD` | La contraseña de la cadena de conexión de Neon |
+| `ALLOWED_ORIGIN` | La URL de `chess-platform-web`, una vez desplegado (se ve en su propio dashboard) |
+
+`JWT_SECRET` se genera solo (`generateValue: true` en el *Blueprint*) — no hay que
+tocarlo.
+
+### 4. Actualiza `web/js/config.js` con la URL real del backend
+
+Con `chess-platform-backend` ya con su URL definitiva (algo como
+`https://chess-platform-backend.onrender.com`), sustitúyela en `web/js/config.js` y haz
+commit — Render vuelve a desplegar el *static site* solo al detectar el *push*.
+
+### Nota sobre el primer arranque
+
+El plan gratuito de Render "duerme" el backend a los 15 minutos de inactividad — la
+primera petición tras eso tarda 30-60 segundos en responder mientras despierta. Es
+normal, no un fallo — verlo así una vez no significa que algo se haya roto.
+
 ## Decisiones de arquitectura
 
 Ver [`docs/architecture-decisions.md`](./docs/architecture-decisions.md) para el registro
@@ -158,9 +205,6 @@ de las decisiones clave tomadas al arrancar el proyecto y su justificación.
 Cosas que sé que faltan ahora mismo, documentadas a propósito en vez de dejarlas como
 sorpresa — cada una tiene su `TODO` correspondiente en el código:
 
-- **CORS abierto a cualquier origen** (`setAllowedOriginPatterns("*")`, tanto en
-  `SecurityConfig` como en `WebSocketConfig`) — correcto para desarrollo local, pero hay
-  que restringirlo al dominio real antes de cualquier despliegue accesible desde fuera.
 - **No existe `JwtAuthenticationFilter` para peticiones HTTP normales**: la identidad
   solo se valida en el `CONNECT` de STOMP (ver ADR-008) y, obviamente, dentro de
   `/api/auth/**` al hacer login. Como no hay todavía ningún otro endpoint REST que

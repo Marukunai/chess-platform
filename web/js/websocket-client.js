@@ -1,7 +1,5 @@
 // Cliente STOMP sobre WebSocket (SockJS). Conecta contra /ws en el backend.
-// TODO (Fase 1): sustituir la URL fija por configuración de entorno cuando haya build step.
-
-const BACKEND_WS_URL = 'http://localhost:8080/ws';
+// BACKEND_WS_URL viene de config.js (cargado antes que este archivo en index.html).
 
 let stompClient = null;
 
