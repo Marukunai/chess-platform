@@ -67,3 +67,60 @@ construido una interfaz de reclamación, lo más simple y coherente es que la pa
 termine sola en cuanto se cumple la condición — exactamente igual que ya hacíamos con el
 ahogado (nadie lo "reclama", se decide solo). Es también el comportamiento de lichess y
 chess.com.
+
+## ADR-008: JWT validado en el CONNECT de STOMP, no en el handshake HTTP
+
+**Decisión:** el JWT se valida como cabecera `Authorization` dentro del frame STOMP
+`CONNECT`, no en la petición HTTP de *handshake* del WebSocket.
+
+**Motivo:** los navegadores no permiten poner cabeceras arbitrarias en la petición de
+*upgrade* de WebSocket — solo query params (quedarían en logs, mala práctica) o, la vía
+estándar, autenticar sobre el propio protocolo STOMP una vez la conexión ya está
+abierta. `StompAuthChannelInterceptor` intercepta el `CONNECT`, valida el token y fija
+el `Principal` de la sesión, disponible después en cualquier `@MessageMapping` sin
+revalidar en cada mensaje. `/ws/**` queda deliberadamente público a nivel HTTP (ver
+`SecurityConfig`) porque la identidad real se verifica aquí, no en el *handshake*.
+
+## ADR-009: `GameEndNotifier` separado de `GameResultRecorder`
+
+**Decisión:** el fin de una partida se reparte en dos colaboradores con
+responsabilidades distintas — `GameEndNotifier` avisa por WebSocket y limpia el
+registro en memoria; `GameResultRecorder` calcula el nuevo Glicko-2 de ambos jugadores y
+guarda la partida en Postgres.
+
+**Motivo:** son dos preocupaciones distintas (transporte/notificación vs
+persistencia/rating), y separarlas permite que un fallo de base de datos no impida que
+los jugadores se enteren de que la partida ha terminado — `GameEndNotifier` captura
+cualquier excepción que lance `GameResultRecorder` y sigue adelante con el aviso y la
+limpieza igualmente (ver el test
+`endGameStillBroadcastsAndCleansUpEvenIfRecordingTheResultFails`). Es peor dejar a los
+jugadores esperando indefinidamente que perder el guardado de una partida concreta.
+
+## ADR-010: Sincronización por partida, no un candado global
+
+**Decisión:** todo acceso al estado de una `GameSession` (jugar, rendirse, unirse, y el
+barrido periódico de timeout) se sincroniza sobre la propia instancia de `GameSession`
+(`synchronized (session)`), nunca sobre `GameSessionRegistry` ni un candado compartido
+entre todas las partidas.
+
+**Motivo:** los mensajes STOMP de un mismo cliente pueden procesarse en hilos distintos,
+y `GameTimeoutService` corre en su propio hilo programado — sin protección, dos jugadas
+casi simultáneas para la misma partida podrían pasar la comprobación de legalidad las
+dos *antes* de que cualquiera mute el tablero, y aplicarse ambas. Sincronizar sobre la
+instancia de la partida (no un candado global) acota el bloqueo a esa partida concreta:
+miles de partidas concurrentes no se bloquean entre sí por esto — solo se serializa el
+acceso a la misma partida, que es exactamente donde puede haber una carrera real.
+
+## ADR-011: Reproducción de partidas reconstruida en el servidor
+
+**Decisión:** el historial guarda solo las jugadas en notación UCI (`Game.moveList`); al
+pedir el detalle de una partida, el servidor reproduce esas jugadas sobre un
+`Board.initial()` real y manda al cliente la secuencia completa de posiciones FEN ya
+calculada (`GameReplayService`).
+
+**Motivo:** el cliente web no tiene ningún motor de reglas de ajedrez en JavaScript, y no
+debería necesitarlo — reimplementar las reglas ahí solo para poder "reproducir" jugadas
+sería duplicar lógica ya construida, testeada y de confianza en el motor Java (el mismo
+que valida las partidas en vivo). El cliente se limita a recorrer un array de FEN con el
+mismo `renderBoard()` que ya usa para la partida en directo — cero lógica de ajedrez en
+el navegador, en ningún sitio.

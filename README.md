@@ -13,18 +13,18 @@ ajedrez externo.
 
 ## Alcance
 
-### Fase 1 — MVP (en desarrollo)
+### Fase 1 — MVP
 
-- [ ] Motor de reglas de ajedrez propio (movimientos legales, jaque, jaque mate, ahogado,
+- [x] Motor de reglas de ajedrez propio (movimientos legales, jaque, jaque mate, ahogado,
   enroque, en passant, coronación, tablas por repetición/50 movimientos)
-- [ ] Partidas 1v1 en tiempo real vía STOMP sobre WebSocket, con reloj configurable
+- [x] Partidas 1v1 en tiempo real vía STOMP sobre WebSocket, con reloj configurable
   (bullet/blitz/rápidas/clásicas)
-- [ ] Autenticación JWT
-- [ ] Rating Glicko-2 actualizado tras cada partida
-- [ ] Matchmaking básico por cola, emparejando por rating cercano
-- [ ] Cliente web con tablero interactivo
+- [x] Autenticación JWT
+- [x] Rating Glicko-2 actualizado tras cada partida
+- [x] Matchmaking básico por cola, emparejando por rating cercano
+- [x] Cliente web con tablero interactivo
 - [ ] Cliente Android conectado a la misma partida en vivo
-- [ ] Historial de partidas con reproducción movimiento a movimiento
+- [x] Historial de partidas con reproducción movimiento a movimiento
 
 ### Fase 2 — Ampliación (planificado)
 
@@ -152,6 +152,26 @@ Commits) y qué archivos se suben al repositorio.
 
 Ver [`docs/architecture-decisions.md`](./docs/architecture-decisions.md) para el registro
 de las decisiones clave tomadas al arrancar el proyecto y su justificación.
+
+## Limitaciones conocidas
+
+Cosas que sé que faltan ahora mismo, documentadas a propósito en vez de dejarlas como
+sorpresa — cada una tiene su `TODO` correspondiente en el código:
+
+- **Sin ventana de gracia al reconectar**: si un jugador pierde la conexión a mitad de
+  partida, el reloj sigue corriendo (correcto — es *server-authoritative*, no depende de
+  que el cliente siga conectado), pero no hay ningún periodo de gracia para volver a
+  conectarse antes de que el tiempo se agote. Simplemente pierde por tiempo si no
+  regresa a tiempo. Ver `TODO` en `GameSession`.
+- **CORS abierto a cualquier origen** (`setAllowedOriginPatterns("*")`, tanto en
+  `SecurityConfig` como en `WebSocketConfig`) — correcto para desarrollo local, pero hay
+  que restringirlo al dominio real antes de cualquier despliegue accesible desde fuera.
+- **No existe `JwtAuthenticationFilter` para peticiones HTTP normales**: la identidad
+  solo se valida en el `CONNECT` de STOMP (ver ADR-008) y, obviamente, dentro de
+  `/api/auth/**` al hacer login. Como no hay todavía ningún otro endpoint REST que
+  necesite identidad (`/api/games/**` es público a propósito, ver ADR-011 en
+  `docs/architecture-decisions.md`), no ha hecho falta construirlo — es lo primero que
+  tocaría en cuanto aparezca uno.
 
 ## Licencia
 
