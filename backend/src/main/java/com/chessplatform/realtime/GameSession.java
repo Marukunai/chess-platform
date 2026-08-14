@@ -42,7 +42,11 @@ public class GameSession {
     private final Duration increment;
     private Instant lastMoveTimestamp;
 
-    // TODO (Fase 1): estado de conexión por jugador + ventana de gracia para reconexión
+    // null = conectado (o nunca se desconectó); con timestamp = desde cuándo lleva
+    // desconectado. Ver PlayerConnectionListener (quién los fija) y
+    // GameAbandonmentService (quién los consulta).
+    private Instant whiteDisconnectedAt;
+    private Instant blackDisconnectedAt;
 
     public GameSession(String whitePlayerId, String blackPlayerId, Duration initialTime, Duration increment) {
         this(whitePlayerId, blackPlayerId, initialTime, increment, Clock.systemUTC());
@@ -139,5 +143,48 @@ public class GameSession {
 
     public Duration increment() {
         return increment;
+    }
+
+    /**
+     * ¿A qué color pertenece este playerId dentro de esta partida?
+     *
+     * @throws IllegalArgumentException si playerId no es ninguno de los dos jugadores
+     */
+    public Color colorOf(String playerId) {
+        if (whitePlayerId.equals(playerId)) {
+            return Color.WHITE;
+        }
+        if (blackPlayerId.equals(playerId)) {
+            return Color.BLACK;
+        }
+        throw new IllegalArgumentException("playerId no pertenece a esta partida: " + playerId);
+    }
+
+    public void markDisconnected(Color color) {
+        if (color == Color.WHITE) {
+            whiteDisconnectedAt = Instant.now(clock);
+        } else {
+            blackDisconnectedAt = Instant.now(clock);
+        }
+    }
+
+    public void markConnected(Color color) {
+        if (color == Color.WHITE) {
+            whiteDisconnectedAt = null;
+        } else {
+            blackDisconnectedAt = null;
+        }
+    }
+
+    /**
+     * ¿Lleva `color` desconectado más de `gracePeriod`? false tanto si está conectado
+     * como si nunca se ha desconectado (mismo estado: sin timestamp de desconexión).
+     */
+    public boolean hasExceededDisconnectGracePeriod(Color color, Duration gracePeriod) {
+        Instant disconnectedAt = color == Color.WHITE ? whiteDisconnectedAt : blackDisconnectedAt;
+        if (disconnectedAt == null) {
+            return false;
+        }
+        return Duration.between(disconnectedAt, Instant.now(clock)).compareTo(gracePeriod) >= 0;
     }
 }

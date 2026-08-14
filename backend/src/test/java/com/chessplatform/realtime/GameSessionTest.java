@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GameSessionTest {
 
@@ -110,5 +111,58 @@ class GameSessionTest {
         assertThat(session.board().pieceAt(Square.of(4, 3)))
                 .isEqualTo(new Piece(Color.WHITE, PieceType.PAWN));
         assertThat(session.board().pieceAt(Square.of(4, 1))).isNull();
+    }
+
+    @Test
+    void colorOfReturnsTheCorrectColorForEachPlayer() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession session = newSession(Duration.ofMinutes(10), Duration.ZERO, clock);
+
+        assertThat(session.colorOf("white-player")).isEqualTo(Color.WHITE);
+        assertThat(session.colorOf("black-player")).isEqualTo(Color.BLACK);
+    }
+
+    @Test
+    void colorOfThrowsForAPlayerNotInTheGame() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession session = newSession(Duration.ofMinutes(10), Duration.ZERO, clock);
+
+        assertThatThrownBy(() -> session.colorOf("un-espectador-cualquiera"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void hasExceededDisconnectGracePeriodIsFalseWhenNeverDisconnected() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession session = newSession(Duration.ofMinutes(10), Duration.ZERO, clock);
+
+        assertThat(session.hasExceededDisconnectGracePeriod(Color.WHITE, Duration.ofSeconds(30))).isFalse();
+    }
+
+    @Test
+    void hasExceededDisconnectGracePeriodBecomesTrueOnceTheWindowElapses() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession session = newSession(Duration.ofMinutes(10), Duration.ZERO, clock);
+
+        session.markDisconnected(Color.WHITE);
+        assertThat(session.hasExceededDisconnectGracePeriod(Color.WHITE, Duration.ofSeconds(30))).isFalse();
+
+        clock.advance(Duration.ofSeconds(31));
+        assertThat(session.hasExceededDisconnectGracePeriod(Color.WHITE, Duration.ofSeconds(30))).isTrue();
+
+        // El otro jugador ni se ha desconectado — no debería verse afectado.
+        assertThat(session.hasExceededDisconnectGracePeriod(Color.BLACK, Duration.ofSeconds(30))).isFalse();
+    }
+
+    @Test
+    void markConnectedClearsTheDisconnectState() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        GameSession session = newSession(Duration.ofMinutes(10), Duration.ZERO, clock);
+
+        session.markDisconnected(Color.WHITE);
+        clock.advance(Duration.ofSeconds(31));
+        session.markConnected(Color.WHITE); // vuelve a tiempo
+
+        assertThat(session.hasExceededDisconnectGracePeriod(Color.WHITE, Duration.ofSeconds(30))).isFalse();
     }
 }
