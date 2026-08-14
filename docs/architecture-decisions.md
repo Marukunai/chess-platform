@@ -54,3 +54,16 @@ se suman colaboradores externos centrados en un solo cliente.
 **Motivo:** testeable con JUnit puro sin levantar contexto de Spring, y reutilizable tal
 cual desde el generador de puzzles en Fase 2 (que también necesita evaluar posiciones sin
 pasar por la capa de tiempo real).
+
+## ADR-007: Tablas por repetición y regla de 50 movimientos — automáticas, no reclamables
+
+**Decisión:** ambas reglas terminan la partida automáticamente en cuanto se cumple la
+condición, sin que ningún jugador tenga que "reclamarlas".
+
+**Motivo:** en ajedrez presencial (FIDE) estas reglas son reclamables porque hay un
+árbitro que verifica la reclamación, y existe incentivo estratégico en no reclamar si a
+uno le conviene seguir jugando. En una plataforma online sin árbitro, y sin haber
+construido una interfaz de reclamación, lo más simple y coherente es que la partida
+termine sola en cuanto se cumple la condición — exactamente igual que ya hacíamos con el
+ahogado (nadie lo "reclama", se decide solo). Es también el comportamiento de lichess y
+chess.com.

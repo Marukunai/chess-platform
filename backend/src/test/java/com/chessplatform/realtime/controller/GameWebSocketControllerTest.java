@@ -158,6 +158,64 @@ class GameWebSocketControllerTest {
     }
 
     @Test
+    void handleMoveEndsTheGameAsADrawWhenFiftyMoveRuleIsReached() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        Move whiteOut = new Move(Square.of(1, 0), Square.of(2, 2)); // Nb1-c3
+        Move blackOut = new Move(Square.of(1, 7), Square.of(2, 5)); // Nb8-c6
+        Move whiteBack = new Move(Square.of(2, 2), Square.of(1, 0)); // Nc3-b1
+        Move blackBack = new Move(Square.of(2, 5), Square.of(1, 7)); // Nc6-b8
+
+        // 96 semijugadas = 24 vaivenes completos, sin peón ni captura, aplicadas
+        // directamente sobre la sesión (sin pasar por el controlador — solo montamos el
+        // escenario). Más 3 sueltas para dejar el contador en 99 justo antes de la
+        // jugada que sí manda el test a través del controlador.
+        for (int i = 0; i < 24; i++) {
+            session.applyMove(whiteOut);
+            session.applyMove(blackOut);
+            session.applyMove(whiteBack);
+            session.applyMove(blackBack);
+        }
+        session.applyMove(whiteOut);
+        session.applyMove(blackOut);
+        session.applyMove(whiteBack);
+
+        // Jugada 100, la manda de verdad negras (Nc6-b8) a través del controlador.
+        controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "c6", "b8", null),
+                principalFor("black-player"));
+
+        verify(gameEndNotifier).endGame(session, "1/2-1/2", "fifty-move-rule");
+    }
+
+    @Test
+    void handleMoveEndsTheGameAsADrawByThreefoldRepetition() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        Move whiteOut = new Move(Square.of(1, 0), Square.of(2, 2)); // Nb1-c3
+        Move blackOut = new Move(Square.of(1, 7), Square.of(2, 5)); // Nb8-c6
+        Move whiteBack = new Move(Square.of(2, 2), Square.of(1, 0)); // Nc3-b1
+        Move blackBack = new Move(Square.of(2, 5), Square.of(1, 7)); // Nc6-b8
+
+        // Primer vaivén completo: 2ª aparición de la posición inicial.
+        session.applyMove(whiteOut);
+        session.applyMove(blackOut);
+        session.applyMove(whiteBack);
+        session.applyMove(blackBack);
+
+        // Segundo vaivén, salvo la última jugada — esa la manda el controlador de verdad.
+        session.applyMove(whiteOut);
+        session.applyMove(blackOut);
+        session.applyMove(whiteBack);
+
+        controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "c6", "b8", null),
+                principalFor("black-player"));
+
+        verify(gameEndNotifier).endGame(session, "1/2-1/2", "threefold-repetition");
+    }
+
+    @Test
     void handleJoinSendsCurrentStateWhenGameExists() {
         GameSession session = newSession();
         when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));

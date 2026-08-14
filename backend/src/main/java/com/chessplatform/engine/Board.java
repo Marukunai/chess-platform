@@ -1,7 +1,9 @@
 package com.chessplatform.engine;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tablero de ajedrez, representación mailbox 1D (64 casillas).
@@ -14,6 +16,11 @@ public class Board {
 
     private final Piece[] squares = new Piece[64];
     private final List<Move> moveHistory = new ArrayList<>();
+    // Cuenta cuántas veces ha aparecido cada posición (clave = positionKey(), ver más
+    // abajo), para la regla de triple repetición. Solo initial() la siembra con la
+    // posición de partida — empty() no, ya que ahí no hay "partida real" detrás, solo
+    // una posición suelta para tests o reconstrucción de puzzles.
+    private final Map<String, Integer> positionOccurrences = new HashMap<>();
     private Color turn = Color.WHITE;
     private boolean whiteCanCastleKingside = true;
     private boolean whiteCanCastleQueenside = true;
@@ -29,6 +36,7 @@ public class Board {
     public static Board initial() {
         Board board = new Board();
         board.setupStartingPosition();
+        board.recordCurrentPosition();
         return board;
     }
 
@@ -76,6 +84,7 @@ public class Board {
         Board copy = new Board();
         System.arraycopy(this.squares, 0, copy.squares, 0, 64);
         copy.moveHistory.addAll(this.moveHistory);
+        copy.positionOccurrences.putAll(this.positionOccurrences);
         copy.turn = this.turn;
         copy.whiteCanCastleKingside = this.whiteCanCastleKingside;
         copy.whiteCanCastleQueenside = this.whiteCanCastleQueenside;
@@ -474,6 +483,7 @@ public class Board {
         turn = turn.opposite();
 
         moveHistory.add(move);
+        recordCurrentPosition();
     }
 
     /**
@@ -670,11 +680,27 @@ public class Board {
     /**
      * Representación FEN completa de la posición actual: colocación de piezas, turno,
      * derechos de enroque, casilla de captura al paso, contador de 50 movimientos y
-     * número de jugada. Reutiliza pieceChar() (el mismo mapeo que usa toString()) para no
-     * duplicar la conversión pieza→letra.
+     * número de jugada. Los primeros cuatro campos salen de positionKey() — ver ahí por
+     * qué el contador de 50 movimientos y el número de jugada quedan fuera de esa parte.
      */
     public String toFen() {
-        StringBuilder fen = new StringBuilder();
+        return positionKey() + ' ' + halfmoveClock + ' ' + fullmoveNumber;
+    }
+
+    /**
+     * Los cuatro primeros campos del FEN — colocación de piezas, turno, derechos de
+     * enroque y casilla de captura al paso — que son justo lo que define si dos
+     * posiciones cuentan como "la misma" a efectos de la regla de triple repetición
+     * (dos tableros con las piezas idénticas pero derechos de enroque distintos NO son
+     * la misma posición legal). A propósito NO incluye el contador de 50 movimientos ni
+     * el número de jugada: esos cambian en cada jugada por definición, así que si se
+     * incluyeran ninguna posición se consideraría nunca repetida.
+     *
+     * Paquete-visible (no private): BoardTest lo comprueba directamente para verificar
+     * que el enroque sí distingue dos posiciones con la misma colocación de piezas.
+     */
+    String positionKey() {
+        StringBuilder key = new StringBuilder();
 
         for (int rank = 7; rank >= 0; rank--) {
             int emptyRun = 0;
@@ -685,33 +711,52 @@ public class Board {
                     continue;
                 }
                 if (emptyRun > 0) {
-                    fen.append(emptyRun);
+                    key.append(emptyRun);
                     emptyRun = 0;
                 }
-                fen.append(pieceChar(piece));
+                key.append(pieceChar(piece));
             }
             if (emptyRun > 0) {
-                fen.append(emptyRun);
+                key.append(emptyRun);
             }
             if (rank > 0) {
-                fen.append('/');
+                key.append('/');
             }
         }
 
-        fen.append(' ').append(turn == Color.WHITE ? 'w' : 'b');
+        key.append(' ').append(turn == Color.WHITE ? 'w' : 'b');
 
         String castling = ""
                 + (whiteCanCastleKingside ? "K" : "")
                 + (whiteCanCastleQueenside ? "Q" : "")
                 + (blackCanCastleKingside ? "k" : "")
                 + (blackCanCastleQueenside ? "q" : "");
-        fen.append(' ').append(castling.isEmpty() ? "-" : castling);
+        key.append(' ').append(castling.isEmpty() ? "-" : castling);
 
-        fen.append(' ').append(enPassantTarget == null ? "-" : enPassantTarget.toAlgebraic());
-        fen.append(' ').append(halfmoveClock);
-        fen.append(' ').append(fullmoveNumber);
+        key.append(' ').append(enPassantTarget == null ? "-" : enPassantTarget.toAlgebraic());
 
-        return fen.toString();
+        return key.toString();
+    }
+
+    private void recordCurrentPosition() {
+        positionOccurrences.merge(positionKey(), 1, Integer::sum);
+    }
+
+    /**
+     * ¿Ha aparecido la posición actual 3 veces o más? Termina la partida en tablas
+     * automáticamente (ver ADR-007) — no es algo que un jugador tenga que reclamar.
+     */
+    public boolean isDrawByRepetition() {
+        return positionOccurrences.getOrDefault(positionKey(), 0) >= 3;
+    }
+
+    /**
+     * 50 jugadas de cada jugador sin captura ni movimiento de peón = 100 semijugadas.
+     * halfmoveClock ya lleva esa cuenta desde applyMove(). Igual que la repetición,
+     * termina la partida sola (ver ADR-007).
+     */
+    public boolean isDrawByFiftyMoveRule() {
+        return halfmoveClock >= 100;
     }
 
     @Override

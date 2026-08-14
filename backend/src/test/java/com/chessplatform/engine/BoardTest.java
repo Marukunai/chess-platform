@@ -951,4 +951,92 @@ class BoardTest {
 
         assertThat(copy.moveHistory()).containsExactly(new Move(Square.of(4, 1), Square.of(4, 3)));
     }
+
+    @Test
+    void isDrawByFiftyMoveRuleBecomesTrueAfterFiftyMovesWithoutPawnMoveOrCapture() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        board.placePiece(Square.of(1, 0), new Piece(Color.WHITE, PieceType.KNIGHT)); // b1
+        board.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.KING)); // e8
+        board.placePiece(Square.of(1, 7), new Piece(Color.BLACK, PieceType.KNIGHT)); // b8
+
+        assertThat(board.isDrawByFiftyMoveRule()).isFalse();
+
+        // 25 vaivenes completos (blancas + negras) = 100 semijugadas, sin peón ni captura.
+        for (int i = 0; i < 25; i++) {
+            board.applyMove(new Move(Square.of(1, 0), Square.of(2, 2))); // Nb1-c3
+            board.applyMove(new Move(Square.of(1, 7), Square.of(2, 5))); // Nb8-c6
+            board.applyMove(new Move(Square.of(2, 2), Square.of(1, 0))); // Nc3-b1
+            board.applyMove(new Move(Square.of(2, 5), Square.of(1, 7))); // Nc6-b8
+        }
+
+        assertThat(board.isDrawByFiftyMoveRule()).isTrue();
+    }
+
+    @Test
+    void isDrawByRepetitionBecomesTrueWhenTheSamePositionOccursThreeTimes() {
+        Board board = Board.initial();
+        assertThat(board.isDrawByRepetition()).isFalse(); // 1ª aparición, recién creado
+
+        Move knightOut = new Move(Square.of(1, 0), Square.of(2, 2)); // Nb1-c3
+        Move opponentKnightOut = new Move(Square.of(1, 7), Square.of(2, 5)); // Nb8-c6
+        Move knightBack = new Move(Square.of(2, 2), Square.of(1, 0)); // Nc3-b1
+        Move opponentKnightBack = new Move(Square.of(2, 5), Square.of(1, 7)); // Nc6-b8
+
+        board.applyMove(knightOut);
+        board.applyMove(opponentKnightOut);
+        board.applyMove(knightBack);
+        board.applyMove(opponentKnightBack); // 2ª aparición de la posición inicial
+
+        assertThat(board.isDrawByRepetition()).isFalse();
+
+        board.applyMove(knightOut);
+        board.applyMove(opponentKnightOut);
+        board.applyMove(knightBack);
+        board.applyMove(opponentKnightBack); // 3ª aparición — ahora sí son tablas
+
+        assertThat(board.isDrawByRepetition()).isTrue();
+    }
+
+    @Test
+    void positionKeyDiffersWhenCastlingRightsDifferEvenWithIdenticalPiecePlacement() {
+        Board boardWithRights = Board.empty();
+        boardWithRights.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING)); // e1
+        boardWithRights.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.KING)); // e8
+        // Los flags de enroque parten en true incluso en un tablero vacío (valor por
+        // defecto) — boardWithRights los conserva tal cual.
+
+        Board boardWithoutRights = boardWithRights.copy();
+        boardWithoutRights.applyMove(new Move(Square.of(4, 0), Square.of(4, 1))); // Ke1-e2, pierde el derecho
+        boardWithoutRights.applyMove(new Move(Square.of(4, 1), Square.of(4, 0))); // Ke2-e1, misma casilla
+
+        // Misma colocación de piezas y mismo turno en ambos — la única diferencia real
+        // es el derecho a enrocar, y positionKey() debe distinguirlos igualmente.
+        assertThat(boardWithRights.pieceAt(Square.of(4, 0)))
+                .isEqualTo(boardWithoutRights.pieceAt(Square.of(4, 0)));
+        assertThat(boardWithRights.positionKey()).isNotEqualTo(boardWithoutRights.positionKey());
+    }
+
+    @Test
+    void copyPreservesPositionOccurrenceCounts() {
+        Board board = Board.initial();
+        Move out = new Move(Square.of(1, 0), Square.of(2, 2));
+        Move blackOut = new Move(Square.of(1, 7), Square.of(2, 5));
+        Move back = new Move(Square.of(2, 2), Square.of(1, 0));
+        Move blackBack = new Move(Square.of(2, 5), Square.of(1, 7));
+
+        board.applyMove(out);
+        board.applyMove(blackOut);
+        board.applyMove(back);
+        board.applyMove(blackBack); // 2ª aparición de la posición inicial
+
+        Board copy = board.copy();
+        copy.applyMove(out);
+        copy.applyMove(blackOut);
+        copy.applyMove(back);
+        copy.applyMove(blackBack); // 3ª aparición, solo en la copia
+
+        assertThat(copy.isDrawByRepetition()).isTrue();
+        assertThat(board.isDrawByRepetition()).isFalse(); // el original no se vio afectado
+    }
 }
