@@ -126,10 +126,26 @@ public class GameWebSocketController {
      * nuevo estado o el fin de la partida — evita recalcular legalMoves() varias veces
      * (cada llamada simula todas las jugadas pseudo-legales, no es gratis). Reutilizado
      * tanto tras aplicar una jugada como al unirse a una partida ya en curso.
+     *
+     * Las tablas por repetición y por regla de 50 movimientos se comprueban ANTES que
+     * jaque mate/ahogado: son condiciones que pueden darse aunque todavía existan
+     * jugadas legales (a diferencia de mate/ahogado, que dependen precisamente de que no
+     * las haya), y comprobarlas primero evita calcular legalMoves() cuando ya sabemos que
+     * la partida ha terminado.
      */
     private void broadcastUpdatedState(GameSession session) {
         Board board = session.board();
         String gameId = session.gameId();
+
+        if (board.isDrawByFiftyMoveRule()) {
+            gameEndNotifier.endGame(session, "1/2-1/2", "fifty-move-rule");
+            return;
+        }
+        if (board.isDrawByRepetition()) {
+            gameEndNotifier.endGame(session, "1/2-1/2", "threefold-repetition");
+            return;
+        }
+
         List<Move> legalMoves = board.legalMoves();
         boolean inCheck = board.isInCheck(board.turn());
 
