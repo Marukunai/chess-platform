@@ -16,7 +16,10 @@ spring:
         format_sql: true
 
 server:
-  port: 8080
+  # ${PORT:8080}, no un valor fijo: Render (y la mayoría de PaaS) asignan el puerto real
+  # vía la variable de entorno PORT y esperan que la app escuche justo ahí — con un
+  # puerto fijo, el healthcheck del despliegue nunca pasaría.
+  port: ${PORT:8080}
   error:
     # Por defecto Spring Boot oculta el mensaje de la excepción en la respuesta JSON de
     # error (razonable en producción, pero así AuthController.register()/login() nunca
@@ -26,6 +29,14 @@ server:
 jwt:
   secret: ${JWT_SECRET:changeme_generate_a_long_random_secret}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+app:
+  cors:
+    # Orígenes permitidos para CORS y para el endpoint WebSocket, separados por comas si
+    # hace falta más de uno. En local basta con el cliente web servido en :5500; en
+    # producción, se sustituye por la URL real del cliente desplegado vía la variable de
+    # entorno ALLOWED_ORIGIN — ver ADR correspondiente en docs/architecture-decisions.md.
+    allowed-origins: ${ALLOWED_ORIGIN:http://localhost:5500}
 
 logging:
   level:
