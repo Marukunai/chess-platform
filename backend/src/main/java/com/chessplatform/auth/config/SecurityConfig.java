@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable()) // API stateless con JWT, sin cookies de sesión
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/games/**", "/ws/**", "/health").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/games/**", "/ws/**", "/health", "/error").permitAll()
                         .anyRequest().authenticated()
                 );
 
@@ -48,6 +48,14 @@ public class SecurityConfig {
         // /health es el endpoint que usa el healthcheck del proveedor de hosting
         // (Render) para saber si el backend está vivo — tiene que ser accesible sin
         // autenticar, nadie va a mandarle un JWT.
+        //
+        // /error: cuando cualquier controlador lanza una excepción (incluidas las
+        // ResponseStatusException que lanzamos nosotros a propósito, como usuario ya
+        // existente o credenciales incorrectas), Spring Boot hace un forward interno a
+        // /error para construir la respuesta. Si esa ruta no es pública, Spring Security
+        // la bloquea con un 403 genérico que tapa el status/mensaje real — así que tiene
+        // que ser tan pública como cualquier otra ruta a la que ya se pueda llegar sin
+        // autenticar.
         //
         // /ws/** queda público a propósito a nivel HTTP: el handshake de WebSocket no
         // puede llevar cabecera Authorization (los navegadores no lo permiten en la
@@ -69,13 +77,22 @@ public class SecurityConfig {
      * al servidor. Los orígenes concretos salen de CorsProperties (app.cors.allowed-origins),
      * configurable por variable de entorno — ver ADR de despliegue en
      * docs/architecture-decisions.md.
+     *
+     * allowCredentials(true) + una lista explícita de cabeceras (nunca "*") a propósito:
+     * SockJS manda sus peticiones de sondeo (/ws/info) con withCredentials=true por
+     * diseño propio, así que el servidor tiene que responder con
+     * Access-Control-Allow-Credentials: true — y esa cabecera es incompatible con
+     * Access-Control-Allow-Headers: "*" según la propia especificación CORS (Spring lo
+     * valida y rechaza la petición si se combinan mal, que es justo lo que pasaba
+     * antes).
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With", "Accept"));
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
