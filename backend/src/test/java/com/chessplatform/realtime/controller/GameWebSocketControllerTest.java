@@ -94,7 +94,7 @@ class GameWebSocketControllerTest {
         GameStateSyncMessage stateSync = (GameStateSyncMessage) payload.getValue();
         assertThat(stateSync.turn()).isEqualTo("black"); // el turno ya cambió tras la jugada
         assertThat(stateSync.boardFen()).contains("4P3"); // el peón blanco ya está en e4
-        assertThat(stateSync.movesUci()).containsExactly("e2e4");
+        assertThat(stateSync.movesNotation()).containsExactly("e4");
     }
 
     @Test

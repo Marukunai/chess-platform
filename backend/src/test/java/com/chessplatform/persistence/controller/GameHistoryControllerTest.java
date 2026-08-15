@@ -53,7 +53,7 @@ class GameHistoryControllerTest {
         List<GameSummaryResponse> history = controller.historyForUser("user-1");
 
         assertThat(history).hasSize(1);
-        GameSummaryResponse summary = history.get(0);
+        GameSummaryResponse summary = history.getFirst();
         assertThat(summary.whiteUsername()).isEqualTo("alice");
         assertThat(summary.blackUsername()).isEqualTo("bob");
         assertThat(summary.result()).isEqualTo("1-0");
@@ -77,7 +77,7 @@ class GameHistoryControllerTest {
 
         GameDetailResponse detail = controller.gameDetail("game-1");
 
-        assertThat(detail.moves()).containsExactly("e2e4", "e7e5");
+        assertThat(detail.movesNotation()).containsExactly("e4", "e5");
         assertThat(detail.fenPositions()).hasSize(3); // inicial + 2 jugadas
         assertThat(detail.whiteUsername()).isEqualTo("alice");
         assertThat(detail.blackUsername()).isEqualTo("bob");
@@ -92,7 +92,7 @@ class GameHistoryControllerTest {
 
         GameDetailResponse detail = controller.gameDetail("game-1");
 
-        assertThat(detail.moves()).isEmpty();
+        assertThat(detail.movesNotation()).isEmpty();
         assertThat(detail.fenPositions()).hasSize(1); // solo la posición inicial
     }
 

@@ -260,7 +260,7 @@ class BoardTest {
 
         List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(1);
-        assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 3)); // e4
+        assertThat(moves.getFirst().to()).isEqualTo(Square.of(4, 3)); // e4
     }
 
     @Test
@@ -282,7 +282,7 @@ class BoardTest {
 
         List<Move> moves = board.pseudoLegalMoves();
         assertThat(moves).hasSize(1);
-        assertThat(moves.get(0).to()).isEqualTo(Square.of(4, 2)); // e3, el doble paso no es posible
+        assertThat(moves.getFirst().to()).isEqualTo(Square.of(4, 2)); // e3, el doble paso no es posible
     }
 
     @Test
@@ -314,7 +314,7 @@ class BoardTest {
                 .toList();
 
         assertThat(pawnMoves).hasSize(1); // solo el empuje simple, ninguna captura
-        assertThat(pawnMoves.get(0).to()).isEqualTo(Square.of(4, 4));
+        assertThat(pawnMoves.getFirst().to()).isEqualTo(Square.of(4, 4));
     }
 
     @Test
@@ -1038,5 +1038,77 @@ class BoardTest {
 
         assertThat(copy.isDrawByRepetition()).isTrue();
         assertThat(board.isDrawByRepetition()).isFalse(); // el original no se vio afectado
+    }
+
+    @Test
+    void notationForAQuietPawnMoveHasNoPieceLetterOrX() {
+        Board board = Board.initial();
+
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+
+        assertThat(board.notationHistory()).containsExactly("e4");
+    }
+
+    @Test
+    void notationForAQuietPieceMoveHasThePieceLetter() {
+        Board board = Board.initial();
+
+        board.applyMove(new Move(Square.of(6, 0), Square.of(5, 2))); // Ng1-f3
+
+        assertThat(board.notationHistory()).containsExactly("Nf3");
+    }
+
+    @Test
+    void notationForAPieceCaptureHasThePieceLetterAndX() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.KING));
+        board.placePiece(Square.of(2, 3), new Piece(Color.WHITE, PieceType.ROOK)); // c4
+        board.placePiece(Square.of(5, 5), new Piece(Color.BLACK, PieceType.PAWN)); // f6
+        board.setTurn(Color.WHITE);
+
+        board.applyMove(new Move(Square.of(2, 3), Square.of(5, 3))); // Rc4-f4 (de paso, sin capturar)
+        board.applyMove(new Move(Square.of(4, 7), Square.of(3, 7))); // Ke8-d8, cualquier jugada negra
+        board.applyMove(new Move(Square.of(5, 3), Square.of(5, 5))); // Rf4xf6, captura
+
+        assertThat(board.notationHistory().get(2)).isEqualTo("Rxf6");
+    }
+
+    @Test
+    void notationForAPawnCaptureUsesTheOriginFileInsteadOfAPieceLetter() {
+        Board board = Board.initial();
+
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+        board.applyMove(new Move(Square.of(3, 6), Square.of(3, 4))); // d7-d5
+        board.applyMove(new Move(Square.of(4, 3), Square.of(3, 4))); // e4xd5
+
+        assertThat(board.notationHistory().get(2)).isEqualTo("exd5");
+    }
+
+    @Test
+    void notationForAPromotionIncludesThePromotedPieceLetter() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(0, 7), new Piece(Color.BLACK, PieceType.KING)); // a8, lejos de la coronación
+        board.placePiece(Square.of(4, 6), new Piece(Color.WHITE, PieceType.PAWN)); // e7
+        board.setTurn(Color.WHITE);
+
+        board.applyMove(new Move(Square.of(4, 6), Square.of(4, 7), PieceType.QUEEN)); // e7-e8=Q
+
+        assertThat(board.notationHistory()).containsExactly("e8=Q");
+    }
+
+    @Test
+    void notationForCastlingIsOOOrOOO() {
+        Board board = Board.empty();
+        board.placePiece(Square.of(4, 0), new Piece(Color.WHITE, PieceType.KING));
+        board.placePiece(Square.of(7, 0), new Piece(Color.WHITE, PieceType.ROOK));
+        board.placePiece(Square.of(0, 0), new Piece(Color.WHITE, PieceType.ROOK));
+        board.placePiece(Square.of(4, 7), new Piece(Color.BLACK, PieceType.KING));
+        board.setTurn(Color.WHITE);
+
+        board.applyMove(new Move(Square.of(4, 0), Square.of(6, 0))); // O-O (enroque corto)
+
+        assertThat(board.notationHistory()).containsExactly("O-O");
     }
 }

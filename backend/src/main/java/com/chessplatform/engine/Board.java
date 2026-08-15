@@ -16,6 +16,7 @@ public class Board {
 
     private final Piece[] squares = new Piece[64];
     private final List<Move> moveHistory = new ArrayList<>();
+    private final List<String> notationHistory = new ArrayList<>();
     // Cuenta cuántas veces ha aparecido cada posición (clave = positionKey(), ver más
     // abajo), para la regla de triple repetición. Solo initial() la siembra con la
     // posición de partida — empty() no, ya que ahí no hay "partida real" detrás, solo
@@ -84,6 +85,7 @@ public class Board {
         Board copy = new Board();
         System.arraycopy(this.squares, 0, copy.squares, 0, 64);
         copy.moveHistory.addAll(this.moveHistory);
+        copy.notationHistory.addAll(this.notationHistory);
         copy.positionOccurrences.putAll(this.positionOccurrences);
         copy.turn = this.turn;
         copy.whiteCanCastleKingside = this.whiteCanCastleKingside;
@@ -105,6 +107,11 @@ public class Board {
      */
     public List<Move> moveHistory() {
         return List.copyOf(moveHistory);
+    }
+
+    /** Una entrada por jugada, en el mismo orden que moveHistory() — ver buildNotation(). */
+    public List<String> notationHistory() {
+        return List.copyOf(notationHistory);
     }
 
     public boolean canCastleKingside(Color color) {
@@ -483,7 +490,53 @@ public class Board {
         turn = turn.opposite();
 
         moveHistory.add(move);
+        notationHistory.add(buildNotation(move, movingPiece, isCapture, isCastling));
         recordCurrentPosition();
+    }
+
+    /**
+     * Notación simplificada: letra de pieza (K/Q/R/B/N, ninguna para peones) + "x" si
+     * hubo captura (con la columna de origen delante para capturas de peón, p. ej.
+     * "exd5") + casilla de destino + "=letra" si corona. O-O / O-O-O para enroque.
+     *
+     * No es SAN completo a propósito — sin desambiguación entre piezas del mismo tipo
+     * (dos caballos que puedan ir a la misma casilla se verían igual) ni símbolos de
+     * jaque/mate (+/#). Eso es notación PGN de verdad, que sigue siendo su propio ítem
+     * de Fase 2 (ver docs/architecture-decisions.md) — esto es lo justo para que el
+     * historial en pantalla se lea como ajedrez de verdad, no un salto mayor.
+     */
+    private String buildNotation(Move move, Piece movingPiece, boolean isCapture, boolean isCastling) {
+        if (isCastling) {
+            return move.to().file() > move.from().file() ? "O-O" : "O-O-O";
+        }
+
+        StringBuilder notation = new StringBuilder();
+        if (movingPiece.type() == PieceType.PAWN) {
+            if (isCapture) {
+                notation.append((char) ('a' + move.from().file()));
+            }
+        } else {
+            notation.append(pieceLetter(movingPiece.type()));
+        }
+        if (isCapture) {
+            notation.append('x');
+        }
+        notation.append(move.to().toAlgebraic());
+        if (move.isPromotion()) {
+            notation.append('=').append(pieceLetter(move.promotionType()));
+        }
+        return notation.toString();
+    }
+
+    private char pieceLetter(PieceType type) {
+        return switch (type) {
+            case KING -> 'K';
+            case QUEEN -> 'Q';
+            case ROOK -> 'R';
+            case BISHOP -> 'B';
+            case KNIGHT -> 'N';
+            case PAWN -> throw new IllegalStateException("Los peones no llevan letra de pieza en notación");
+        };
     }
 
     /**

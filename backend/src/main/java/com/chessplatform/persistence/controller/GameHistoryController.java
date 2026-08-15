@@ -61,10 +61,7 @@ public class GameHistoryController {
     }
 
     private GameDetailResponse toDetail(Game game) {
-        List<String> moves = (game.getMoveList() == null || game.getMoveList().isBlank())
-                ? List.of()
-                : List.of(game.getMoveList().split(" "));
-        List<String> fenPositions = replayService.reconstructFenPositions(game.getMoveList());
+        GameReplayService.ReplayResult replay = replayService.reconstructReplay(game.getMoveList());
 
         return new GameDetailResponse(
                 game.getId(),
@@ -73,8 +70,8 @@ public class GameHistoryController {
                 game.getResult(),
                 game.getTimeControl(),
                 game.getPlayedAt().toString(),
-                moves,
-                fenPositions
+                replay.notation(),
+                replay.fenPositions()
         );
     }
 }
