@@ -1,11 +1,14 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.rating.GameResultRecorder;
+import com.chessplatform.rating.GameResultRecorder.RatingChanges;
 import com.chessplatform.realtime.dto.GameOverMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 /**
  * Único punto por el que se anuncia el fin de una partida, se registra su resultado
@@ -35,8 +38,9 @@ public class GameEndNotifier {
      * @param reason "checkmate" | "stalemate" | "resignation" | "timeout"
      */
     public void endGame(GameSession session, String result, String reason) {
+        Optional<RatingChanges> ratingChanges = Optional.empty();
         try {
-            gameResultRecorder.record(session, result);
+            ratingChanges = gameResultRecorder.record(session, result);
         } catch (RuntimeException e) {
             // Un fallo al guardar (p. ej. la base de datos caída) no debería impedir que
             // los jugadores se enteren de que la partida ha terminado — es peor dejarlos
@@ -46,7 +50,11 @@ public class GameEndNotifier {
 
         messagingTemplate.convertAndSend(
                 "/topic/game/%s".formatted(session.gameId()),
-                new GameOverMessage(session.gameId(), result, reason)
+                new GameOverMessage(
+                        session.gameId(), result, reason,
+                        ratingChanges.map(RatingChanges::whiteChange).orElse(null),
+                        ratingChanges.map(RatingChanges::blackChange).orElse(null)
+                )
         );
         sessionRegistry.remove(session.gameId());
     }

@@ -89,8 +89,9 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.empty());
         when(userRepository.findById("black-id")).thenReturn(Optional.of(new User("black-user", "hash")));
 
-        recorder.record(newSession(), "1-0");
+        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0");
 
+        assertThat(result).isEmpty();
         verify(userRepository, never()).save(any());
         verify(gameRepository, never()).save(any());
     }
@@ -124,5 +125,38 @@ class GameResultRecorderTest {
         ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
         verify(gameRepository).save(savedGame.capture());
         assertThat(savedGame.getValue().getMoveList()).isEqualTo("e2e4 e7e5");
+    }
+
+    @Test
+    void recordReturnsTheRatingChangesItApplied() {
+        User white = new User("white-user", "hash");
+        User black = new User("black-user", "hash");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+
+        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().whiteChange()).isGreaterThan(0); // ganó, cambio positivo
+        assertThat(result.get().blackChange()).isLessThan(0); // perdió, cambio negativo
+        // El cambio de cada uno coincide con la diferencia real entre su rating final y
+        // el inicial (1500 para los dos, ninguno había jugado antes).
+        assertThat(result.get().whiteChange()).isCloseTo(white.getRating() - 1500.0, within(0.001));
+        assertThat(result.get().blackChange()).isCloseTo(black.getRating() - 1500.0, within(0.001));
+    }
+
+    @Test
+    void recordSavesTheRatingChangesOnTheGameItself() {
+        User white = new User("white-user", "hash");
+        User black = new User("black-user", "hash");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+
+        recorder.record(newSession(), "1-0");
+
+        ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(savedGame.capture());
+        assertThat(savedGame.getValue().getWhiteRatingChange()).isGreaterThan(0);
+        assertThat(savedGame.getValue().getBlackRatingChange()).isLessThan(0);
     }
 }

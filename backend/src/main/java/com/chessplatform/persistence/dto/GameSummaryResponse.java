@@ -8,6 +8,9 @@ package com.chessplatform.persistence.dto;
  * solo conoce su propio userId (viene del JWT, no del username), así que sin esto no
  * habría forma de saber si "el usuario actual" ganó o perdió una partida concreta para
  * colorearla en el historial.
+ *
+ * whiteRatingChange/blackRatingChange: nullable — partidas guardadas antes de que
+ * existiera este campo no lo tienen.
  */
 public record GameSummaryResponse(
         String id,
@@ -17,6 +20,8 @@ public record GameSummaryResponse(
         String blackUsername,
         String result,
         String timeControl,
-        String playedAt
+        String playedAt,
+        Double whiteRatingChange,
+        Double blackRatingChange
 ) {
 }

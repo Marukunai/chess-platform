@@ -56,7 +56,9 @@ public class GameHistoryController {
                 game.getBlackPlayer().getUsername(),
                 game.getResult(),
                 game.getTimeControl(),
-                game.getPlayedAt().toString()
+                game.getPlayedAt().toString(),
+                game.getWhiteRatingChange(),
+                game.getBlackRatingChange()
         );
     }
 

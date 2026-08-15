@@ -1,6 +1,7 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.rating.GameResultRecorder;
+import com.chessplatform.rating.GameResultRecorder.RatingChanges;
 import com.chessplatform.realtime.dto.GameOverMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,11 +12,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Duration;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GameEndNotifierTest {
@@ -79,5 +82,35 @@ class GameEndNotifierTest {
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
         assertThat(payload.getValue()).isInstanceOf(GameOverMessage.class);
         assertThat(sessionRegistry.find(session.gameId())).isEmpty();
+    }
+
+    @Test
+    void endGameIncludesTheRatingChangesFromGameResultRecorderInTheBroadcast() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+        when(gameResultRecorder.record(session, "1-0")).thenReturn(Optional.of(new RatingChanges(12.5, -12.5)));
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameOverMessage gameOver = (GameOverMessage) payload.getValue();
+        assertThat(gameOver.whiteRatingChange()).isEqualTo(12.5);
+        assertThat(gameOver.blackRatingChange()).isEqualTo(-12.5);
+    }
+
+    @Test
+    void endGameSendsNullRatingChangesWhenRecordingFails() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+        doThrow(new RuntimeException("base de datos caída")).when(gameResultRecorder).record(session, "1-0");
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameOverMessage gameOver = (GameOverMessage) payload.getValue();
+        assertThat(gameOver.whiteRatingChange()).isNull();
+        assertThat(gameOver.blackRatingChange()).isNull();
     }
 }

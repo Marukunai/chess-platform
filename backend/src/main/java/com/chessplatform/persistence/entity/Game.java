@@ -37,6 +37,18 @@ public class Game {
     @Column(nullable = false)
     private String timeControl; // ej. "5+3"
 
+    // Cuánto cambió el rating Glicko-2 de cada jugador CON ESTA partida en concreto —
+    // se guarda en el momento (no se recalcula después), porque el rating de cada
+    // jugador sigue cambiando con partidas posteriores y ya no se podría reconstruir
+    // cuál fue el cambio de esta en particular a partir del rating actual. Nullable:
+    // partidas de antes de que existiera este campo, o si el guardado del resultado
+    // falló a medias, no tienen este dato.
+    @Column
+    private Double whiteRatingChange;
+
+    @Column
+    private Double blackRatingChange;
+
     @Column(nullable = false, updatable = false)
     private Instant playedAt = Instant.now();
 
@@ -84,5 +96,19 @@ public class Game {
 
     public Instant getPlayedAt() {
         return playedAt;
+    }
+
+    public Double getWhiteRatingChange() {
+        return whiteRatingChange;
+    }
+
+    public Double getBlackRatingChange() {
+        return blackRatingChange;
+    }
+
+    /** Los dos cambios de rating se fijan siempre juntos — son el resultado de la misma partida. */
+    public void setRatingChanges(double whiteRatingChange, double blackRatingChange) {
+        this.whiteRatingChange = whiteRatingChange;
+        this.blackRatingChange = blackRatingChange;
     }
 }
