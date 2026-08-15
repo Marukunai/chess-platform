@@ -48,6 +48,11 @@ public class GameSession {
     private Instant whiteDisconnectedAt;
     private Instant blackDisconnectedAt;
 
+    // null = no hay ninguna oferta de tablas pendiente ahora mismo. Se limpia sola al
+    // aplicar cualquier jugada (ver applyMove) — ofrecer tablas y luego mover implica
+    // retirar la oferta, igual que en cualquier plataforma real.
+    private Color drawOfferedBy;
+
     public GameSession(String whitePlayerId, String blackPlayerId, Duration initialTime, Duration increment) {
         this(whitePlayerId, blackPlayerId, initialTime, increment, Clock.systemUTC());
     }
@@ -113,6 +118,7 @@ public class GameSession {
 
         board.applyMove(move);
         lastMoveTimestamp = Instant.now(clock);
+        drawOfferedBy = null;
     }
 
     public String gameId() {
@@ -186,5 +192,18 @@ public class GameSession {
             return false;
         }
         return Duration.between(disconnectedAt, Instant.now(clock)).compareTo(gracePeriod) >= 0;
+    }
+
+    public void offerDraw(Color color) {
+        drawOfferedBy = color;
+    }
+
+    public void clearDrawOffer() {
+        drawOfferedBy = null;
+    }
+
+    /** El color que ofreció tablas, o null si no hay ninguna oferta pendiente. */
+    public Color drawOfferedBy() {
+        return drawOfferedBy;
     }
 }

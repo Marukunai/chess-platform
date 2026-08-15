@@ -165,4 +165,40 @@ class GameSessionTest {
 
         assertThat(session.hasExceededDisconnectGracePeriod(Color.WHITE, Duration.ofSeconds(30))).isFalse();
     }
+
+    @Test
+    void drawOfferedByIsNullUntilSomeoneOffers() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        assertThat(session.drawOfferedBy()).isNull();
+    }
+
+    @Test
+    void offerDrawRecordsWhoOffered() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        session.offerDraw(Color.WHITE);
+
+        assertThat(session.drawOfferedBy()).isEqualTo(Color.WHITE);
+    }
+
+    @Test
+    void clearDrawOfferRemovesThePendingOffer() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+        session.offerDraw(Color.WHITE);
+
+        session.clearDrawOffer();
+
+        assertThat(session.drawOfferedBy()).isNull();
+    }
+
+    @Test
+    void applyingAMoveClearsAnyPendingDrawOffer() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+        session.offerDraw(Color.WHITE);
+
+        session.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+
+        assertThat(session.drawOfferedBy()).isNull();
+    }
 }

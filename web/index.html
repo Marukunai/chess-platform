@@ -137,6 +137,14 @@
                     <div id="turn-indicator" class="turn-indicator"></div>
                     <p id="game-message" class="game-message" role="status"></p>
 
+                    <div id="draw-offer-banner" class="draw-offer-banner" hidden>
+                        <p id="draw-offer-text"></p>
+                        <div class="draw-offer-banner__actions">
+                            <button id="draw-accept-btn" class="btn btn--primary">Aceptar</button>
+                            <button id="draw-decline-btn" class="btn btn--ghost">Rechazar</button>
+                        </div>
+                    </div>
+
                     <div class="scoresheet-wrap">
                         <table class="scoresheet">
                             <thead>
@@ -151,12 +159,23 @@
                     </div>
 
                     <div class="controls">
+                        <button id="offer-draw-btn" class="btn btn--ghost btn--block">Ofrecer tablas</button>
                         <button id="resign-btn" class="btn btn--danger btn--block">Rendirse</button>
-                        <button id="back-to-lobby-btn" class="btn btn--ghost btn--block" hidden>Volver al menú</button>
                     </div>
                 </aside>
             </main>
         </section>
+
+        <!-- Modal de fin de partida — cubre toda la pantalla, con fondo desenfocado -->
+        <div id="game-over-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div id="game-over-card" class="modal-card">
+                <h2 id="game-over-title" class="modal-card__title"></h2>
+                <p id="game-over-subtitle" class="modal-card__subtitle"></p>
+                <span id="game-over-rating-change" class="rating-change modal-card__rating" hidden></span>
+                <button id="modal-back-to-lobby-btn" class="btn btn--primary btn--block">Volver al menú</button>
+            </div>
+        </div>
 
         <!-- Pantalla de historial de partidas -->
         <section id="history-screen" class="screen screen--centered" hidden>

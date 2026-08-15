@@ -1,10 +1,13 @@
 package com.chessplatform.realtime.controller;
 
+import com.chessplatform.engine.Color;
 import com.chessplatform.engine.Move;
 import com.chessplatform.engine.Square;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
+import com.chessplatform.realtime.dto.DrawOfferMessage;
+import com.chessplatform.realtime.dto.DrawResponseMessage;
 import com.chessplatform.realtime.dto.ErrorMessage;
 import com.chessplatform.realtime.dto.GameStateSyncMessage;
 import com.chessplatform.realtime.dto.MoveMessage;
@@ -25,6 +28,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -269,7 +273,7 @@ class GameWebSocketControllerTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
         assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("FORBIDDEN");
-        verify(gameEndNotifier, never()).endGame(org.mockito.ArgumentMatchers.any(), anyString(), anyString());
+        verify(gameEndNotifier, never()).endGame(any(), anyString(), anyString());
     }
 
     @Test
@@ -309,5 +313,84 @@ class GameWebSocketControllerTest {
         second.join();
 
         assertThat(session.board().moveHistory()).hasSize(1);
+    }
+
+    @Test
+    void handleOfferDrawBroadcastsWhoOffered() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleOfferDraw(session.gameId(), principalFor("white-player"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        DrawOfferMessage offer = (DrawOfferMessage) payload.getValue();
+        assertThat(offer.offerStatus()).isEqualTo("offered_by_white");
+        assertThat(session.drawOfferedBy()).isEqualTo(Color.WHITE);
+    }
+
+    @Test
+    void handleOfferDrawRejectsSomeoneNotInTheGame() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleOfferDraw(session.gameId(), principalFor("un-espectador-cualquiera"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("FORBIDDEN");
+        assertThat(session.drawOfferedBy()).isNull();
+    }
+
+    @Test
+    void handleRespondDrawAcceptingEndsTheGameAsADraw() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+        session.offerDraw(Color.WHITE);
+
+        controller.handleRespondDraw(session.gameId(), new DrawResponseMessage(true), principalFor("black-player"));
+
+        verify(gameEndNotifier).endGame(session, "1/2-1/2", "agreement");
+    }
+
+    @Test
+    void handleRespondDrawDecliningClearsTheOfferAndNotifiesBoth() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+        session.offerDraw(Color.WHITE);
+
+        controller.handleRespondDraw(session.gameId(), new DrawResponseMessage(false), principalFor("black-player"));
+
+        assertThat(session.drawOfferedBy()).isNull();
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((DrawOfferMessage) payload.getValue()).offerStatus()).isEqualTo("none");
+        verify(gameEndNotifier, never()).endGame(any(), anyString(), anyString());
+    }
+
+    @Test
+    void handleRespondDrawRejectsAcceptingYourOwnOffer() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+        session.offerDraw(Color.WHITE);
+
+        controller.handleRespondDraw(session.gameId(), new DrawResponseMessage(true), principalFor("white-player"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("NO_PENDING_OFFER");
+        verify(gameEndNotifier, never()).endGame(any(), anyString(), anyString());
+    }
+
+    @Test
+    void handleRespondDrawRejectsRespondingWhenThereIsNoOffer() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleRespondDraw(session.gameId(), new DrawResponseMessage(true), principalFor("black-player"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("NO_PENDING_OFFER");
     }
 }
