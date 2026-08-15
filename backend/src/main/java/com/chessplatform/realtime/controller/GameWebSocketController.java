@@ -134,20 +134,31 @@ public class GameWebSocketController {
     }
 
     /**
-     * Calcula legalMoves() e isInCheck() UNA sola vez y decide con eso si difundir el
-     * nuevo estado o el fin de la partida — evita recalcular legalMoves() varias veces
-     * (cada llamada simula todas las jugadas pseudo-legales, no es gratis). Reutilizado
-     * tanto tras aplicar una jugada como al unirse a una partida ya en curso.
-     *
-     * Las tablas por repetición y por regla de 50 movimientos se comprueban ANTES que
-     * jaque mate/ahogado: son condiciones que pueden darse aunque todavía existan
-     * jugadas legales (a diferencia de mate/ahogado, que dependen precisamente de que no
-     * las haya), y comprobarlas primero evita calcular legalMoves() cuando ya sabemos que
-     * la partida ha terminado.
+     * Calcula legalMoves() e isInCheck() UNA sola vez, manda SIEMPRE el estado
+     * actualizado (para que el cliente vea la jugada que se acaba de hacer — incluida la
+     * que da jaque mate — antes de que llegue el aviso de fin de partida) y decide con
+     * eso si además hay que terminar la partida. Reutilizado tanto tras aplicar una
+     * jugada como al unirse a una partida ya en curso.
      */
     private void broadcastUpdatedState(GameSession session) {
         Board board = session.board();
         String gameId = session.gameId();
+
+        List<Move> legalMoves = board.legalMoves();
+        boolean inCheck = board.isInCheck(board.turn());
+
+        // "+"/"#" en la notación de la última jugada — se calcula aquí, reutilizando el
+        // legalMoves()/isInCheck() que de todas formas hace falta para decidir el fin de
+        // partida, en vez de que Board tenga que repetir ese cálculo (caro: simula cada
+        // jugada pseudo-legal) solo para anotar la notación en cada jugada.
+        if (inCheck) {
+            board.annotateLastMove(legalMoves.isEmpty() ? "#" : "+");
+        }
+
+        messagingTemplate.convertAndSend(
+                "/topic/game/%s".formatted(gameId),
+                GameStateSyncMessage.from(session, legalMoves, inCheck)
+        );
 
         if (board.isDrawByFiftyMoveRule()) {
             gameEndNotifier.endGame(session, "1/2-1/2", "fifty-move-rule");
@@ -157,10 +168,6 @@ public class GameWebSocketController {
             gameEndNotifier.endGame(session, "1/2-1/2", "threefold-repetition");
             return;
         }
-
-        List<Move> legalMoves = board.legalMoves();
-        boolean inCheck = board.isInCheck(board.turn());
-
         if (legalMoves.isEmpty()) {
             String result = inCheck
                     ? (board.turn() == Color.WHITE ? "0-1" : "1-0")
@@ -168,13 +175,7 @@ public class GameWebSocketController {
             String reason = inCheck ? "checkmate" : "stalemate";
 
             gameEndNotifier.endGame(session, result, reason);
-            return;
         }
-
-        messagingTemplate.convertAndSend(
-                "/topic/game/%s".formatted(gameId),
-                GameStateSyncMessage.from(session, legalMoves, inCheck)
-        );
     }
 
     private void sendError(String gameId, String code, String message) {

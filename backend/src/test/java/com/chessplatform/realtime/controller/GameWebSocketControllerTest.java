@@ -94,7 +94,7 @@ class GameWebSocketControllerTest {
         GameStateSyncMessage stateSync = (GameStateSyncMessage) payload.getValue();
         assertThat(stateSync.turn()).isEqualTo("black"); // el turno ya cambió tras la jugada
         assertThat(stateSync.boardFen()).contains("4P3"); // el peón blanco ya está en e4
-        assertThat(stateSync.movesUci()).containsExactly("e2e4");
+        assertThat(stateSync.movesNotation()).containsExactly("e4");
     }
 
     @Test
@@ -155,8 +155,15 @@ class GameWebSocketControllerTest {
         controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "d8", "h4", null),
                 principalFor("black-player"));
 
+        // El estado final SÍ se manda (con la jugada que da mate ya en la planilla,
+        // anotada con #) antes de terminar la partida — si no, el cliente nunca vería
+        // esa última jugada.
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameStateSyncMessage finalState = (GameStateSyncMessage) payload.getValue();
+        assertThat(finalState.movesNotation()).endsWith("Qh4#");
+
         verify(gameEndNotifier).endGame(session, "0-1", "checkmate"); // ganan negras
-        verify(messagingTemplate, never()).convertAndSend(anyString(), org.mockito.ArgumentMatchers.any(Object.class));
     }
 
     @Test

@@ -73,7 +73,7 @@ function outcomeClassFor(game, viewerUserId) {
 
 function openReplay(game) {
     replayFenPositions = game.fenPositions;
-    replayMoves = game.moves;
+    replayMoves = game.movesNotation;
     replayIndex = 0;
     document.getElementById('replay-info').textContent =
         `${game.whiteUsername} vs ${game.blackUsername} — ${game.result} (${game.timeControl})`;

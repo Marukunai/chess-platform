@@ -3,10 +3,11 @@ package com.chessplatform.persistence.dto;
 import java.util.List;
 
 /**
- * moves: jugadas en UCI, útiles para una lista de jugadas en el cliente ("1. e2e4 e7e5...").
- * fenPositions: una posición por jugada MÁS la inicial (longitud = moves.size() + 1) —
- * esto es lo que de verdad usa el cliente para reproducir, ya reconstruido por
- * GameReplayService con el motor real, no algo que el cliente tenga que recalcular.
+ * movesNotation: jugadas en notación legible ("Rxf6", no "d5f6"), útiles para la
+ * planilla del cliente. fenPositions: una posición por jugada MÁS la inicial (longitud
+ * = movesNotation.size() + 1) — esto es lo que de verdad usa el cliente para
+ * reproducir, ya reconstruido por GameReplayService con el motor real, no algo que el
+ * cliente tenga que recalcular.
  */
 public record GameDetailResponse(
         String id,
@@ -15,7 +16,7 @@ public record GameDetailResponse(
         String result,
         String timeControl,
         String playedAt,
-        List<String> moves,
+        List<String> movesNotation,
         List<String> fenPositions
 ) {
 }

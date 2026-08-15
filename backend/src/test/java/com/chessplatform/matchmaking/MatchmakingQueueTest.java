@@ -13,7 +13,7 @@ class MatchmakingQueueTest {
         queue.enqueue("alice", 1500, TimeControl.BLITZ);
 
         assertThat(queue.snapshot()).hasSize(1);
-        assertThat(queue.snapshot().get(0).playerId()).isEqualTo("alice");
+        assertThat(queue.snapshot().getFirst().playerId()).isEqualTo("alice");
     }
 
     @Test
@@ -24,8 +24,8 @@ class MatchmakingQueueTest {
         queue.enqueue("alice", 1600, TimeControl.RAPID); // se vuelve a apuntar con otros datos
 
         assertThat(queue.snapshot()).hasSize(1);
-        assertThat(queue.snapshot().get(0).rating()).isEqualTo(1600);
-        assertThat(queue.snapshot().get(0).timeControl()).isEqualTo(TimeControl.RAPID);
+        assertThat(queue.snapshot().getFirst().rating()).isEqualTo(1600);
+        assertThat(queue.snapshot().getFirst().timeControl()).isEqualTo(TimeControl.RAPID);
     }
 
     @Test
@@ -51,6 +51,6 @@ class MatchmakingQueueTest {
         queue.removeAll(toRemove);
 
         assertThat(queue.snapshot()).hasSize(1);
-        assertThat(queue.snapshot().get(0).playerId()).isEqualTo("carol");
+        assertThat(queue.snapshot().getFirst().playerId()).isEqualTo("carol");
     }
 }

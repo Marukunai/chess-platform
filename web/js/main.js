@@ -6,6 +6,15 @@ let currentTurn = null;
 let gameSubscription = null;
 let matchmakingSubscription = null;
 
+// El servidor solo manda el reloj EXACTO cuando algo cambia (una jugada, unirse a la
+// partida) — entre medias, si no avanzamos algo en el propio navegador, el reloj se ve
+// congelado aunque el de verdad (server-authoritative) siga corriendo por detrás. Este
+// estado guarda el último valor conocido + cuándo se recibió, y clockTickInterval lo
+// interpola en pantalla cada 250ms. Nunca decide nada del juego — es puramente visual;
+// la próxima sincronización real siempre corrige cualquier desviación.
+let clockState = null; // { whiteMs, blackMs, turn, syncedAt }
+let clockTickInterval = null;
+
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
     document.getElementById(screenId).removeAttribute('hidden');
@@ -16,6 +25,29 @@ function formatClock(ms) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function startClockTicking() {
+    stopClockTicking();
+    clockTickInterval = setInterval(renderClockDisplay, 250);
+}
+
+function stopClockTicking() {
+    if (clockTickInterval) {
+        clearInterval(clockTickInterval);
+        clockTickInterval = null;
+    }
+}
+
+function renderClockDisplay() {
+    if (!clockState) {
+        return;
+    }
+    const elapsedMs = Date.now() - clockState.syncedAt;
+    const whiteMs = clockState.turn === 'white' ? clockState.whiteMs - elapsedMs : clockState.whiteMs;
+    const blackMs = clockState.turn === 'black' ? clockState.blackMs - elapsedMs : clockState.blackMs;
+    document.getElementById('clock-white').textContent = formatClock(whiteMs);
+    document.getElementById('clock-black').textContent = formatClock(blackMs);
 }
 
 // Los tres tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
@@ -32,8 +64,13 @@ function handleGameMessage(message) {
 }
 
 function handleStateSync(state) {
-    document.getElementById('clock-white').textContent = formatClock(state.whiteTimeRemainingMs);
-    document.getElementById('clock-black').textContent = formatClock(state.blackTimeRemainingMs);
+    clockState = {
+        whiteMs: state.whiteTimeRemainingMs,
+        blackMs: state.blackTimeRemainingMs,
+        turn: state.turn,
+        syncedAt: Date.now(),
+    };
+    renderClockDisplay(); // pinta ya mismo, no esperar al primer tick del intervalo
 
     currentTurn = state.turn;
     const isMyTurn = state.turn === myColor;
@@ -43,8 +80,9 @@ function handleStateSync(state) {
 
     // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
     // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
-    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : []);
-    renderScoresheet('move-list', state.movesUci);
+    const checkedColor = state.status === 'CHECK' ? state.turn : null;
+    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor);
+    renderScoresheet('move-list', state.movesNotation);
 
     document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
 }
@@ -53,6 +91,10 @@ function handleGameOver(gameOver) {
     document.getElementById('game-message').textContent =
         `Partida terminada: ${gameOver.result} (${gameOver.reason})`;
     currentGameId = null;
+    stopClockTicking();
+
+    document.getElementById('resign-btn').hidden = true;
+    document.getElementById('back-to-lobby-btn').hidden = false;
 }
 
 function connectAndGoToLobby(token) {
@@ -83,9 +125,24 @@ function onMatchFound(match) {
         matchmakingSubscription = null;
     }
 
+    document.getElementById('resign-btn').hidden = false;
+    document.getElementById('back-to-lobby-btn').hidden = true;
+    document.getElementById('game-message').textContent = '';
+
     gameSubscription = subscribeToGame(currentGameId, handleGameMessage);
     joinGame(currentGameId); // pide el estado inicial de la partida
     showScreen('game-screen');
+    startClockTicking();
+}
+
+function leaveFinishedGameToLobby() {
+    if (gameSubscription) {
+        gameSubscription.unsubscribe();
+        gameSubscription = null;
+    }
+    stopClockTicking();
+    clockState = null;
+    showScreen('lobby-screen');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -143,6 +200,8 @@ document.addEventListener('DOMContentLoaded', () => {
             sendResign(currentGameId);
         }
     });
+
+    document.getElementById('back-to-lobby-btn').addEventListener('click', leaveFinishedGameToLobby);
 
     document.getElementById('history-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());

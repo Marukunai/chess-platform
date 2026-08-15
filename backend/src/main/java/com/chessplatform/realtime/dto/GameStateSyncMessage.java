@@ -12,11 +12,11 @@ import java.util.List;
  *
  * boardFen: representación FEN del tablero (más compacta para enviar por red que
  * serializar las 64 casillas). legalMovesUci: movimientos legales del jugador en turno,
- * en formato UCI (necesarios en el cliente para resaltar jugadas posibles). movesUci: el
- * historial completo de la partida hasta ahora, no solo la última jugada — así el
- * cliente puede reconstruir la planilla completa de una sola vez, incluso si se
- * reconecta a media partida, sin tener que ir arrastrando estado propio jugada a
- * jugada.
+ * en formato UCI (necesarios en el cliente para resaltar jugadas posibles y para
+ * construir la jugada a enviar, ahí sí hace falta UCI en bruto). movesNotation: el
+ * historial completo de la partida hasta ahora en notación legible (p. ej. "Rxf6", no
+ * "d5f6") — no solo la última jugada, así el cliente puede reconstruir la planilla
+ * completa de una sola vez, incluso si se reconecta a media partida.
  */
 public record GameStateSyncMessage(
         String gameId,
@@ -26,7 +26,7 @@ public record GameStateSyncMessage(
         long blackTimeRemainingMs,
         List<String> legalMovesUci,
         String status,
-        List<String> movesUci
+        List<String> movesNotation
 ) {
 
     /**
@@ -39,7 +39,6 @@ public record GameStateSyncMessage(
         Board board = session.board();
         List<String> legalMovesUci = legalMoves.stream().map(Move::toUci).toList();
         String status = inCheck ? "CHECK" : "IN_PROGRESS";
-        List<String> movesUci = board.moveHistory().stream().map(Move::toUci).toList();
 
         return new GameStateSyncMessage(
                 session.gameId(),
@@ -49,7 +48,7 @@ public record GameStateSyncMessage(
                 session.timeRemaining(Color.BLACK).toMillis(),
                 legalMovesUci,
                 status,
-                movesUci
+                board.notationHistory()
         );
     }
 }

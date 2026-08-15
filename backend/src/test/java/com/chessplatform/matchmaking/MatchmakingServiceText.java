@@ -144,10 +144,10 @@ class MatchmakingServiceTest {
                 .map(m -> (MatchFoundMessage) m)
                 .toList();
 
-        assertThat(messages.get(0).gameId()).isEqualTo(messages.get(1).gameId());
-        assertThat(Set.of(messages.get(0).color(), messages.get(1).color())).isEqualTo(Set.of("white", "black"));
+        assertThat(messages.getFirst().gameId()).isEqualTo(messages.get(1).gameId());
+        assertThat(Set.of(messages.getFirst().color(), messages.get(1).color())).isEqualTo(Set.of("white", "black"));
 
-        GameSession session = sessionRegistry.find(messages.get(0).gameId()).orElseThrow();
+        GameSession session = sessionRegistry.find(messages.getFirst().gameId()).orElseThrow();
         assertThat(Set.of(session.whitePlayerId(), session.blackPlayerId())).isEqualTo(Set.of("alice", "bob"));
     }
 }
