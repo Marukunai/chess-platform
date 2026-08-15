@@ -1111,4 +1111,34 @@ class BoardTest {
 
         assertThat(board.notationHistory()).containsExactly("O-O");
     }
+
+    @Test
+    void annotateLastMoveAppendsTheSuffixToTheMostRecentNotation() {
+        Board board = Board.initial();
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+
+        board.annotateLastMove("+");
+
+        assertThat(board.notationHistory()).containsExactly("e4+");
+    }
+
+    @Test
+    void annotateLastMoveOnlyTouchesTheLastEntryNotEarlierOnes() {
+        Board board = Board.initial();
+        board.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
+        board.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // e7-e5
+
+        board.annotateLastMove("+");
+
+        assertThat(board.notationHistory()).containsExactly("e4", "e5+");
+    }
+
+    @Test
+    void annotateLastMoveDoesNothingWhenNoMovesHaveBeenPlayedYet() {
+        Board board = Board.initial();
+
+        board.annotateLastMove("+"); // no debe lanzar excepción
+
+        assertThat(board.notationHistory()).isEmpty();
+    }
 }

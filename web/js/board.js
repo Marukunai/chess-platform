@@ -82,8 +82,14 @@ function pieceAtAlgebraic(algebraic) {
  * 'replay-board' al reproducir una partida del historial. Ambos tableros nunca están
  * visibles a la vez (pantallas mutuamente excluyentes), así que compartir el estado de
  * selección global es seguro.
+ *
+ * checkedColor: 'white' | 'black' | null — si un rey está en jaque ahora mismo, resalta
+ * su casilla. Se calcula aquí buscando el rey en la posición ya parseada (currentPositionRows),
+ * no reimplementando reglas de ajedrez — el propio backend ya nos dice si hay jaque
+ * (GameStateSyncMessage.status) y de quién es el turno, así que solo hace falta
+ * localizar esa pieza, no calcular nada.
  */
-function renderBoard(fen, legalMovesUci, boardElementId = 'board') {
+function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor = null) {
     currentLegalMovesUci = legalMovesUci || [];
     currentPositionRows = parseFen(fen);
     activeBoardElementId = boardElementId;
@@ -107,6 +113,11 @@ function renderBoard(fen, legalMovesUci, boardElementId = 'board') {
                 pieceEl.className = `square__piece square__piece--${pieceColor}`;
                 pieceEl.textContent = PIECE_GLYPH[piece[1]];
                 square.appendChild(pieceEl);
+
+                const isCheckedKing = checkedColor && piece[1] === 'K' && pieceColor === checkedColor;
+                if (isCheckedKing) {
+                    square.classList.add('square--in-check');
+                }
             }
 
             // Coordenadas: rango (1-8) en la columna 'a', archivo (a-h) en la fila 1 —

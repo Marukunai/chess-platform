@@ -114,6 +114,22 @@ public class Board {
         return List.copyOf(notationHistory);
     }
 
+    /**
+     * Añade un sufijo ("+" de jaque, "#" de jaque mate) a la notación de la última
+     * jugada aplicada. Aparte de buildNotation() a propósito: decidir esto necesita
+     * legalMoves()/isInCheck() sobre la posición YA resultante, que es información que
+     * quien orquesta la partida (GameWebSocketController) ya tiene que calcular de
+     * todas formas para saber si la partida ha terminado — repetirlo aquí dentro en
+     * cada jugada sería recalcular ese chequeo caro sin necesidad.
+     */
+    public void annotateLastMove(String suffix) {
+        if (notationHistory.isEmpty()) {
+            return;
+        }
+        int lastIndex = notationHistory.size() - 1;
+        notationHistory.set(lastIndex, notationHistory.get(lastIndex) + suffix);
+    }
+
     public boolean canCastleKingside(Color color) {
         return color == Color.WHITE ? whiteCanCastleKingside : blackCanCastleKingside;
     }

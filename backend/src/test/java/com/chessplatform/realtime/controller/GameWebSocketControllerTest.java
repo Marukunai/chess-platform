@@ -155,8 +155,15 @@ class GameWebSocketControllerTest {
         controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "d8", "h4", null),
                 principalFor("black-player"));
 
+        // El estado final SÍ se manda (con la jugada que da mate ya en la planilla,
+        // anotada con #) antes de terminar la partida — si no, el cliente nunca vería
+        // esa última jugada.
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameStateSyncMessage finalState = (GameStateSyncMessage) payload.getValue();
+        assertThat(finalState.movesNotation()).endsWith("Qh4#");
+
         verify(gameEndNotifier).endGame(session, "0-1", "checkmate"); // ganan negras
-        verify(messagingTemplate, never()).convertAndSend(anyString(), org.mockito.ArgumentMatchers.any(Object.class));
     }
 
     @Test
