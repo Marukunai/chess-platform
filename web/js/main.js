@@ -88,8 +88,18 @@ function handleStateSync(state) {
 }
 
 function handleGameOver(gameOver) {
-    document.getElementById('game-message').textContent =
-        `Partida terminada: ${gameOver.result} (${gameOver.reason})`;
+    const myRatingChange = myColor === 'white' ? gameOver.whiteRatingChange : gameOver.blackRatingChange;
+    const changeText = formatRatingChange(myRatingChange);
+
+    const messageEl = document.getElementById('game-message');
+    messageEl.textContent = `Partida terminada: ${gameOver.result} (${gameOver.reason}) `;
+    if (changeText) {
+        const changeBadge = document.createElement('span');
+        changeBadge.className = `rating-change ${ratingChangeClass(myRatingChange)}`;
+        changeBadge.textContent = changeText;
+        messageEl.appendChild(changeBadge);
+    }
+
     currentGameId = null;
     stopClockTicking();
 

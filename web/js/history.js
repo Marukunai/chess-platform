@@ -51,7 +51,20 @@ function renderHistoryList(games, viewerUserId, onSelect) {
         const date = new Date(game.playedAt).toLocaleString();
         meta.textContent = `${game.result} · ${game.timeControl} · ${date}`;
 
-        item.append(players, meta);
+        const rightSide = document.createElement('div');
+        rightSide.className = 'history-item__right';
+        rightSide.appendChild(meta);
+
+        const ratingChange = ratingChangeForViewer(game, viewerUserId);
+        const changeText = formatRatingChange(ratingChange);
+        if (changeText) {
+            const changeBadge = document.createElement('span');
+            changeBadge.className = `rating-change ${ratingChangeClass(ratingChange)}`;
+            changeBadge.textContent = changeText;
+            rightSide.appendChild(changeBadge);
+        }
+
+        item.append(players, rightSide);
         item.addEventListener('click', () => onSelect(game.id));
         container.appendChild(item);
     }
@@ -69,6 +82,38 @@ function outcomeClassFor(game, viewerUserId) {
     const whiteWon = game.result === '1-0';
     const viewerWon = (viewerIsWhite && whiteWon) || (viewerIsBlack && !whiteWon);
     return viewerWon ? 'history-item--win' : 'history-item--loss';
+}
+
+/**
+ * "+18" en verdigris, "-15" en granate — compartida entre el historial (aquí) y el
+ * mensaje de fin de partida en vivo (main.js), que carga después y puede usarlas.
+ * null/undefined cuando no se pudo calcular (p. ej. partidas de antes de este campo, o
+ * un fallo al guardar) — en ese caso no se muestra nada, no un "+0" engañoso.
+ */
+function formatRatingChange(change) {
+    if (change === null || change === undefined) {
+        return '';
+    }
+    const rounded = Math.round(change);
+    return rounded > 0 ? `+${rounded}` : `${rounded}`;
+}
+
+function ratingChangeClass(change) {
+    if (change === null || change === undefined || Math.round(change) === 0) {
+        return 'rating-change--neutral';
+    }
+    return change > 0 ? 'rating-change--positive' : 'rating-change--negative';
+}
+
+/** viewerUserId decide si se muestra whiteRatingChange o blackRatingChange. */
+function ratingChangeForViewer(game, viewerUserId) {
+    if (game.whiteUserId === viewerUserId) {
+        return game.whiteRatingChange;
+    }
+    if (game.blackUserId === viewerUserId) {
+        return game.blackRatingChange;
+    }
+    return null;
 }
 
 function openReplay(game) {

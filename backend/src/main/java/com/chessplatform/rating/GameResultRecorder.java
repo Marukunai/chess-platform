@@ -27,6 +27,10 @@ import java.util.stream.Collectors;
 @Component
 public class GameResultRecorder {
 
+    /** Cuánto cambió el rating de cada jugador con esta partida en concreto. */
+    public record RatingChanges(double whiteChange, double blackChange) {
+    }
+
     private final UserRepository userRepository;
     private final GameRepository gameRepository;
     private final GlickoRatingService ratingService;
@@ -40,12 +44,13 @@ public class GameResultRecorder {
 
     /**
      * @param result "1-0" | "0-1" | "1/2-1/2"
+     * @return los cambios de rating aplicados, o vacío si no se pudo (ver javadoc de la clase)
      */
-    public void record(GameSession session, String result) {
+    public Optional<RatingChanges> record(GameSession session, String result) {
         Optional<User> maybeWhite = userRepository.findById(session.whitePlayerId());
         Optional<User> maybeBlack = userRepository.findById(session.blackPlayerId());
         if (maybeWhite.isEmpty() || maybeBlack.isEmpty()) {
-            return;
+            return Optional.empty();
         }
         User white = maybeWhite.get();
         User black = maybeBlack.get();
@@ -61,13 +66,19 @@ public class GameResultRecorder {
         userRepository.save(white);
         userRepository.save(black);
 
+        double whiteChange = whiteAfter.rating() - whiteBefore.rating();
+        double blackChange = blackAfter.rating() - blackBefore.rating();
+
         String timeControlLabel = "%d+%d".formatted(session.initialTime().toMinutes(), session.increment().getSeconds());
         Game game = new Game(white, black, timeControlLabel);
         game.setResult(result);
         game.setMoveList(session.board().moveHistory().stream()
                 .map(Move::toUci)
                 .collect(Collectors.joining(" ")));
+        game.setRatingChanges(whiteChange, blackChange);
         gameRepository.save(game);
+
+        return Optional.of(new RatingChanges(whiteChange, blackChange));
     }
 
     private Outcome outcomeForWhite(String result) {
