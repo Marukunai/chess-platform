@@ -5,6 +5,7 @@ let currentGameId = null;
 let currentTurn = null;
 let gameSubscription = null;
 let matchmakingSubscription = null;
+let isSearchingForMatch = false;
 
 // El servidor solo manda el reloj EXACTO cuando algo cambia (una jugada, unirse a la
 // partida) — entre medias, si no avanzamos algo en el propio navegador, el reloj se ve
@@ -195,6 +196,26 @@ function hideDrawOfferBanner() {
     offerBtn.textContent = 'Ofrecer tablas';
 }
 
+/**
+ * El mismo botón hace de "Buscar partida" / "Cancelar búsqueda" según toque — evita un
+ * segundo botón aparte, y dejar isSearchingForMatch en false (el estado por defecto,
+ * ver arriba) es justo lo que hace que el mensaje "Buscando rival..." no se quede
+ * pegado al volver al lobby tras una partida: setSearchingState(false) se llama
+ * explícitamente ahí (ver leaveFinishedGameToLobby) para limpiarlo.
+ */
+function setSearchingState(searching) {
+    isSearchingForMatch = searching;
+    const btn = document.getElementById('find-match-btn');
+    const statusEl = document.getElementById('matchmaking-status');
+    const select = document.getElementById('time-control-select');
+
+    btn.textContent = searching ? 'Cancelar búsqueda' : 'Buscar partida';
+    btn.classList.toggle('btn--primary', !searching);
+    btn.classList.toggle('btn--danger', searching);
+    select.disabled = searching;
+    statusEl.textContent = searching ? 'Buscando rival...' : '';
+}
+
 function connectAndGoToLobby(token) {
     connect(token, () => {
         const userId = getUserIdFromToken(token);
@@ -217,6 +238,7 @@ function connectAndGoToLobby(token) {
 function onMatchFound(match) {
     currentGameId = match.gameId;
     myColor = match.color;
+    setSearchingState(false);
 
     if (matchmakingSubscription) {
         matchmakingSubscription.unsubscribe();
@@ -241,6 +263,7 @@ function leaveFinishedGameToLobby() {
     stopClockTicking();
     clockState = null;
     hideGameOverModal();
+    setSearchingState(false); // por si venía pegado "Buscando rival..." de antes de esta partida
     showScreen('lobby-screen');
 }
 
@@ -289,9 +312,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('find-match-btn').addEventListener('click', () => {
-        const timeControl = document.getElementById('time-control-select').value;
-        document.getElementById('matchmaking-status').textContent = 'Buscando rival...';
-        joinMatchmakingQueue(timeControl);
+        if (isSearchingForMatch) {
+            leaveMatchmakingQueue();
+            setSearchingState(false);
+        } else {
+            const timeControl = document.getElementById('time-control-select').value;
+            joinMatchmakingQueue(timeControl);
+            setSearchingState(true);
+        }
     });
 
     document.getElementById('resign-btn').addEventListener('click', () => {
