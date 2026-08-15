@@ -50,7 +50,9 @@ public class GameHistoryController {
     private GameSummaryResponse toSummary(Game game) {
         return new GameSummaryResponse(
                 game.getId(),
+                game.getWhitePlayer().getId(),
                 game.getWhitePlayer().getUsername(),
+                game.getBlackPlayer().getId(),
                 game.getBlackPlayer().getUsername(),
                 game.getResult(),
                 game.getTimeControl(),

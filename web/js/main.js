@@ -44,6 +44,7 @@ function handleStateSync(state) {
     // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
     // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
     renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : []);
+    renderScoresheet('move-list', state.movesUci);
 
     document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
 }
@@ -147,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const userId = getUserIdFromToken(getStoredToken());
         try {
             const games = await fetchUserHistory(userId);
-            renderHistoryList(games, async (gameId) => {
+            renderHistoryList(games, userId, async (gameId) => {
                 try {
                     const game = await fetchGameDetail(gameId);
                     openReplay(game);

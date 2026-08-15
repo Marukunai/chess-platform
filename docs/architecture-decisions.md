@@ -140,3 +140,46 @@ hasta que el reloj se agote solo, aunque esté claro desde el principio que no v
 volver. 30 segundos es un valor de partida razonable sin datos propios de uso real que
 lo justifiquen mejor — vale la pena ajustarlo si en el futuro se observa que es
 demasiado corto o largo en la práctica.
+
+## ADR-013: Despliegue en Render + Neon, no el Postgres propio de Render
+
+**Decisión:** el backend y el cliente web se despliegan en Render (nivel gratuito,
+`render.yaml` como *Blueprint*); la base de datos, en Neon, no en el Postgres propio de
+Render. Los orígenes CORS pasan a ser configurables por variable de entorno
+(`ALLOWED_ORIGIN`, ver `CorsProperties`) en vez del `"*"` fijo que había hasta ahora.
+
+**Motivo:** el Postgres gratuito de Render caduca a los 30 días de creado — inviable
+para una demo que se supone debe seguir funcionando. El nivel gratuito de Neon es
+permanente (sin tarjeta, sin caducidad), pensado justo para este caso. Separar backend y
+Postgres en proveedores distintos es una molestia menor (dos paneles en vez de uno) a
+cambio de que la demo no se rompa sola al mes de desplegarla.
+
+No se conocía la URL final del cliente desplegado al escribir el `Blueprint`, así que
+`ALLOWED_ORIGIN` se deja como variable de entorno (`sync: false` en `render.yaml`) para
+rellenar a mano una vez Render asigna las URLs reales de ambos servicios.
+
+## ADR-014: Un único index.html con pantallas mostradas/ocultadas por JS
+
+**Decisión:** el cliente web es un único `index.html` que carga las 5 pantallas (login,
+lobby, partida, historial, reproducción) como `<section>` alternadas con el atributo
+`hidden` desde `main.js` (`showScreen()`), en vez de un archivo `.html` independiente
+por pantalla con navegación real entre páginas.
+
+**Motivo:** la app mantiene una conexión WebSocket viva (SockJS/STOMP) y estado en
+memoria (partida activa, suscripciones, token) que tienen que sobrevivir mientras el
+jugador se mueve entre pantallas. Con páginas HTML separadas, cada navegación recarga
+el documento entero: el contexto de JavaScript se destruye, la conexión WebSocket se
+cierra, y habría que reconectar y reconstruir todo el estado en cada cambio de pantalla
+— inaceptable para algo con tiempo real de por medio. Cambiar de pantalla con `hidden`
+es instantáneo, sin parpadeo de recarga, y la conexión nunca se toca.
+
+Es el mismo patrón que usan frameworks tipo React/Vue por debajo (un único punto de
+entrada, "páginas" que en realidad son JavaScript mostrando/ocultando árboles de
+componentes) — aquí está escrito a mano porque Fase 1 decidió no meter un framework de
+frontend. Lichess y chess.com, las referencias directas del dominio, funcionan igual
+por el mismo motivo.
+
+**Cuándo NO haría falta esto**: contenido estático donde cada página es independiente y
+no necesita mantener nada vivo entre navegaciones — un blog, páginas de marketing,
+documentación. Ahí un `.html` por página es más simple y no hay motivo para
+complicarlo.

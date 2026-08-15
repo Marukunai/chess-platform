@@ -137,3 +137,57 @@ function askPromotionChoice() {
     const map = { Q: 'QUEEN', R: 'ROOK', B: 'BISHOP', N: 'KNIGHT' };
     return map[choice.trim().toUpperCase()] || 'QUEEN';
 }
+
+/**
+ * Pinta una lista de jugadas en UCI ("e2e4", "e7e5"...) como una planilla de dos
+ * columnas (blancas/negras) en el <tbody> indicado. Compartida entre la partida en vivo
+ * (main.js) y la reproducción del historial (history.js).
+ *
+ * En UCI, no notación algebraica real (SAN) — eso necesitaría desambiguación entre
+ * piezas y símbolos de jaque/mate, que queda para cuando se aborde PGN de verdad
+ * (Fase 2, ver docs/architecture-decisions.md). Es una simplificación consciente, no un
+ * descuido.
+ */
+function renderScoresheet(tbodyId, movesUci) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) {
+        return;
+    }
+    tbody.innerHTML = '';
+
+    for (let i = 0; i < movesUci.length; i += 2) {
+        const row = document.createElement('tr');
+
+        const numCell = document.createElement('td');
+        numCell.textContent = i / 2 + 1;
+
+        const whiteCell = document.createElement('td');
+        whiteCell.textContent = movesUci[i] || '';
+        whiteCell.dataset.moveIndex = i;
+
+        const blackCell = document.createElement('td');
+        if (movesUci[i + 1]) {
+            blackCell.textContent = movesUci[i + 1];
+            blackCell.dataset.moveIndex = i + 1;
+        }
+
+        row.append(numCell, whiteCell, blackCell);
+        tbody.appendChild(row);
+    }
+
+    const wrap = tbody.closest('.scoresheet-wrap');
+    if (wrap) {
+        wrap.scrollTop = wrap.scrollHeight;
+    }
+}
+
+/** Resalta la celda de la jugada en moveIndex (0-based) — usado al recorrer una reproducción. */
+function highlightScoresheetMove(tbodyId, moveIndex) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) {
+        return;
+    }
+    tbody.querySelectorAll('[data-move-index]').forEach((cell) => {
+        cell.classList.toggle('scoresheet__move--current', Number(cell.dataset.moveIndex) === moveIndex);
+    });
+}

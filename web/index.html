@@ -5,51 +5,73 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 
 <body>
     <div id="app">
-        <header>
-            <h1>♟️ Chess Platform</h1>
+        <header class="app-header">
+            <div class="wordmark">
+                <span class="wordmark__glyph" aria-hidden="true">&#9822;</span>
+                <span class="wordmark__text">Chess Platform</span>
+            </div>
             <div id="connection-status" class="status status--disconnected">Desconectado</div>
         </header>
 
         <!-- Pantalla de login / registro -->
-        <section id="auth-screen" class="screen">
-            <h2>Entrar</h2>
-            <form id="auth-form">
-                <input type="text" id="auth-username" placeholder="Usuario" required autocomplete="username">
-                <input type="password" id="auth-password" placeholder="Contraseña (mín. 8 caracteres)" required
-                    autocomplete="current-password">
-                <div class="auth-buttons">
-                    <button type="submit" id="login-btn">Entrar</button>
-                    <button type="button" id="register-btn" class="secondary">Crear cuenta</button>
-                </div>
-            </form>
-            <p id="auth-error" class="error-text"></p>
+        <section id="auth-screen" class="screen screen--centered">
+            <div class="ambient-glow" aria-hidden="true"></div>
+            <div class="card card--auth">
+                <h2 class="card__title">Entrar</h2>
+                <form id="auth-form">
+                    <label class="field">
+                        <span class="field__label">Usuario</span>
+                        <input type="text" id="auth-username" required autocomplete="username">
+                    </label>
+                    <label class="field">
+                        <span class="field__label">Contraseña</span>
+                        <input type="password" id="auth-password" required autocomplete="current-password">
+                        <span class="field__hint">Mínimo 8 caracteres</span>
+                    </label>
+                    <div class="auth-buttons">
+                        <button type="submit" id="login-btn" class="btn btn--primary">Entrar</button>
+                        <button type="button" id="register-btn" class="btn btn--ghost">Crear cuenta</button>
+                    </div>
+                </form>
+                <p id="auth-error" class="error-text" role="alert"></p>
+            </div>
         </section>
 
         <!-- Pantalla de lobby / matchmaking -->
-        <section id="lobby-screen" class="screen" hidden>
-            <h2>Buscar partida</h2>
-            <label for="time-control-select">Control de tiempo</label>
-            <select id="time-control-select">
-                <option value="BULLET">Bullet (1+0)</option>
-                <option value="BLITZ" selected>Blitz (5+3)</option>
-                <option value="RAPID">Rápidas (10+5)</option>
-                <option value="CLASSICAL">Clásicas (30+20)</option>
-            </select>
-            <button id="find-match-btn">Buscar partida</button>
-            <p id="matchmaking-status"></p>
-            <button id="history-btn" class="secondary">Ver historial</button>
-            <button id="logout-btn" class="secondary">Cerrar sesión</button>
+        <section id="lobby-screen" class="screen screen--centered" hidden>
+            <div class="card card--lobby">
+                <h2 class="card__title">Buscar partida</h2>
+                <label class="field">
+                    <span class="field__label">Control de tiempo</span>
+                    <select id="time-control-select">
+                        <option value="BULLET">Bullet — 1+0</option>
+                        <option value="BLITZ" selected>Blitz — 5+3</option>
+                        <option value="RAPID">Rápidas — 10+5</option>
+                        <option value="CLASSICAL">Clásicas — 30+20</option>
+                    </select>
+                </label>
+                <button id="find-match-btn" class="btn btn--primary btn--block">Buscar partida</button>
+                <p id="matchmaking-status" class="status-text"></p>
+                <div class="lobby-links">
+                    <button id="history-btn" class="btn btn--link">Ver historial</button>
+                    <button id="logout-btn" class="btn btn--link">Cerrar sesión</button>
+                </div>
+            </div>
         </section>
 
         <!-- Pantalla de partida -->
         <section id="game-screen" class="screen" hidden>
-            <main>
+            <main class="table">
                 <div id="board" class="board"></div>
 
                 <aside class="sidebar">
@@ -58,35 +80,64 @@
                         <div id="clock-white" class="clock__player">--:--</div>
                     </div>
                     <div id="turn-indicator" class="turn-indicator"></div>
-                    <p id="game-message" class="game-message"></p>
-                    <div id="move-list" class="move-list"></div>
+                    <p id="game-message" class="game-message" role="status"></p>
+
+                    <div class="scoresheet-wrap">
+                        <table class="scoresheet">
+                            <thead>
+                                <tr>
+                                    <th class="scoresheet__num-col">#</th>
+                                    <th>Blancas</th>
+                                    <th>Negras</th>
+                                </tr>
+                            </thead>
+                            <tbody id="move-list"></tbody>
+                        </table>
+                    </div>
+
                     <div class="controls">
-                        <button id="resign-btn">Rendirse</button>
+                        <button id="resign-btn" class="btn btn--danger btn--block">Rendirse</button>
                     </div>
                 </aside>
             </main>
         </section>
 
         <!-- Pantalla de historial de partidas -->
-        <section id="history-screen" class="screen" hidden>
-            <h2>Historial de partidas</h2>
-            <div id="history-list" class="history-list"></div>
-            <button id="history-back-btn" class="secondary">Volver</button>
+        <section id="history-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 class="card__title">Historial de partidas</h2>
+                <div id="history-list" class="history-list"></div>
+                <button id="history-back-btn" class="btn btn--ghost">Volver</button>
+            </div>
         </section>
 
         <!-- Pantalla de reproducción de una partida -->
         <section id="replay-screen" class="screen" hidden>
-            <main>
+            <main class="table">
                 <div id="replay-board" class="board"></div>
 
                 <aside class="sidebar">
-                    <p id="replay-info"></p>
+                    <p id="replay-info" class="replay-info"></p>
                     <p id="replay-move-counter" class="turn-indicator"></p>
-                    <div class="controls">
-                        <button id="replay-prev-btn">◀ Anterior</button>
-                        <button id="replay-next-btn">Siguiente ▶</button>
+
+                    <div class="scoresheet-wrap">
+                        <table class="scoresheet">
+                            <thead>
+                                <tr>
+                                    <th class="scoresheet__num-col">#</th>
+                                    <th>Blancas</th>
+                                    <th>Negras</th>
+                                </tr>
+                            </thead>
+                            <tbody id="replay-move-list"></tbody>
+                        </table>
                     </div>
-                    <button id="replay-back-btn" class="secondary">Volver al historial</button>
+
+                    <div class="controls controls--split">
+                        <button id="replay-prev-btn" class="btn btn--ghost">&#9664; Anterior</button>
+                        <button id="replay-next-btn" class="btn btn--ghost">Siguiente &#9654;</button>
+                    </div>
+                    <button id="replay-back-btn" class="btn btn--link">Volver al historial</button>
                 </aside>
             </main>
         </section>
