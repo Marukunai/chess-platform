@@ -345,6 +345,57 @@
             </div>
         </section>
 
+        <!-- Pantalla de perfil -->
+        <section id="profile-screen" class="screen screen--centered" hidden>
+            <div class="card card--auth">
+                <h2 class="card__title">Mi perfil</h2>
+                <p id="profile-username" class="profile-username"></p>
+                <div class="profile-rating">
+                    <span id="profile-rating-value" class="profile-rating__value">—</span>
+                    <span class="profile-rating__label">rating</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-grid__item">
+                        <span id="profile-games" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Partidas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--win">
+                        <span id="profile-wins" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Ganadas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--loss">
+                        <span id="profile-losses" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Perdidas</span>
+                    </div>
+                    <div class="stat-grid__item">
+                        <span id="profile-draws" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Tablas</span>
+                    </div>
+                </div>
+                <button id="profile-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
+        <!-- Pantalla de ranking -->
+        <section id="leaderboard-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 class="card__title">Ranking</h2>
+                <div class="scoresheet-wrap scoresheet-wrap--tall">
+                    <table class="scoresheet standings">
+                        <thead>
+                            <tr>
+                                <th class="scoresheet__num-col">#</th>
+                                <th>Jugador</th>
+                                <th>Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-list"></tbody>
+                    </table>
+                </div>
+                <button id="leaderboard-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
         <!-- Pantalla de partida -->
         <section id="game-screen" class="screen" hidden>
 

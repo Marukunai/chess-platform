@@ -173,4 +173,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('replay-prev-btn').addEventListener('click', replayGoToPrevious);
     document.getElementById('replay-next-btn').addEventListener('click', replayGoToNext);
+
+    document.getElementById('profile-btn').addEventListener('click', async () => {
+        const userId = getUserIdFromToken(getStoredToken());
+        try {
+            renderProfile(await fetchUserProfile(userId));
+            showScreen('profile-screen');
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+    document.getElementById('profile-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
+    document.getElementById('leaderboard-btn').addEventListener('click', async () => {
+        const userId = getUserIdFromToken(getStoredToken());
+        try {
+            renderLeaderboard(await fetchLeaderboard(), userId);
+            showScreen('leaderboard-screen');
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+
+    document.getElementById('leaderboard-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
 });

@@ -31,4 +31,3 @@ services:
     name: chess-platform-web
     runtime: static
     staticPublishPath: ./web
-    plan: free
