@@ -5,152 +5,509 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Platform</title>
+
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <link
         href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
         rel="stylesheet">
+
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/preferences.css">
 </head>
 
 <body>
     <div id="app">
+
         <header class="app-header">
             <div class="wordmark">
                 <span class="wordmark__glyph" aria-hidden="true">&#9822;</span>
                 <span class="wordmark__text">Chess Platform</span>
             </div>
-            <div id="connection-status" class="status status--disconnected">Desconectado</div>
+
+            <div id="connection-status" class="status status--disconnected">
+                Desconectado
+            </div>
         </header>
 
         <!-- Pantalla de login / registro -->
         <section id="auth-screen" class="screen screen--centered">
             <div class="ambient-glow" aria-hidden="true"></div>
+
             <div class="card card--auth">
                 <h2 class="card__title">Entrar</h2>
+
                 <form id="auth-form">
                     <label class="field">
                         <span class="field__label">Usuario</span>
                         <input type="text" id="auth-username" required autocomplete="username">
                     </label>
+
                     <label class="field">
                         <span class="field__label">Contraseña</span>
+
                         <input type="password" id="auth-password" required autocomplete="current-password">
-                        <span class="field__hint">Mínimo 8 caracteres</span>
+
+                        <span class="field__hint">
+                            Mínimo 8 caracteres
+                        </span>
                     </label>
+
                     <div class="auth-buttons">
-                        <button type="submit" id="login-btn" class="btn btn--primary">Entrar</button>
-                        <button type="button" id="register-btn" class="btn btn--ghost">Crear cuenta</button>
+                        <button type="submit" id="login-btn" class="btn btn--primary">
+                            Entrar
+                        </button>
+
+                        <button type="button" id="register-btn" class="btn btn--ghost">
+                            Crear cuenta
+                        </button>
                     </div>
                 </form>
-                <p id="auth-error" class="error-text" role="alert"></p>
+
+                <p id="auth-error" class="error-text" role="alert">
+                </p>
             </div>
         </section>
 
         <!-- Pantalla de lobby / matchmaking -->
         <section id="lobby-screen" class="screen screen--centered" hidden>
+
             <div class="card card--lobby">
-                <h2 class="card__title">Buscar partida</h2>
+
+                <h2 class="card__title">
+                    Buscar partida
+                </h2>
+
                 <label class="field">
-                    <span class="field__label">Control de tiempo</span>
+                    <span class="field__label">
+                        Control de tiempo
+                    </span>
+
                     <select id="time-control-select">
-                        <option value="BULLET">Bullet — 1+0</option>
-                        <option value="BLITZ" selected>Blitz — 5+3</option>
-                        <option value="RAPID">Rápidas — 10+5</option>
-                        <option value="CLASSICAL">Clásicas — 30+20</option>
+                        <option value="BULLET">
+                            Bullet — 1+0
+                        </option>
+
+                        <option value="BLITZ" selected>
+                            Blitz — 5+3
+                        </option>
+
+                        <option value="RAPID">
+                            Rápidas — 10+5
+                        </option>
+
+                        <option value="CLASSICAL">
+                            Clásicas — 30+20
+                        </option>
                     </select>
                 </label>
-                <button id="find-match-btn" class="btn btn--primary btn--block">Buscar partida</button>
-                <p id="matchmaking-status" class="status-text"></p>
+
+                <button id="find-match-btn" class="btn btn--primary btn--block">
+                    Buscar partida
+                </button>
+
+                <p id="matchmaking-status" class="status-text">
+                </p>
+
                 <div class="lobby-links">
-                    <button id="history-btn" class="btn btn--link">Ver historial</button>
-                    <button id="logout-btn" class="btn btn--link">Cerrar sesión</button>
+                    <button id="profile-btn" class="btn btn--link">
+                        Mi perfil
+                    </button>
+
+                    <button id="leaderboard-btn" class="btn btn--link">
+                        Ranking
+                    </button>
+
+                    <button id="history-btn" class="btn btn--link">
+                        Historial
+                    </button>
+
+                    <button id="logout-btn" class="btn btn--link">
+                        Cerrar sesión
+                    </button>
                 </div>
+
+                <!-- Preferencias de apariencia -->
+                <div class="preferences">
+
+                    <button id="preferences-btn" type="button" class="preferences__toggle">
+                        <span aria-hidden="true">⚙</span>
+                        Apariencia
+                    </button>
+
+                    <div id="preferences-panel" class="preferences__panel" hidden>
+
+                        <div class="preferences__header">
+                            <div>
+                                <h3 class="preferences__title">
+                                    Apariencia
+                                </h3>
+
+                                <p class="preferences__subtitle">
+                                    Personaliza tu tablero y tus piezas.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="preferences__fields">
+
+                            <label class="field preferences__field">
+                                <span class="field__label">
+                                    Tablero
+                                </span>
+
+                                <select id="board-theme-select">
+
+                                    <option value="walnut">
+                                        🟫 Nogal clásico
+                                    </option>
+
+                                    <option value="green">
+                                        🟩 Verde clásico
+                                    </option>
+
+                                    <option value="blue">
+                                        🟦 Azul
+                                    </option>
+
+                                    <option value="slate">
+                                        ⬛ Pizarra
+                                    </option>
+
+                                </select>
+                            </label>
+
+                            <label class="field preferences__field">
+                                <span class="field__label">
+                                    Piezas
+                                </span>
+
+                                <select id="piece-theme-select">
+
+                                    <option value="classic">
+                                        ♟ Clásicas
+                                    </option>
+
+                                    <option value="contrast">
+                                        ♟ Alto contraste
+                                    </option>
+
+                                    <option value="sepia">
+                                        ♟ Sepia
+                                    </option>
+
+                                </select>
+                            </label>
+
+                        </div>
+
+                        <div class="preferences__preview">
+
+                            <span class="preferences__preview-label">
+                                Vista previa
+                            </span>
+
+                            <div class="preferences__preview-board">
+                                <span>♜</span>
+                                <span>♙</span>
+                                <span>♞</span>
+                                <span>♕</span>
+                            </div>
+
+                        </div>
+
+                        <button id="preferences-reset-btn" type="button" class="btn btn--link preferences__reset">
+                            Restaurar valores predeterminados
+                        </button>
+
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Pantalla de perfil -->
+        <section id="profile-screen" class="screen screen--centered" hidden>
+
+            <div class="card card--auth">
+
+                <h2 class="card__title">
+                    Mi perfil
+                </h2>
+
+                <p id="profile-username" class="profile-username">
+                </p>
+
+                <div class="profile-rating">
+                    <span id="profile-rating-value" class="profile-rating__value">
+                        —
+                    </span>
+
+                    <span class="profile-rating__label">
+                        rating
+                    </span>
+                </div>
+
+                <div class="stat-grid">
+
+                    <div class="stat-grid__item">
+                        <span id="profile-games" class="stat-grid__value">
+                            —
+                        </span>
+
+                        <span class="stat-grid__label">
+                            Partidas
+                        </span>
+                    </div>
+
+                    <div class="stat-grid__item stat-grid__item--win">
+                        <span id="profile-wins" class="stat-grid__value">
+                            —
+                        </span>
+
+                        <span class="stat-grid__label">
+                            Ganadas
+                        </span>
+                    </div>
+
+                    <div class="stat-grid__item stat-grid__item--loss">
+                        <span id="profile-losses" class="stat-grid__value">
+                            —
+                        </span>
+
+                        <span class="stat-grid__label">
+                            Perdidas
+                        </span>
+                    </div>
+
+                    <div class="stat-grid__item">
+                        <span id="profile-draws" class="stat-grid__value">
+                            —
+                        </span>
+
+                        <span class="stat-grid__label">
+                            Tablas
+                        </span>
+                    </div>
+
+                </div>
+
+                <button id="profile-back-btn" class="btn btn--ghost btn--block">
+                    Volver
+                </button>
+
+            </div>
+        </section>
+
+        <!-- Pantalla de ranking -->
+        <section id="leaderboard-screen" class="screen screen--centered" hidden>
+
+            <div class="card card--wide">
+
+                <h2 class="card__title">
+                    Ranking
+                </h2>
+
+                <div class="scoresheet-wrap scoresheet-wrap--tall">
+
+                    <table class="scoresheet standings">
+
+                        <thead>
+                            <tr>
+                                <th class="scoresheet__num-col">
+                                    #
+                                </th>
+
+                                <th>
+                                    Jugador
+                                </th>
+
+                                <th>
+                                    Rating
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="leaderboard-list"></tbody>
+
+                    </table>
+
+                </div>
+
+                <button id="leaderboard-back-btn" class="btn btn--ghost btn--block">
+                    Volver
+                </button>
+
             </div>
         </section>
 
         <!-- Pantalla de partida -->
         <section id="game-screen" class="screen" hidden>
+
             <main class="table">
-                <div id="board" class="board"></div>
+
+                <div id="board" class="board">
+                </div>
 
                 <aside class="sidebar">
+
                     <div class="clock">
-                        <div id="clock-black" class="clock__player">--:--</div>
-                        <div id="clock-white" class="clock__player">--:--</div>
+
+                        <div id="clock-black" class="clock__player">
+                            --:--
+                        </div>
+
+                        <div id="clock-white" class="clock__player">
+                            --:--
+                        </div>
+
                     </div>
-                    <div id="turn-indicator" class="turn-indicator"></div>
-                    <p id="game-message" class="game-message" role="status"></p>
+
+                    <div id="turn-indicator" class="turn-indicator">
+                    </div>
+
+                    <p id="game-message" class="game-message" role="status">
+                    </p>
 
                     <div class="scoresheet-wrap">
+
                         <table class="scoresheet">
+
                             <thead>
                                 <tr>
-                                    <th class="scoresheet__num-col">#</th>
-                                    <th>Blancas</th>
-                                    <th>Negras</th>
+                                    <th class="scoresheet__num-col">
+                                        #
+                                    </th>
+
+                                    <th>
+                                        Blancas
+                                    </th>
+
+                                    <th>
+                                        Negras
+                                    </th>
                                 </tr>
                             </thead>
+
                             <tbody id="move-list"></tbody>
+
                         </table>
+
                     </div>
 
                     <div class="controls">
-                        <button id="resign-btn" class="btn btn--danger btn--block">Rendirse</button>
+
+                        <button id="resign-btn" class="btn btn--danger btn--block">
+                            Rendirse
+                        </button>
+
                     </div>
+
                 </aside>
+
             </main>
         </section>
 
         <!-- Pantalla de historial de partidas -->
         <section id="history-screen" class="screen screen--centered" hidden>
+
             <div class="card card--wide">
-                <h2 class="card__title">Historial de partidas</h2>
-                <div id="history-list" class="history-list"></div>
-                <button id="history-back-btn" class="btn btn--ghost">Volver</button>
+
+                <h2 class="card__title">
+                    Historial de partidas
+                </h2>
+
+                <div id="history-list" class="history-list">
+                </div>
+
+                <button id="history-back-btn" class="btn btn--ghost">
+                    Volver
+                </button>
+
             </div>
         </section>
 
         <!-- Pantalla de reproducción de una partida -->
         <section id="replay-screen" class="screen" hidden>
+
             <main class="table">
-                <div id="replay-board" class="board"></div>
+
+                <div id="replay-board" class="board">
+                </div>
 
                 <aside class="sidebar">
-                    <p id="replay-info" class="replay-info"></p>
-                    <p id="replay-move-counter" class="turn-indicator"></p>
+
+                    <p id="replay-info" class="replay-info">
+                    </p>
+
+                    <p id="replay-move-counter" class="turn-indicator">
+                    </p>
 
                     <div class="scoresheet-wrap">
+
                         <table class="scoresheet">
+
                             <thead>
                                 <tr>
-                                    <th class="scoresheet__num-col">#</th>
-                                    <th>Blancas</th>
-                                    <th>Negras</th>
+                                    <th class="scoresheet__num-col">
+                                        #
+                                    </th>
+
+                                    <th>
+                                        Blancas
+                                    </th>
+
+                                    <th>
+                                        Negras
+                                    </th>
                                 </tr>
                             </thead>
+
                             <tbody id="replay-move-list"></tbody>
+
                         </table>
+
                     </div>
 
                     <div class="controls controls--split">
-                        <button id="replay-prev-btn" class="btn btn--ghost">&#9664; Anterior</button>
-                        <button id="replay-next-btn" class="btn btn--ghost">Siguiente &#9654;</button>
+
+                        <button id="replay-prev-btn" class="btn btn--ghost">
+                            &#9664; Anterior
+                        </button>
+
+                        <button id="replay-next-btn" class="btn btn--ghost">
+                            Siguiente &#9654;
+                        </button>
+
                     </div>
-                    <button id="replay-back-btn" class="btn btn--link">Volver al historial</button>
+
+                    <button id="replay-back-btn" class="btn btn--link">
+                        Volver al historial
+                    </button>
+
                 </aside>
+
             </main>
         </section>
+
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
+    <script src="js/preferences.js"></script>
     <script src="js/history.js"></script>
+    <script src="js/profile.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>
+
 </body>
 
 </html>

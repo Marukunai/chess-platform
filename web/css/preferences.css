@@ -1,0 +1,277 @@
+/* =========================================================================
+   Chess Platform — preferencias visuales
+
+   Las preferencias son puramente de presentación:
+   - No afectan al estado de la partida.
+   - No afectan al motor.
+   - No afectan al WebSocket.
+   - Se guardan localmente mediante localStorage.
+
+   El tablero utiliza variables CSS para que cambiar de tema no requiera
+   volver a renderizar la posición.
+   ========================================================================= */
+
+:root {
+    /* Tema de tablero por defecto: nogal */
+    --square-light: #ede6d6;
+    --square-dark: #6b4a35;
+
+    /* Tema de piezas por defecto: clásico */
+    --piece-white: #f5f0e4;
+    --piece-black: #211b17;
+
+    --piece-white-outline: #2a2320;
+    --piece-black-outline: #f5f0e4;
+}
+
+/* -------------------------------------------------------------------------
+   Piezas
+   ------------------------------------------------------------------------- */
+
+.piece {
+    display: inline-block;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+
+    /* Las piezas heredan el tamaño de la casilla */
+    font-size: 1em;
+
+    transition:
+        color 0.15s ease,
+        text-shadow 0.15s ease;
+}
+
+.piece--white {
+    color: var(--piece-white);
+
+    text-shadow:
+        1px 0 0 var(--piece-white-outline),
+        -1px 0 0 var(--piece-white-outline),
+        0 1px 0 var(--piece-white-outline),
+        0 -1px 0 var(--piece-white-outline),
+        0 2px 3px rgba(0, 0, 0, 0.65);
+}
+
+.piece--black {
+    color: var(--piece-black);
+
+    text-shadow:
+        1px 0 0 var(--piece-black-outline),
+        -1px 0 0 var(--piece-black-outline),
+        0 1px 0 var(--piece-black-outline),
+        0 -1px 0 var(--piece-black-outline),
+        0 2px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* -------------------------------------------------------------------------
+   Selector de apariencia
+   ------------------------------------------------------------------------- */
+
+.preferences {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--felt-border);
+    padding-top: 1rem;
+}
+
+.preferences__toggle {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+
+    padding: 0.6rem 0.75rem;
+
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+
+    background: transparent;
+    color: var(--parchment-dim);
+
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+
+    cursor: pointer;
+
+    transition:
+        color 0.15s ease,
+        border-color 0.15s ease,
+        background 0.15s ease;
+}
+
+.preferences__toggle:hover {
+    color: var(--parchment);
+    border-color: var(--brass);
+    background: rgba(201, 147, 46, 0.06);
+}
+
+.preferences__toggle[aria-expanded="true"] {
+    color: var(--brass-bright);
+    border-color: var(--brass);
+}
+
+/* -------------------------------------------------------------------------
+   Panel
+   ------------------------------------------------------------------------- */
+
+.preferences__panel {
+    margin-top: 0.75rem;
+
+    padding: 1.25rem;
+
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+
+    background: var(--ink-raised);
+
+    animation: preferences-panel-in 0.15s ease;
+}
+
+.preferences__panel[hidden] {
+    display: none;
+}
+
+@keyframes preferences-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.preferences__header {
+    margin-bottom: 1rem;
+}
+
+.preferences__title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: var(--parchment);
+}
+
+.preferences__subtitle {
+    margin: 0.3rem 0 0;
+    color: var(--parchment-dim);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.preferences__fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.preferences__field {
+    margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Preview
+   ------------------------------------------------------------------------- */
+
+.preferences__preview {
+    margin-top: 1rem;
+    padding-top: 1rem;
+
+    border-top: 1px solid var(--felt-border);
+}
+
+.preferences__preview-label {
+    display: block;
+
+    margin-bottom: 0.5rem;
+
+    color: var(--parchment-dim);
+
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.preferences__preview-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+
+    width: 100%;
+    max-width: 180px;
+
+    aspect-ratio: 4 / 1;
+
+    margin: 0 auto;
+
+    overflow: hidden;
+
+    border: 1px solid var(--felt-border);
+    border-radius: 4px;
+
+    font-size: 1.4rem;
+}
+
+.preferences__preview-board span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    line-height: 1;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.preferences__preview-board span:nth-child(1),
+.preferences__preview-board span:nth-child(4) {
+    background: var(--square-dark);
+    color: var(--piece-white);
+
+    text-shadow:
+        1px 0 0 var(--piece-white-outline),
+        -1px 0 0 var(--piece-white-outline),
+        0 1px 0 var(--piece-white-outline),
+        0 -1px 0 var(--piece-white-outline);
+}
+
+.preferences__preview-board span:nth-child(2),
+.preferences__preview-board span:nth-child(3) {
+    background: var(--square-light);
+    color: var(--piece-black);
+
+    text-shadow:
+        1px 0 0 var(--piece-black-outline),
+        -1px 0 0 var(--piece-black-outline),
+        0 1px 0 var(--piece-black-outline),
+        0 -1px 0 var(--piece-black-outline);
+}
+
+/* -------------------------------------------------------------------------
+   Reset
+   ------------------------------------------------------------------------- */
+
+.preferences__reset {
+    width: 100%;
+    margin-top: 0.75rem;
+    text-align: center;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------------------- */
+
+@media (max-width: 480px) {
+    .preferences__panel {
+        padding: 1rem;
+    }
+
+    .preferences__preview-board {
+        max-width: 160px;
+    }
+}
