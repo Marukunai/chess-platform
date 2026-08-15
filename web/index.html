@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Platform</title>
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -63,9 +65,62 @@
                 <button id="find-match-btn" class="btn btn--primary btn--block">Buscar partida</button>
                 <p id="matchmaking-status" class="status-text"></p>
                 <div class="lobby-links">
-                    <button id="history-btn" class="btn btn--link">Ver historial</button>
+                    <button id="profile-btn" class="btn btn--link">Mi perfil</button>
+                    <button id="leaderboard-btn" class="btn btn--link">Ranking</button>
+                    <button id="history-btn" class="btn btn--link">Historial</button>
                     <button id="logout-btn" class="btn btn--link">Cerrar sesión</button>
                 </div>
+            </div>
+        </section>
+
+        <!-- Pantalla de perfil -->
+        <section id="profile-screen" class="screen screen--centered" hidden>
+            <div class="card card--auth">
+                <h2 class="card__title">Mi perfil</h2>
+                <p id="profile-username" class="profile-username"></p>
+                <div class="profile-rating">
+                    <span id="profile-rating-value" class="profile-rating__value">—</span>
+                    <span class="profile-rating__label">rating</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-grid__item">
+                        <span id="profile-games" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Partidas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--win">
+                        <span id="profile-wins" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Ganadas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--loss">
+                        <span id="profile-losses" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Perdidas</span>
+                    </div>
+                    <div class="stat-grid__item">
+                        <span id="profile-draws" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Tablas</span>
+                    </div>
+                </div>
+                <button id="profile-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
+        <!-- Pantalla de ranking -->
+        <section id="leaderboard-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 class="card__title">Ranking</h2>
+                <div class="scoresheet-wrap scoresheet-wrap--tall">
+                    <table class="scoresheet standings">
+                        <thead>
+                            <tr>
+                                <th class="scoresheet__num-col">#</th>
+                                <th>Jugador</th>
+                                <th>Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-list"></tbody>
+                    </table>
+                </div>
+                <button id="leaderboard-back-btn" class="btn btn--ghost btn--block">Volver</button>
             </div>
         </section>
 
@@ -149,6 +204,7 @@
     <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
     <script src="js/history.js"></script>
+    <script src="js/profile.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>
 </body>
