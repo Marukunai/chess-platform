@@ -1,9 +1,37 @@
+/* =========================================================================
+   Chess Platform — sistema de diseño
+   Dirección: "sala de torneo de noche" — nogal cálido, marfil, latón.
+   Material propio del ajedrez (planillas, piezas Staunton, relojes) en vez
+   de un tema oscuro genérico. Ver docs/architecture-decisions.md si se
+   documenta como ADR.
+   ========================================================================= */
+
 :root {
-    --square-light: #f0d9b5;
-    --square-dark: #b58863;
-    --accent: #4caf50;
-    --bg: #1e1e1e;
-    --text: #f0f0f0;
+    /* Color */
+    --ink: #1a1614;
+    --ink-raised: #221c19;
+    --felt: #2a2320;
+    --felt-border: #3d332c;
+    --parchment: #ede6d6;
+    --parchment-dim: #b8ad98;
+    --brass: #c9932e;
+    --brass-bright: #e0ac4c;
+    --verdigris: #4a7a6c;
+    --garnet: #8b3a3a;
+
+    /* Tablero */
+    --square-light: #ede6d6;
+    --square-dark: #6b4a35;
+
+    /* Tipografía */
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Work Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+    /* Forma */
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-card: 0 20px 40px -16px rgba(0, 0, 0, 0.65);
 }
 
 * {
@@ -12,60 +40,308 @@
 
 body {
     margin: 0;
-    font-family: system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: var(--font-body);
+    background: var(--ink);
+    color: var(--parchment);
+    min-height: 100vh;
 }
 
-#app {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 1.5rem;
+h1,
+h2,
+h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    margin: 0;
 }
 
-header {
+a {
+    color: var(--brass-bright);
+}
+
+/* Foco visible siempre — teclado navegable en toda la app */
+:focus-visible {
+    outline: 2px solid var(--brass-bright);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ---- Cabecera ---- */
+
+.app-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--felt-border);
+}
+
+.wordmark {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.wordmark__glyph {
+    font-size: 1.6rem;
+    color: var(--brass);
+}
+
+.wordmark__text {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
 }
 
 .status {
-    padding: 0.25rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.75rem;
     border-radius: 999px;
-    font-size: 0.85rem;
-}
-
-.status--disconnected {
-    background: #5c2b2b;
+    border: 1px solid transparent;
 }
 
 .status--connected {
-    background: #2b5c33;
+    color: var(--verdigris);
+    border-color: var(--verdigris);
+    background: rgba(74, 122, 108, 0.12);
 }
 
-main {
+.status--disconnected {
+    color: var(--garnet);
+    border-color: var(--garnet);
+    background: rgba(139, 58, 58, 0.12);
+}
+
+/* ---- Pantallas ---- */
+
+.screen[hidden] {
+    display: none;
+}
+
+.screen--centered {
     display: flex;
-    gap: 2rem;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 8vh;
+    position: relative;
+    min-height: 60vh;
+}
+
+/* Resplandor ambiental tras la tarjeta de login — como la luz de una lámpara
+   de mesa sobre un tablero, no un degradado decorativo cualquiera. Estático
+   a propósito: nada que animar, nada que respetar en prefers-reduced-motion. */
+.ambient-glow {
+    position: absolute;
+    top: -10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 500px;
+    background: radial-gradient(ellipse at center, rgba(201, 147, 46, 0.16) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ---- Tarjetas ---- */
+
+.card {
+    position: relative;
+    z-index: 1;
+    background: var(--felt);
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 380px;
+}
+
+.card--wide {
+    max-width: 560px;
+}
+
+.card__title {
+    font-size: 1.6rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ---- Formularios ---- */
+
+.field {
+    display: block;
+    margin-bottom: 1.1rem;
+}
+
+.field__label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--parchment-dim);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.01em;
+}
+
+.field__hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--parchment-dim);
+    margin-top: 0.35rem;
+}
+
+.field input,
+.field select {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--felt-border);
+    background: var(--ink-raised);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+}
+
+.field input:focus,
+.field select:focus {
+    border-color: var(--brass);
+}
+
+.auth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+}
+
+.error-text {
+    color: var(--garnet);
+    font-size: 0.85rem;
+    min-height: 1.2em;
+    margin: 1rem 0 0;
+}
+
+.status-text {
+    color: var(--parchment-dim);
+    font-size: 0.85rem;
+    min-height: 1.2em;
+}
+
+/* ---- Botones ---- */
+
+.btn {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn--block {
+    width: 100%;
+}
+
+.btn--primary {
+    background: var(--brass);
+    color: var(--ink);
+}
+
+.btn--primary:hover {
+    filter: brightness(1.08);
+}
+
+.btn--ghost {
+    background: transparent;
+    color: var(--parchment);
+    border-color: var(--felt-border);
+}
+
+.btn--ghost:hover {
+    border-color: var(--brass);
+}
+
+.btn--danger {
+    background: transparent;
+    color: var(--garnet);
+    border-color: var(--garnet);
+}
+
+.btn--danger:hover {
+    background: rgba(139, 58, 58, 0.12);
+}
+
+.btn--link {
+    background: none;
+    border: none;
+    color: var(--parchment-dim);
+    font-weight: 500;
+    padding: 0.4rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.btn--link:hover {
+    color: var(--brass-bright);
+}
+
+/* ---- Lobby ---- */
+
+.card--lobby .field {
+    margin-bottom: 1.5rem;
+}
+
+.lobby-links {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+}
+
+/* ---- Mesa de juego (tablero + panel lateral) ---- */
+
+.table {
+    display: flex;
+    gap: 2.5rem;
     flex-wrap: wrap;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem;
+    align-items: flex-start;
+    justify-content: center;
 }
 
 .board {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: min(600px, 90vw);
-    aspect-ratio: 1 / 1;
-    border: 2px solid #333;
+    width: min(560px, 92vw);
+    aspect-ratio: 1;
+    border: 6px solid var(--brass);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+    flex-shrink: 0;
 }
 
 .square {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(1.2rem, 4vw, 2.2rem);
-    user-select: none;
+    font-size: min(6.5vw, 2.6rem);
     cursor: pointer;
+    user-select: none;
 }
 
 .square--light {
@@ -77,153 +353,183 @@ main {
 }
 
 .square--selected {
-    outline: 3px solid var(--accent);
-    outline-offset: -3px;
+    background: var(--brass-bright) !important;
 }
 
 .sidebar {
-    flex: 1;
-    min-width: 200px;
+    width: min(340px, 100%);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .clock {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-bottom: 1rem;
 }
 
 .clock__player {
-    font-size: 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 1.6rem;
     font-variant-numeric: tabular-nums;
-    background: #2a2a2a;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
     text-align: center;
-}
-
-.move-list {
-    background: #2a2a2a;
-    border-radius: 6px;
-    padding: 0.75rem;
-    height: 200px;
-    overflow-y: auto;
-    font-family: monospace;
-    margin-bottom: 1rem;
-}
-
-.controls {
-    display: flex;
-    gap: 0.5rem;
-}
-
-button {
-    flex: 1;
     padding: 0.6rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--accent);
-    color: white;
-    cursor: pointer;
-    font-size: 0.95rem;
-}
-
-button:disabled {
-    background: #555;
-    cursor: not-allowed;
-}
-
-/* ---- Pantallas (auth / lobby / partida) ---- */
-
-.screen[hidden] {
-    display: none;
-}
-
-.screen {
-    max-width: 400px;
-    margin: 2rem auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.screen h2 {
-    margin-bottom: 0.5rem;
-}
-
-#auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-#auth-form input,
-#time-control-select {
-    padding: 0.6rem;
-    border-radius: 6px;
-    border: 1px solid #444;
-    background: #2a2a2a;
-    color: var(--text);
-    font-size: 0.95rem;
-}
-
-.auth-buttons {
-    display: flex;
-    gap: 0.5rem;
-}
-
-button.secondary {
-    background: #444;
-}
-
-.error-text {
-    color: #ff6b6b;
-    min-height: 1.2em;
+    background: var(--felt);
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+    color: var(--parchment-dim);
 }
 
 .turn-indicator {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
+    font-weight: 600;
+    text-align: center;
+    margin: 0;
 }
 
-.game-message {
-    color: #ffd166;
-    min-height: 1.2em;
+.game-message,
+.replay-info {
+    text-align: center;
+    color: var(--brass-bright);
+    min-height: 1.3em;
+    margin: 0;
 }
 
-#game-screen main {
+/* ---- Planilla (el elemento firma) ---- */
+
+.scoresheet-wrap {
+    background: var(--felt);
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.scoresheet {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+.scoresheet thead th {
+    position: sticky;
+    top: 0;
+    background: var(--ink-raised);
+    color: var(--parchment-dim);
+    text-align: left;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.scoresheet__num-col {
+    width: 2.5rem;
+    color: var(--brass);
+}
+
+.scoresheet td {
+    padding: 0.4rem 0.75rem;
+    border-top: 1px solid var(--felt-border);
+}
+
+.scoresheet td:first-child {
+    color: var(--brass);
+}
+
+.scoresheet__move--current {
+    background: rgba(201, 147, 46, 0.18);
+    border-radius: var(--radius-sm);
+}
+
+/* ---- Controles ---- */
+
+.controls {
     display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 1.5rem;
+    flex-direction: column;
+    gap: 0.6rem;
 }
 
-/* ---- Historial y reproducción de partidas ---- */
+.controls--split {
+    flex-direction: row;
+}
+
+.controls--split .btn {
+    flex: 1;
+}
+
+/* ---- Historial ---- */
 
 .history-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    max-height: 400px;
+    gap: 0.6rem;
+    max-height: 420px;
     overflow-y: auto;
+    margin-bottom: 1.5rem;
 }
 
 .history-item {
-    background: #2a2a2a;
-    border-radius: 6px;
-    padding: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    background: var(--ink-raised);
+    border: 1px solid var(--felt-border);
+    border-left: 3px solid var(--parchment-dim);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem 1rem;
     cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.15s;
+    transition: border-color 0.15s ease;
 }
 
 .history-item:hover {
-    background: #3a3a3a;
+    border-left-color: var(--brass);
 }
 
-#replay-info {
-    font-weight: bold;
-    margin-bottom: 0.25rem;
+.history-item--win {
+    border-left-color: var(--verdigris);
+}
+
+.history-item--loss {
+    border-left-color: var(--garnet);
+}
+
+.history-item__players {
+    font-weight: 500;
+}
+
+.history-item__meta {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--parchment-dim);
+    text-align: right;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 720px) {
+    .app-header {
+        padding: 1rem 1.25rem;
+    }
+
+    .wordmark__text {
+        font-size: 1.15rem;
+    }
+
+    .table {
+        padding: 1rem;
+        gap: 1.5rem;
+    }
+
+    .card {
+        padding: 1.75rem;
+    }
+
+    .screen--centered {
+        padding-top: 4vh;
+    }
 }

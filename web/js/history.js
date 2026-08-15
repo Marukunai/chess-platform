@@ -4,6 +4,7 @@
 // las posiciones FEN reconstruidas, aquí no hay ninguna regla de ajedrez que aplicar.
 
 let replayFenPositions = [];
+let replayMoves = [];
 let replayIndex = 0;
 
 async function fetchUserHistory(userId) {
@@ -22,7 +23,13 @@ async function fetchGameDetail(gameId) {
     return response.json();
 }
 
-function renderHistoryList(games, onSelect) {
+/**
+ * viewerUserId: quién está mirando el historial — para colorear cada fila según si esa
+ * partida la ganó (verdigris), la perdió (granate) o quedó neutra (tablas, o no se pudo
+ * determinar). whiteUserId/blackUserId vienen del backend justo para esto — el cliente
+ * solo conoce su propio userId (del JWT), no los nombres de usuario de cada partida.
+ */
+function renderHistoryList(games, viewerUserId, onSelect) {
     const container = document.getElementById('history-list');
     container.innerHTML = '';
 
@@ -33,24 +40,50 @@ function renderHistoryList(games, onSelect) {
 
     for (const game of games) {
         const item = document.createElement('div');
-        item.className = 'history-item';
+        item.className = `history-item ${outcomeClassFor(game, viewerUserId)}`;
+
+        const players = document.createElement('div');
+        players.className = 'history-item__players';
+        players.textContent = `${game.whiteUsername} vs ${game.blackUsername}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'history-item__meta';
         const date = new Date(game.playedAt).toLocaleString();
-        item.textContent = `${game.whiteUsername} vs ${game.blackUsername} — ${game.result} (${game.timeControl}) — ${date}`;
+        meta.textContent = `${game.result} · ${game.timeControl} · ${date}`;
+
+        item.append(players, meta);
         item.addEventListener('click', () => onSelect(game.id));
         container.appendChild(item);
     }
 }
 
+function outcomeClassFor(game, viewerUserId) {
+    const viewerIsWhite = game.whiteUserId === viewerUserId;
+    const viewerIsBlack = game.blackUserId === viewerUserId;
+    if (!viewerIsWhite && !viewerIsBlack) {
+        return '';
+    }
+    if (game.result === '1/2-1/2') {
+        return '';
+    }
+    const whiteWon = game.result === '1-0';
+    const viewerWon = (viewerIsWhite && whiteWon) || (viewerIsBlack && !whiteWon);
+    return viewerWon ? 'history-item--win' : 'history-item--loss';
+}
+
 function openReplay(game) {
     replayFenPositions = game.fenPositions;
+    replayMoves = game.moves;
     replayIndex = 0;
     document.getElementById('replay-info').textContent =
         `${game.whiteUsername} vs ${game.blackUsername} — ${game.result} (${game.timeControl})`;
+    renderScoresheet('replay-move-list', replayMoves);
     renderReplayPosition();
 }
 
 function renderReplayPosition() {
     renderBoard(replayFenPositions[replayIndex], [], 'replay-board');
+    highlightScoresheetMove('replay-move-list', replayIndex - 1); // -1: la posición inicial no viene de ninguna jugada
     const label = replayIndex === 0 ? 'Posición inicial' : `Jugada ${replayIndex}`;
     document.getElementById('replay-move-counter').textContent =
         `${label} / ${replayFenPositions.length - 1}`;
