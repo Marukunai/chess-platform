@@ -305,8 +305,99 @@ a {
 
 .lobby-links {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
+    gap: 0.5rem;
     margin-top: 1.5rem;
+}
+
+/* ---- Perfil ---- */
+
+.profile-username {
+    text-align: center;
+    color: var(--parchment-dim);
+    margin: 0 0 1rem;
+}
+
+.profile-rating {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.75rem;
+}
+
+.profile-rating__value {
+    font-family: var(--font-mono);
+    font-size: 3rem;
+    font-weight: 600;
+    color: var(--brass-bright);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.profile-rating__label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--parchment-dim);
+    margin-top: 0.3rem;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1.75rem;
+}
+
+.stat-grid__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--ink-raised);
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 0.4rem;
+}
+
+.stat-grid__value {
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-grid__item--win .stat-grid__value {
+    color: var(--verdigris);
+}
+
+.stat-grid__item--loss .stat-grid__value {
+    color: var(--garnet);
+}
+
+.stat-grid__label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--parchment-dim);
+    margin-top: 0.25rem;
+    text-align: center;
+}
+
+/* ---- Ranking (misma pieza visual que la planilla, otro dato) ---- */
+
+.scoresheet-wrap--tall {
+    max-height: 420px;
+    margin-bottom: 1.5rem;
+}
+
+.standings__self {
+    background: rgba(201, 147, 46, 0.14);
+}
+
+.standings__self td:nth-child(2) {
+    font-weight: 600;
+    color: var(--brass-bright);
 }
 
 /* ---- Mesa de juego (tablero + panel lateral) ---- */
