@@ -15,6 +15,17 @@ let matchmakingSubscription = null;
 let clockState = null; // { whiteMs, blackMs, turn, syncedAt }
 let clockTickInterval = null;
 
+const GAME_OVER_REASON_LABELS = {
+    checkmate: 'Jaque mate',
+    resignation: 'Rendición',
+    timeout: 'Tiempo agotado',
+    stalemate: 'Ahogado',
+    'fifty-move-rule': 'Regla de 50 movimientos',
+    'threefold-repetition': 'Triple repetición',
+    abandonment: 'Abandono',
+    agreement: 'Acuerdo mutuo',
+};
+
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
     document.getElementById(screenId).removeAttribute('hidden');
@@ -50,12 +61,15 @@ function renderClockDisplay() {
     document.getElementById('clock-black').textContent = formatClock(blackMs);
 }
 
-// Los tres tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
-// (GameStateSyncMessage, GameOverMessage, ErrorMessage) tienen formas distintas — los
-// distinguimos por un campo que solo tiene cada uno, en vez de un campo "type" aparte.
+// Los cuatro tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
+// (GameStateSyncMessage, GameOverMessage, DrawOfferMessage, ErrorMessage) tienen formas
+// distintas — los distinguimos por un campo que solo tiene cada uno. "offerStatus" (no
+// "status", que ya usa GameStateSyncMessage para jaque) es justo por esto.
 function handleGameMessage(message) {
     if ('boardFen' in message) {
         handleStateSync(message);
+    } else if ('offerStatus' in message) {
+        handleDrawOfferUpdate(message);
     } else if ('result' in message) {
         handleGameOver(message);
     } else if ('code' in message) {
@@ -78,33 +92,107 @@ function handleStateSync(state) {
     document.getElementById('turn-indicator').textContent =
         isMyTurn ? 'Te toca mover' : `Esperando a ${turnLabel}`;
 
+    // Cualquier jugada real retira una oferta de tablas pendiente (el backend ya la
+    // limpia también, ver GameSession.applyMove) — así que cualquier sincronización de
+    // estado nueva es motivo suficiente para ocultar el aviso, sin esperar un mensaje
+    // de tablas aparte.
+    hideDrawOfferBanner();
+
+    const checkedColor = state.status === 'CHECK' ? state.turn : null;
+    const lastMove = buildLastMoveForAnimation(state);
     // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
     // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
-    const checkedColor = state.status === 'CHECK' ? state.turn : null;
-    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor);
+    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor, lastMove);
     renderScoresheet('move-list', state.movesNotation);
 
     document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
 }
 
+/** { to, wasCapture } para animar en board.js, o null si todavía no se ha jugado nada. */
+function buildLastMoveForAnimation(state) {
+    if (!state.lastMoveUci) {
+        return null;
+    }
+    const lastNotation = state.movesNotation[state.movesNotation.length - 1] || '';
+    return {
+        to: state.lastMoveUci.substring(2, 4),
+        wasCapture: lastNotation.includes('x'),
+    };
+}
+
 function handleGameOver(gameOver) {
     const myRatingChange = myColor === 'white' ? gameOver.whiteRatingChange : gameOver.blackRatingChange;
-    const changeText = formatRatingChange(myRatingChange);
-
-    const messageEl = document.getElementById('game-message');
-    messageEl.textContent = `Partida terminada: ${gameOver.result} (${gameOver.reason}) `;
-    if (changeText) {
-        const changeBadge = document.createElement('span');
-        changeBadge.className = `rating-change ${ratingChangeClass(myRatingChange)}`;
-        changeBadge.textContent = changeText;
-        messageEl.appendChild(changeBadge);
-    }
+    showGameOverModal(gameOver, myRatingChange);
 
     currentGameId = null;
     stopClockTicking();
+    hideDrawOfferBanner();
+}
 
-    document.getElementById('resign-btn').hidden = true;
-    document.getElementById('back-to-lobby-btn').hidden = false;
+function showGameOverModal(gameOver, myRatingChange) {
+    const iWon = (gameOver.result === '1-0' && myColor === 'white')
+        || (gameOver.result === '0-1' && myColor === 'black');
+    const isDraw = gameOver.result === '1/2-1/2';
+
+    const title = isDraw ? 'Tablas' : (iWon ? '¡Has ganado!' : 'Has perdido');
+    const subtitle = GAME_OVER_REASON_LABELS[gameOver.reason] || gameOver.reason;
+
+    document.getElementById('game-over-title').textContent = title;
+    document.getElementById('game-over-subtitle').textContent = subtitle;
+
+    const changeEl = document.getElementById('game-over-rating-change');
+    const changeText = formatRatingChange(myRatingChange);
+    if (changeText) {
+        changeEl.textContent = changeText;
+        changeEl.className = `rating-change modal-card__rating ${ratingChangeClass(myRatingChange)}`;
+        changeEl.hidden = false;
+    } else {
+        changeEl.hidden = true;
+    }
+
+    const card = document.getElementById('game-over-card');
+    card.classList.remove('modal-card--win', 'modal-card--loss', 'modal-card--draw');
+    card.classList.add(isDraw ? 'modal-card--draw' : (iWon ? 'modal-card--win' : 'modal-card--loss'));
+
+    document.getElementById('game-over-modal').hidden = false;
+}
+
+function hideGameOverModal() {
+    document.getElementById('game-over-modal').hidden = true;
+}
+
+/**
+ * offerStatus: "offered_by_white" | "offered_by_black" | "none". Si la oferta es la mía
+ * propia, solo cambia el botón (deshabilitado, "esperando..."); si es del rival, se
+ * muestra el aviso con Aceptar/Rechazar.
+ */
+function handleDrawOfferUpdate(message) {
+    const offerBtn = document.getElementById('offer-draw-btn');
+
+    if (message.offerStatus === 'none') {
+        hideDrawOfferBanner();
+        return;
+    }
+
+    const offeredByMe = (message.offerStatus === 'offered_by_white' && myColor === 'white')
+        || (message.offerStatus === 'offered_by_black' && myColor === 'black');
+
+    if (offeredByMe) {
+        document.getElementById('draw-offer-banner').hidden = true;
+        offerBtn.disabled = true;
+        offerBtn.textContent = 'Tablas ofrecidas, esperando...';
+    } else {
+        offerBtn.disabled = true;
+        document.getElementById('draw-offer-text').textContent = 'Tu rival ofrece tablas.';
+        document.getElementById('draw-offer-banner').hidden = false;
+    }
+}
+
+function hideDrawOfferBanner() {
+    document.getElementById('draw-offer-banner').hidden = true;
+    const offerBtn = document.getElementById('offer-draw-btn');
+    offerBtn.disabled = false;
+    offerBtn.textContent = 'Ofrecer tablas';
 }
 
 function connectAndGoToLobby(token) {
@@ -135,8 +223,8 @@ function onMatchFound(match) {
         matchmakingSubscription = null;
     }
 
-    document.getElementById('resign-btn').hidden = false;
-    document.getElementById('back-to-lobby-btn').hidden = true;
+    hideGameOverModal();
+    hideDrawOfferBanner();
     document.getElementById('game-message').textContent = '';
 
     gameSubscription = subscribeToGame(currentGameId, handleGameMessage);
@@ -152,6 +240,7 @@ function leaveFinishedGameToLobby() {
     }
     stopClockTicking();
     clockState = null;
+    hideGameOverModal();
     showScreen('lobby-screen');
 }
 
@@ -211,7 +300,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('back-to-lobby-btn').addEventListener('click', leaveFinishedGameToLobby);
+    document.getElementById('offer-draw-btn').addEventListener('click', () => {
+        if (currentGameId) {
+            offerDraw(currentGameId);
+        }
+    });
+
+    document.getElementById('draw-accept-btn').addEventListener('click', () => {
+        if (currentGameId) {
+            respondToDraw(currentGameId, true);
+        }
+    });
+
+    document.getElementById('draw-decline-btn').addEventListener('click', () => {
+        if (currentGameId) {
+            respondToDraw(currentGameId, false);
+        }
+    });
+
+    document.getElementById('modal-back-to-lobby-btn').addEventListener('click', leaveFinishedGameToLobby);
 
     document.getElementById('history-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());

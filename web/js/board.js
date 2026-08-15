@@ -88,8 +88,13 @@ function pieceAtAlgebraic(algebraic) {
  * no reimplementando reglas de ajedrez — el propio backend ya nos dice si hay jaque
  * (GameStateSyncMessage.status) y de quién es el turno, así que solo hace falta
  * localizar esa pieza, no calcular nada.
+ *
+ * lastMove: { to, wasCapture } | null — anima la pieza que acaba de llegar a esa
+ * casilla (aparece con un "pop"), con una versión más marcada si fue una captura (un
+ * destello rojo detrás). Solo se usa en la partida en vivo, no en la reproducción del
+ * historial — ver history.js, que llama a renderBoard() sin este argumento a propósito.
  */
-function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor = null) {
+function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor = null, lastMove = null) {
     currentLegalMovesUci = legalMovesUci || [];
     currentPositionRows = parseFen(fen);
     activeBoardElementId = boardElementId;
@@ -106,18 +111,27 @@ function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor 
             const algebraic = algebraicFromDisplay(displayRow, file);
             square.dataset.square = algebraic;
 
+            const isLastMoveDestination = lastMove && algebraic === lastMove.to;
+
             const piece = currentPositionRows[displayRow][file];
             if (piece) {
                 const pieceColor = piece[0] === 'w' ? 'white' : 'black';
                 const pieceEl = document.createElement('span');
                 pieceEl.className = `square__piece square__piece--${pieceColor}`;
                 pieceEl.textContent = PIECE_GLYPH[piece[1]];
+                if (isLastMoveDestination) {
+                    pieceEl.classList.add(lastMove.wasCapture ? 'square__piece--captured' : 'square__piece--landed');
+                }
                 square.appendChild(pieceEl);
 
                 const isCheckedKing = checkedColor && piece[1] === 'K' && pieceColor === checkedColor;
                 if (isCheckedKing) {
                     square.classList.add('square--in-check');
                 }
+            }
+
+            if (isLastMoveDestination && lastMove.wasCapture) {
+                square.classList.add('square--capture-flash');
             }
 
             // Coordenadas: rango (1-8) en la columna 'a', archivo (a-h) en la fila 1 —

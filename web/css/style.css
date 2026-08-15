@@ -508,6 +508,52 @@ a {
     box-shadow: inset 0 0 0 3px var(--garnet);
 }
 
+/* ---- Animación de la última jugada ---- */
+
+@keyframes piece-pop {
+    0% {
+        transform: scale(0.5);
+        opacity: 0.4;
+    }
+
+    60% {
+        transform: scale(1.15);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.square__piece--landed,
+.square__piece--captured {
+    animation: piece-pop 0.32s ease-out;
+}
+
+@keyframes capture-flash-fade {
+    from {
+        opacity: 0.6;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+.square--capture-flash {
+    position: relative;
+}
+
+.square--capture-flash::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--garnet);
+    animation: capture-flash-fade 0.45s ease-out forwards;
+    pointer-events: none;
+}
+
 /* ---- Indicadores de jugada legal ---- */
 
 .square--dest-empty::after {
@@ -598,6 +644,108 @@ a {
     color: var(--brass-bright);
     min-height: 1.3em;
     margin: 0;
+}
+
+/* ---- Aviso de oferta de tablas ---- */
+
+.draw-offer-banner {
+    background: var(--ink-raised);
+    border: 1px solid var(--brass);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem 1rem;
+    text-align: center;
+}
+
+.draw-offer-banner p {
+    margin: 0 0 0.6rem;
+    color: var(--parchment);
+}
+
+.draw-offer-banner__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.draw-offer-banner__actions .btn {
+    flex: 1;
+}
+
+/* ---- Modal de fin de partida ---- */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 22, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+@keyframes modal-zoom-in {
+    0% {
+        transform: scale(0.35);
+        opacity: 0;
+        filter: blur(6px);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+        filter: blur(0);
+    }
+}
+
+.modal-card {
+    position: relative;
+    z-index: 1;
+    background: var(--felt);
+    border: 1px solid var(--felt-border);
+    border-top: 4px solid var(--brass);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 2.5rem;
+    width: min(360px, 88vw);
+    text-align: center;
+    animation: modal-zoom-in 0.4s cubic-bezier(0.22, 0.9, 0.32, 1.1);
+}
+
+.modal-card--win {
+    border-top-color: var(--verdigris);
+}
+
+.modal-card--loss {
+    border-top-color: var(--garnet);
+}
+
+.modal-card--draw {
+    border-top-color: var(--brass);
+}
+
+.modal-card__title {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.modal-card__subtitle {
+    color: var(--parchment-dim);
+    margin: 0 0 1rem;
+}
+
+.modal-card__rating {
+    display: inline-block;
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
 }
 
 /* ---- Planilla (el elemento firma) ---- */

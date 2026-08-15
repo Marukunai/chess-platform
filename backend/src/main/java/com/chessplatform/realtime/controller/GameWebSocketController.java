@@ -6,6 +6,8 @@ import com.chessplatform.engine.Move;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
+import com.chessplatform.realtime.dto.DrawOfferMessage;
+import com.chessplatform.realtime.dto.DrawResponseMessage;
 import com.chessplatform.realtime.dto.ErrorMessage;
 import com.chessplatform.realtime.dto.GameStateSyncMessage;
 import com.chessplatform.realtime.dto.MoveMessage;
@@ -76,7 +78,7 @@ public class GameWebSocketController {
                 return;
             }
 
-            session.applyMove(move);
+            session.applyMove(move); // ya deja limpia cualquier oferta de tablas pendiente
             broadcastUpdatedState(session);
         }
     }
@@ -104,16 +106,68 @@ public class GameWebSocketController {
         GameSession session = maybeSession.get();
 
         synchronized (session) {
-            String userId = principal != null ? principal.getName() : null;
-            boolean whiteResigns = session.whitePlayerId().equals(userId);
-            boolean blackResigns = session.blackPlayerId().equals(userId);
-            if (!whiteResigns && !blackResigns) {
+            Color resigningColor = resolvePlayerColor(session, principal);
+            if (resigningColor == null) {
                 sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
                 return;
             }
 
-            String result = whiteResigns ? "0-1" : "1-0";
+            String result = resigningColor == Color.WHITE ? "0-1" : "1-0";
             gameEndNotifier.endGame(session, result, "resignation");
+        }
+    }
+
+    @MessageMapping("/game/{gameId}/offer-draw")
+    public void handleOfferDraw(@DestinationVariable String gameId, Principal principal) {
+        Optional<GameSession> maybeSession = sessionRegistry.find(gameId);
+        if (maybeSession.isEmpty()) {
+            sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
+            return;
+        }
+        GameSession session = maybeSession.get();
+
+        synchronized (session) {
+            Color offererColor = resolvePlayerColor(session, principal);
+            if (offererColor == null) {
+                sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
+                return;
+            }
+
+            session.offerDraw(offererColor);
+            broadcastDrawStatus(session);
+        }
+    }
+
+    @MessageMapping("/game/{gameId}/respond-draw")
+    public void handleRespondDraw(@DestinationVariable String gameId, DrawResponseMessage message, Principal principal) {
+        Optional<GameSession> maybeSession = sessionRegistry.find(gameId);
+        if (maybeSession.isEmpty()) {
+            sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
+            return;
+        }
+        GameSession session = maybeSession.get();
+
+        synchronized (session) {
+            Color responderColor = resolvePlayerColor(session, principal);
+            if (responderColor == null) {
+                sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
+                return;
+            }
+
+            Color offeredBy = session.drawOfferedBy();
+            // offeredBy == responderColor cubre el caso de que alguien intente
+            // "aceptar" su propia oferta — solo el rival de quien ofreció puede responder.
+            if (offeredBy == null || offeredBy == responderColor) {
+                sendError(gameId, "NO_PENDING_OFFER", "No hay ninguna oferta de tablas pendiente para responder");
+                return;
+            }
+
+            if (message.accept()) {
+                gameEndNotifier.endGame(session, "1/2-1/2", "agreement");
+            } else {
+                session.clearDrawOffer();
+                broadcastDrawStatus(session);
+            }
         }
     }
 
@@ -131,6 +185,26 @@ public class GameWebSocketController {
                 ? session.whitePlayerId()
                 : session.blackPlayerId();
         return expectedPlayerId.equals(principal.getName());
+    }
+
+    /**
+     * A qué color pertenece `principal` dentro de esta partida, o null si no es
+     * ninguno de los dos jugadores (espectador, identidad ausente...). A diferencia de
+     * isPlayersTurn(), no le importa de quién es el turno — usado en rendición y
+     * tablas, que cualquiera de los dos puede iniciar en cualquier momento.
+     */
+    private Color resolvePlayerColor(GameSession session, Principal principal) {
+        if (principal == null) {
+            return null;
+        }
+        String userId = principal.getName();
+        if (session.whitePlayerId().equals(userId)) {
+            return Color.WHITE;
+        }
+        if (session.blackPlayerId().equals(userId)) {
+            return Color.BLACK;
+        }
+        return null;
     }
 
     /**
@@ -176,6 +250,18 @@ public class GameWebSocketController {
 
             gameEndNotifier.endGame(session, result, reason);
         }
+    }
+
+    private void broadcastDrawStatus(GameSession session) {
+        Color offeredBy = session.drawOfferedBy();
+        String status = offeredBy == null
+                ? "none"
+                : (offeredBy == Color.WHITE ? "offered_by_white" : "offered_by_black");
+
+        messagingTemplate.convertAndSend(
+                "/topic/game/%s".formatted(session.gameId()),
+                new DrawOfferMessage(session.gameId(), status)
+        );
     }
 
     private void sendError(String gameId, String code, String message) {

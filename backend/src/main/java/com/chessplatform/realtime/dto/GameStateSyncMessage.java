@@ -16,7 +16,11 @@ import java.util.List;
  * construir la jugada a enviar, ahí sí hace falta UCI en bruto). movesNotation: el
  * historial completo de la partida hasta ahora en notación legible (p. ej. "Rxf6", no
  * "d5f6") — no solo la última jugada, así el cliente puede reconstruir la planilla
- * completa de una sola vez, incluso si se reconecta a media partida.
+ * completa de una sola vez, incluso si se reconecta a media partida. lastMoveUci: la
+ * última jugada en bruto (p. ej. "d5f6"), o null si todavía no se ha jugado ninguna —
+ * el cliente la usa para saber qué casilla animar al recibir el estado, algo que no se
+ * puede sacar de forma fiable de movesNotation (la notación con coronación como
+ * "exd8=Q" no tiene la casilla de destino en una posición fija dentro del texto).
  */
 public record GameStateSyncMessage(
         String gameId,
@@ -26,7 +30,8 @@ public record GameStateSyncMessage(
         long blackTimeRemainingMs,
         List<String> legalMovesUci,
         String status,
-        List<String> movesNotation
+        List<String> movesNotation,
+        String lastMoveUci
 ) {
 
     /**
@@ -39,6 +44,8 @@ public record GameStateSyncMessage(
         Board board = session.board();
         List<String> legalMovesUci = legalMoves.stream().map(Move::toUci).toList();
         String status = inCheck ? "CHECK" : "IN_PROGRESS";
+        List<Move> moveHistory = board.moveHistory();
+        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1).toUci();
 
         return new GameStateSyncMessage(
                 session.gameId(),
@@ -48,7 +55,8 @@ public record GameStateSyncMessage(
                 session.timeRemaining(Color.BLACK).toMillis(),
                 legalMovesUci,
                 status,
-                board.notationHistory()
+                board.notationHistory(),
+                lastMoveUci
         );
     }
 }

@@ -47,9 +47,9 @@ function leaveMatchmakingQueue() {
 }
 
 function subscribeToGame(gameId, onMessage) {
-    // Un único callback: los tres tipos de mensaje posibles (GameStateSyncMessage,
-    // GameOverMessage, ErrorMessage) se distinguen por su forma en quien los procese
-    // (ver handleGameMessage en main.js).
+    // Un único callback: los cuatro tipos de mensaje posibles (GameStateSyncMessage,
+    // GameOverMessage, DrawOfferMessage, ErrorMessage) se distinguen por su forma en
+    // quien los procese (ver handleGameMessage en main.js).
     return stompClient.subscribe(`/topic/game/${gameId}`, (message) => {
         onMessage(JSON.parse(message.body));
     });
@@ -70,6 +70,14 @@ function sendMove(gameId, move) {
 
 function sendResign(gameId) {
     stompClient.send(`/app/game/${gameId}/resign`, {}, JSON.stringify({ gameId }));
+}
+
+function offerDraw(gameId) {
+    stompClient.send(`/app/game/${gameId}/offer-draw`, {}, JSON.stringify({}));
+}
+
+function respondToDraw(gameId, accept) {
+    stompClient.send(`/app/game/${gameId}/respond-draw`, {}, JSON.stringify({ accept }));
 }
 
 function setConnectionStatus(connected) {
