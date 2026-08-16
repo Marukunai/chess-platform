@@ -54,8 +54,9 @@ public class MatchmakingController {
         var user = userRepository.findById(principal.getName());
         int rating = user.map(u -> (int) Math.round(u.getRating())).orElse((int) GlickoRatingService.DEFAULT_RATING);
         String username = user.map(User::getUsername).orElse(principal.getName());
+        String avatarUrl = user.map(User::getAvatarUrl).orElse(null);
 
-        queue.enqueue(principal.getName(), username, rating, timeControl);
+        queue.enqueue(principal.getName(), username, avatarUrl, rating, timeControl);
     }
 
     @MessageMapping("/matchmaking/leave")

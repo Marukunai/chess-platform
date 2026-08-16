@@ -219,4 +219,22 @@ class GameSessionTest {
         assertThat(session.whiteUsername()).isEqualTo("alice");
         assertThat(session.blackUsername()).isEqualTo("bob");
     }
+
+    @Test
+    void avatarsAreNullUntilSetAvatarsIsCalled() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        assertThat(session.whiteAvatarUrl()).isNull();
+        assertThat(session.blackAvatarUrl()).isNull();
+    }
+
+    @Test
+    void setAvatarsFixesBothUrlsIndependentlyOfWhetherTheyAreNull() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        session.setAvatars("https://ejemplo.com/alice.png", null);
+
+        assertThat(session.whiteAvatarUrl()).isEqualTo("https://ejemplo.com/alice.png");
+        assertThat(session.blackAvatarUrl()).isNull();
+    }
 }

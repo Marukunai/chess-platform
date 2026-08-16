@@ -111,6 +111,7 @@ public class RematchController {
         String whiteUsername = whitePlayerId.equals(pending.fromUserId()) ? pending.fromUsername() : usernameOf(toUserId);
         String blackUsername = blackPlayerId.equals(pending.fromUserId()) ? pending.fromUsername() : usernameOf(toUserId);
         session.setUsernames(whiteUsername, blackUsername);
+        session.setAvatars(avatarUrlOf(whitePlayerId), avatarUrlOf(blackPlayerId));
         sessionRegistry.create(session);
 
         messagingTemplate.convertAndSend(
@@ -123,6 +124,10 @@ public class RematchController {
 
     private String usernameOf(String userId) {
         return userRepository.findById(userId).map(User::getUsername).orElse(userId);
+    }
+
+    private String avatarUrlOf(String userId) {
+        return userRepository.findById(userId).map(User::getAvatarUrl).orElse(null);
     }
 
     private void sendErrorToUser(String userId, String code, String message) {

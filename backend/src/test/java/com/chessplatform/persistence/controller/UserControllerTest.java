@@ -157,6 +157,88 @@ class UserControllerTest {
         assertThat(profile.winsByCheckmate()).isEqualTo(1);
     }
 
+    @Test
+    void profileListsDistinctRecentOpponentsMostRecentFirst() {
+        User viewer = new User("alice", "hash");
+        setId(viewer, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        User carol = new User("carol", "hash");
+        setId(carol, "carol-id");
+
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(viewer));
+        // Ya vienen ordenadas por fecha descendente (así lo hace la consulta real) — la
+        // más reciente contra bob es la primera de la lista, aunque haya jugado contra
+        // él dos veces.
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(viewer, carol, "1-0"), // partida más reciente: contra carol
+                        gameOf(viewer, bob, "1-0"), // segunda más reciente: contra bob
+                        gameOf(bob, viewer, "0-1") // repetido contra bob, no debe duplicarse
+                ));
+
+        UserProfileResponse profile = controller.profile("alice-id");
+
+        assertThat(profile.recentOpponents()).extracting(UserProfileResponse.RecentOpponent::username)
+                .containsExactly("carol", "bob");
+    }
+
+    @Test
+    void profileCapsRecentOpponentsAtFive() {
+        User viewer = new User("alice", "hash");
+        setId(viewer, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(viewer));
+
+        List<Game> sixDistinctOpponents = java.util.stream.IntStream.range(0, 6)
+                .mapToObj(i -> {
+                    User opponent = new User("rival" + i, "hash");
+                    setId(opponent, "rival-" + i + "-id");
+                    return gameOf(viewer, opponent, "1-0");
+                })
+                .toList();
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(sixDistinctOpponents);
+
+        UserProfileResponse profile = controller.profile("alice-id");
+
+        assertThat(profile.recentOpponents()).hasSize(5);
+    }
+
+    @Test
+    void profileComputesWinRateAsPercentageOfGamesWon() {
+        User viewer = new User("alice", "hash");
+        setId(viewer, "alice-id");
+        User opponent = new User("bob", "hash");
+        setId(opponent, "bob-id");
+
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(viewer));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(viewer, opponent, "1-0"), // gana
+                        gameOf(viewer, opponent, "1-0"), // gana
+                        gameOf(opponent, viewer, "1-0"), // pierde
+                        gameOf(viewer, opponent, "1/2-1/2") // tablas — cuenta como jugada, no como victoria
+                ));
+
+        UserProfileResponse profile = controller.profile("alice-id");
+
+        // 2 victorias de 4 partidas = 50%
+        assertThat(profile.winRatePercent()).isEqualTo(50);
+    }
+
+    @Test
+    void profileWinRateIsZeroWhenTheUserHasNeverPlayed() {
+        User freshUser = new User("carol", "hash");
+        setId(freshUser, "carol-id");
+        when(userRepository.findById("carol-id")).thenReturn(Optional.of(freshUser));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("carol-id", "carol-id"))
+                .thenReturn(List.of());
+
+        UserProfileResponse profile = controller.profile("carol-id");
+
+        assertThat(profile.winRatePercent()).isZero();
+    }
+
     private static Authentication authenticationFor(String userId) {
         return new UsernamePasswordAuthenticationToken(userId, null, List.of());
     }

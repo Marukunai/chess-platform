@@ -103,10 +103,13 @@ public class MatchmakingService {
         String blackPlayerId = aIsWhite ? b.playerId() : a.playerId();
         String whiteUsername = aIsWhite ? a.username() : b.username();
         String blackUsername = aIsWhite ? b.username() : a.username();
+        String whiteAvatarUrl = aIsWhite ? a.avatarUrl() : b.avatarUrl();
+        String blackAvatarUrl = aIsWhite ? b.avatarUrl() : a.avatarUrl();
 
         GameSession session = new GameSession(
                 whitePlayerId, blackPlayerId, a.timeControl().initialTime(), a.timeControl().increment());
         session.setUsernames(whiteUsername, blackUsername);
+        session.setAvatars(whiteAvatarUrl, blackAvatarUrl);
         sessionRegistry.create(session);
 
         messagingTemplate.convertAndSend(

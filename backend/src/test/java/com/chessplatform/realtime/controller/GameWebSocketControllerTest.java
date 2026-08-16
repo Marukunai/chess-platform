@@ -104,6 +104,26 @@ class GameWebSocketControllerTest {
     }
 
     @Test
+    void handleJoinIncludesPlayerIdsUsernamesAndAvatarsInTheState() {
+        GameSession session = newSession();
+        session.setUsernames("alice", "bob");
+        session.setAvatars("https://ejemplo.com/alice.png", null);
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleJoin(session.gameId());
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameStateSyncMessage stateSync = (GameStateSyncMessage) payload.getValue();
+        assertThat(stateSync.whitePlayerId()).isEqualTo("white-player");
+        assertThat(stateSync.whiteUsername()).isEqualTo("alice");
+        assertThat(stateSync.whiteAvatarUrl()).isEqualTo("https://ejemplo.com/alice.png");
+        assertThat(stateSync.blackPlayerId()).isEqualTo("black-player");
+        assertThat(stateSync.blackUsername()).isEqualTo("bob");
+        assertThat(stateSync.blackAvatarUrl()).isNull();
+    }
+
+    @Test
     void handleMoveSendsErrorWhenMoveIsIllegal() {
         GameSession session = newSession();
         when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
