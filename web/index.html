@@ -22,7 +22,10 @@
                 <span class="wordmark__glyph" aria-hidden="true">&#9822;</span>
                 <span class="wordmark__text">Chess Platform</span>
             </div>
-            <div id="connection-status" class="status status--disconnected">Desconectado</div>
+            <div class="header-right">
+                <span id="whoami" class="whoami" hidden></span>
+                <div id="connection-status" class="status status--disconnected">Desconectado</div>
+            </div>
         </header>
 
         <!-- Pantalla de login / registro -->
@@ -132,8 +135,14 @@
 
                 <aside class="sidebar">
                     <div class="clock">
-                        <div id="clock-black" class="clock__player">--:--</div>
-                        <div id="clock-white" class="clock__player">--:--</div>
+                        <div id="clock-row-black" class="clock__row">
+                            <span id="player-name-black" class="clock__name">Negras</span>
+                            <div id="clock-black" class="clock__player">--:--</div>
+                        </div>
+                        <div id="clock-row-white" class="clock__row">
+                            <span id="player-name-white" class="clock__name">Blancas</span>
+                            <div id="clock-white" class="clock__player">--:--</div>
+                        </div>
                     </div>
                     <div id="turn-indicator" class="turn-indicator"></div>
                     <p id="game-message" class="game-message" role="status"></p>

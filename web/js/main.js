@@ -123,6 +123,11 @@ function handleStateSync(state) {
     };
     renderClockDisplay(); // pinta ya mismo, no esperar al primer tick del intervalo
 
+    document.getElementById('player-name-white').textContent = state.whiteUsername || 'Blancas';
+    document.getElementById('player-name-black').textContent = state.blackUsername || 'Negras';
+    document.getElementById('clock-row-white').classList.toggle('clock__row--active', state.turn === 'white');
+    document.getElementById('clock-row-black').classList.toggle('clock__row--active', state.turn === 'black');
+
     currentTurn = state.turn;
     const isMyTurn = state.turn === myColor;
     const turnLabel = state.turn === 'white' ? 'blancas' : 'negras';
@@ -253,12 +258,42 @@ function setSearchingState(searching) {
     statusEl.textContent = searching ? 'Buscando rival...' : '';
 }
 
+// Nombre propio, cacheado tras consultarlo una vez — para el indicador persistente
+// junto a "Conectado" (ver ensureWhoAmIDisplayed). Se pide a /api/users/{userId} (ya
+// existía para el perfil) en vez de sacarlo del JWT, porque el JWT solo lleva el
+// userId, no el nombre de usuario.
+let myUsername = null;
+
+async function ensureWhoAmIDisplayed(userId) {
+    if (!myUsername) {
+        try {
+            const profile = await fetchUserProfile(userId);
+            myUsername = profile.username;
+        } catch {
+            return; // no es crítico — un adorno de cabecera, no bloqueamos nada por esto
+        }
+    }
+    const el = document.getElementById('whoami');
+    el.textContent = '';
+    el.append('Conectado como ');
+    const strong = document.createElement('strong');
+    strong.textContent = myUsername;
+    el.appendChild(strong);
+    el.hidden = false;
+}
+
+function hideWhoAmI() {
+    myUsername = null;
+    document.getElementById('whoami').hidden = true;
+}
+
 function connectAndGoToLobby(token) {
     connect(token, () => {
         // Se llama tras CADA conexión lograda, no solo la primera — así una reconexión
         // en mitad de una partida (o simplemente recargar la página) nos devuelve
         // exactamente donde estábamos en vez de mandarnos siempre al lobby.
         const userId = getUserIdFromToken(token);
+        ensureWhoAmIDisplayed(userId);
         const stored = getStoredActiveGame();
         if (stored) {
             enterGameScreen(stored.gameId, stored.color);
@@ -373,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearStoredToken();
         clearActiveGame();
         disconnect();
+        hideWhoAmI();
         showScreen('auth-screen');
     });
 
@@ -389,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearStoredToken();
             clearActiveGame();
             disconnect();
+            hideWhoAmI();
             showScreen('auth-screen');
         }
     });

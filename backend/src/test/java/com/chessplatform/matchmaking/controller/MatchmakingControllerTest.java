@@ -58,7 +58,7 @@ class MatchmakingControllerTest {
 
         controller.join(new MatchmakingJoinMessage("BLITZ"), principalFor("user-1"));
 
-        verify(queue).enqueue("user-1", 1500, TimeControl.BLITZ);
+        verify(queue).enqueue("user-1", "maru", 1500, TimeControl.BLITZ);
     }
 
     @Test
@@ -67,14 +67,16 @@ class MatchmakingControllerTest {
 
         controller.join(new MatchmakingJoinMessage("RAPID"), principalFor("user-1"));
 
-        verify(queue).enqueue("user-1", 1500, TimeControl.RAPID);
+        // Sin usuario en la base de datos, el nombre de usuario también cae al id del
+        // principal — igual que ya hacía el rating con su valor Glicko-2 por defecto.
+        verify(queue).enqueue("user-1", "user-1", 1500, TimeControl.RAPID);
     }
 
     @Test
     void joinDoesNothingWhenThereIsNoPrincipal() {
         controller.join(new MatchmakingJoinMessage("BLITZ"), null);
 
-        verify(queue, never()).enqueue(anyString(), anyInt(), any());
+        verify(queue, never()).enqueue(anyString(), anyString(), anyInt(), any());
     }
 
     @Test

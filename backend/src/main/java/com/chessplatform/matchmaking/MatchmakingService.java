@@ -101,9 +101,12 @@ public class MatchmakingService {
         boolean aIsWhite = random.nextBoolean();
         String whitePlayerId = aIsWhite ? a.playerId() : b.playerId();
         String blackPlayerId = aIsWhite ? b.playerId() : a.playerId();
+        String whiteUsername = aIsWhite ? a.username() : b.username();
+        String blackUsername = aIsWhite ? b.username() : a.username();
 
         GameSession session = new GameSession(
                 whitePlayerId, blackPlayerId, a.timeControl().initialTime(), a.timeControl().increment());
+        session.setUsernames(whiteUsername, blackUsername);
         sessionRegistry.create(session);
 
         messagingTemplate.convertAndSend(

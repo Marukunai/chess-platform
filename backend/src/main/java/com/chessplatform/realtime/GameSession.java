@@ -53,6 +53,15 @@ public class GameSession {
     // retirar la oferta, igual que en cualquier plataforma real.
     private Color drawOfferedBy;
 
+    // Aparte del constructor a propósito, con setUsernames() más abajo — MatchmakingService
+    // los fija justo después de crear la sesión (ya tiene los dos User a mano al
+    // emparejar). Ponerlos como parámetro más del constructor habría obligado a tocar
+    // los puñados de tests que construyen GameSession directamente sin que el nombre de
+    // usuario les importe lo más mínimo. null hasta que se fijen — GameStateSyncMessage
+    // los manda tal cual, sin necesidad de un valor por defecto inventado.
+    private String whiteUsername;
+    private String blackUsername;
+
     public GameSession(String whitePlayerId, String blackPlayerId, Duration initialTime, Duration increment) {
         this(whitePlayerId, blackPlayerId, initialTime, increment, Clock.systemUTC());
     }
@@ -205,5 +214,18 @@ public class GameSession {
     /** El color que ofreció tablas, o null si no hay ninguna oferta pendiente. */
     public Color drawOfferedBy() {
         return drawOfferedBy;
+    }
+
+    public void setUsernames(String whiteUsername, String blackUsername) {
+        this.whiteUsername = whiteUsername;
+        this.blackUsername = blackUsername;
+    }
+
+    public String whiteUsername() {
+        return whiteUsername;
+    }
+
+    public String blackUsername() {
+        return blackUsername;
     }
 }

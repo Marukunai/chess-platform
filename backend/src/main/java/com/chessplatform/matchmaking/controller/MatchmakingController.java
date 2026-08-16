@@ -3,6 +3,7 @@ package com.chessplatform.matchmaking.controller;
 import com.chessplatform.matchmaking.MatchmakingQueue;
 import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.matchmaking.dto.MatchmakingJoinMessage;
+import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.rating.GlickoRatingService;
 import com.chessplatform.realtime.dto.ErrorMessage;
@@ -50,11 +51,11 @@ public class MatchmakingController {
 
         // El rating sale del usuario ya autenticado, nunca de lo que mande el cliente
         // sobre sí mismo — mismo principio que ya aplicamos en GameWebSocketController.
-        int rating = userRepository.findById(principal.getName())
-                .map(user -> (int) Math.round(user.getRating()))
-                .orElse((int) GlickoRatingService.DEFAULT_RATING);
+        var user = userRepository.findById(principal.getName());
+        int rating = user.map(u -> (int) Math.round(u.getRating())).orElse((int) GlickoRatingService.DEFAULT_RATING);
+        String username = user.map(User::getUsername).orElse(principal.getName());
 
-        queue.enqueue(principal.getName(), rating, timeControl);
+        queue.enqueue(principal.getName(), username, rating, timeControl);
     }
 
     @MessageMapping("/matchmaking/leave")
