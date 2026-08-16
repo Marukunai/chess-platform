@@ -6,12 +6,7 @@ import com.chessplatform.engine.Move;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
-import com.chessplatform.realtime.dto.DrawOfferMessage;
-import com.chessplatform.realtime.dto.DrawResponseMessage;
-import com.chessplatform.realtime.dto.ErrorMessage;
-import com.chessplatform.realtime.dto.GameStateSyncMessage;
-import com.chessplatform.realtime.dto.MoveMessage;
-import com.chessplatform.realtime.dto.ResignMessage;
+import com.chessplatform.realtime.dto.*;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -25,13 +20,18 @@ import java.util.Optional;
  * Punto de entrada STOMP para mensajes de partida.
  *
  * Los clientes se suscriben a /topic/game/{gameId} y envían jugadas a
- * /app/game/{gameId}/move. El Principal de cada método lo resuelve Spring
+ * /app/game/{gameId}/move. El Principal de cada method lo resuelve Spring
  * automáticamente a partir de lo que StompAuthChannelInterceptor fijó durante el CONNECT
  * (ver realtime/config) — no hace falta revalidar el token aquí, solo comprobar que la
  * identidad ya verificada corresponde al jugador que debería estar moviendo.
  */
 @Controller
 public class GameWebSocketController {
+
+    // Un mensaje de chat que se pasara de aquí se corta, no se rechaza — no hay
+    // necesidad real de ser estrictos con esto, solo evitar que alguien mande un
+    // bloque de texto descomunal.
+    private static final int CHAT_MAX_LENGTH = 500;
 
     private final GameSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
@@ -169,6 +169,42 @@ public class GameWebSocketController {
                 broadcastDrawStatus(session);
             }
         }
+    }
+
+    @MessageMapping("/game/{gameId}/chat")
+    public void handleChat(@DestinationVariable String gameId, ChatSendMessage message, Principal principal) {
+        Optional<GameSession> maybeSession = sessionRegistry.find(gameId);
+        if (maybeSession.isEmpty()) {
+            sendError(gameId, "GAME_NOT_FOUND", "No existe una partida activa con id " + gameId);
+            return;
+        }
+        GameSession session = maybeSession.get();
+
+        Color senderColor = resolvePlayerColor(session, principal);
+        if (senderColor == null) {
+            sendError(gameId, "FORBIDDEN", "No perteneces a esta partida");
+            return;
+        }
+
+        // Nunca se confía en un remitente que venga del propio cliente — se resuelve
+        // aquí a partir de la identidad ya verificada, igual que en el resto de
+        // endpoints. Sin sincronizar sobre la sesión: a diferencia de una jugada, un
+        // mensaje de chat no muta nada del tablero ni de la partida, solo lee el
+        // nombre de usuario (fijo desde que se creó la sesión) y retransmite.
+        String text = message.text() == null ? "" : message.text().trim();
+        if (text.isEmpty()) {
+            return; // nada que retransmitir
+        }
+        if (text.length() > CHAT_MAX_LENGTH) {
+            text = text.substring(0, CHAT_MAX_LENGTH);
+        }
+
+        String senderUsername = senderColor == Color.WHITE ? session.whiteUsername() : session.blackUsername();
+
+        messagingTemplate.convertAndSend(
+                "/topic/game/%s".formatted(gameId),
+                new ChatMessage(senderUsername, text)
+        );
     }
 
     /**

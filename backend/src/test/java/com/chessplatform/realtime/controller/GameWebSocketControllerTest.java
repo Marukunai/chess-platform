@@ -6,6 +6,8 @@ import com.chessplatform.engine.Square;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
+import com.chessplatform.realtime.dto.ChatMessage;
+import com.chessplatform.realtime.dto.ChatSendMessage;
 import com.chessplatform.realtime.dto.DrawOfferMessage;
 import com.chessplatform.realtime.dto.DrawResponseMessage;
 import com.chessplatform.realtime.dto.ErrorMessage;
@@ -392,5 +394,56 @@ class GameWebSocketControllerTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
         assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("NO_PENDING_OFFER");
+    }
+
+    @Test
+    void handleChatBroadcastsTheMessageWithTheSendersUsername() {
+        GameSession session = newSession();
+        session.setUsernames("alice", "bob");
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleChat(session.gameId(), new ChatSendMessage("hola, buena suerte"), principalFor("white-player"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        ChatMessage chat = (ChatMessage) payload.getValue();
+        assertThat(chat.senderUsername()).isEqualTo("alice");
+        assertThat(chat.text()).isEqualTo("hola, buena suerte");
+    }
+
+    @Test
+    void handleChatRejectsSomeoneNotInTheGame() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleChat(session.gameId(), new ChatSendMessage("hola"), principalFor("un-espectador-cualquiera"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((ErrorMessage) payload.getValue()).code()).isEqualTo("FORBIDDEN");
+    }
+
+    @Test
+    void handleChatIgnoresBlankMessages() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleChat(session.gameId(), new ChatSendMessage("   "), principalFor("white-player"));
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    void handleChatTruncatesMessagesLongerThanTheLimit() {
+        GameSession session = newSession();
+        session.setUsernames("alice", "bob");
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+        String tooLong = "x".repeat(600);
+
+        controller.handleChat(session.gameId(), new ChatSendMessage(tooLong), principalFor("white-player"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        assertThat(((ChatMessage) payload.getValue()).text()).hasSize(500);
     }
 }
