@@ -94,15 +94,18 @@ function renderClockDisplay() {
     document.getElementById('clock-black').textContent = formatClock(blackMs);
 }
 
-// Los cuatro tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
-// (GameStateSyncMessage, GameOverMessage, DrawOfferMessage, ErrorMessage) tienen formas
-// distintas — los distinguimos por un campo que solo tiene cada uno. "offerStatus" (no
-// "status", que ya usa GameStateSyncMessage para jaque) es justo por esto.
+// Los cinco tipos de mensaje que puede mandar el backend por /topic/game/{gameId}
+// (GameStateSyncMessage, GameOverMessage, DrawOfferMessage, ChatMessage, ErrorMessage)
+// tienen formas distintas — los distinguimos por un campo que solo tiene cada uno.
+// "offerStatus" (no "status", que ya usa GameStateSyncMessage para jaque) es justo por
+// esto, y "senderUsername" es exclusivo de ChatMessage.
 function handleGameMessage(message) {
     if ('boardFen' in message) {
         handleStateSync(message);
     } else if ('offerStatus' in message) {
         handleDrawOfferUpdate(message);
+    } else if ('senderUsername' in message) {
+        appendChatMessage(message);
     } else if ('result' in message) {
         handleGameOver(message);
     } else if ('code' in message) {
@@ -115,6 +118,21 @@ function handleGameMessage(message) {
             document.getElementById('game-message').textContent = message.message;
         }
     }
+}
+
+/** myUsername viene de ensureWhoAmIDisplayed() — decide si el mensaje es "mío" para colorear el nombre distinto. */
+function appendChatMessage(chat) {
+    const log = document.getElementById('chat-log');
+    const entry = document.createElement('p');
+    entry.className = `chat__message ${chat.senderUsername === myUsername ? 'chat__message--mine' : ''}`;
+
+    const senderEl = document.createElement('strong');
+    senderEl.textContent = `${chat.senderUsername}: `;
+    entry.appendChild(senderEl);
+    entry.append(chat.text);
+
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
 }
 
 function handleGameNoLongerExists() {
@@ -422,6 +440,7 @@ function enterGameScreen(gameId, color) {
     hideDrawOfferBanner();
     hideRematchOfferToast();
     document.getElementById('game-message').textContent = '';
+    document.getElementById('chat-log').innerHTML = '';
 
     gameSubscription = subscribeToGame(gameId, handleGameMessage);
     joinGame(gameId);
@@ -553,6 +572,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('modal-back-to-lobby-btn').addEventListener('click', leaveFinishedGameToLobby);
+
+    document.getElementById('chat-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (text && currentGameId) {
+            sendChatMessage(currentGameId, text);
+            input.value = '';
+        }
+    });
 
     document.getElementById('rematch-btn').addEventListener('click', () => {
         if (!lastFinishedGame) {

@@ -162,6 +162,10 @@ function respondToDraw(gameId, accept) {
     stompClient.send(`/app/game/${gameId}/respond-draw`, {}, JSON.stringify({ accept }));
 }
 
+function sendChatMessage(gameId, text) {
+    stompClient.send(`/app/game/${gameId}/chat`, {}, JSON.stringify({ text }));
+}
+
 function setConnectionStatus(state) {
     const statusEl = document.getElementById('connection-status');
     const labels = { connected: 'Conectado', reconnecting: 'Reconectando...', disconnected: 'Desconectado' };
