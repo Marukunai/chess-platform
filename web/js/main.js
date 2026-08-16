@@ -5,7 +5,21 @@ let currentGameId = null;
 let currentTurn = null;
 let gameSubscription = null;
 let matchmakingSubscription = null;
+let userChannelSubscription = null;
 let isSearchingForMatch = false;
+
+// Lo justo de la última partida terminada para poder ofrecer la revancha sin depender
+// de una GameSession que ya no existe (se elimina del registro nada más terminar, ver
+// GameEndNotifier) — a quién retar, con qué modalidad, y qué color tenía yo (para que
+// el backend pueda intercambiarlos). null si nunca hubo una partida terminada en esta
+// sesión, o si el motivo de fin no viene con todo lo necesario (ver showGameOverModal).
+let lastFinishedGame = null;
+
+// Oferta de revancha que nos acaban de proponer (a la espera de que aceptemos o
+// rechacemos) — null si no hay ninguna pendiente ahora mismo.
+let pendingRematchOffer = null;
+
+const TIME_CONTROL_LABELS = { BULLET: 'bullet', BLITZ: 'blitz', RAPID: 'rápidas', CLASSICAL: 'clásicas' };
 
 // El servidor solo manda el reloj EXACTO cuando algo cambia (una jugada, unirse a la
 // partida) — entre medias, si no avanzamos algo en el propio navegador, el reloj se ve
@@ -164,6 +178,15 @@ function buildLastMoveForAnimation(state) {
 
 function handleGameOver(gameOver) {
     const myRatingChange = myColor === 'white' ? gameOver.whiteRatingChange : gameOver.blackRatingChange;
+
+    const iWasWhite = myColor === 'white';
+    lastFinishedGame = gameOver.timeControlPreset ? {
+        opponentUserId: iWasWhite ? gameOver.blackPlayerId : gameOver.whitePlayerId,
+        opponentUsername: iWasWhite ? gameOver.blackUsername : gameOver.whiteUsername,
+        timeControlPreset: gameOver.timeControlPreset,
+        myColorInThatGame: myColor,
+    } : null; // sin preset conocido no se puede proponer "la misma modalidad" con garantías
+
     showGameOverModal(gameOver, myRatingChange);
 
     currentGameId = null;
@@ -197,11 +220,69 @@ function showGameOverModal(gameOver, myRatingChange) {
     card.classList.remove('modal-card--win', 'modal-card--loss', 'modal-card--draw');
     card.classList.add(isDraw ? 'modal-card--draw' : (iWon ? 'modal-card--win' : 'modal-card--loss'));
 
+    const rematchBtn = document.getElementById('rematch-btn');
+    rematchBtn.hidden = !lastFinishedGame;
+    rematchBtn.disabled = false;
+    rematchBtn.textContent = 'Revancha';
+
     document.getElementById('game-over-modal').hidden = false;
 }
 
 function hideGameOverModal() {
     document.getElementById('game-over-modal').hidden = true;
+}
+
+/**
+ * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
+ * hoy solo lo usa la revancha, pero está pensado para cualquier aviso que tenga que
+ * llegar sin importar en qué pantalla esté quien lo recibe.
+ */
+function handleUserChannelMessage(message) {
+    if ('gameId' in message && 'color' in message) {
+        // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
+        onMatchFound(message);
+    } else if ('fromUserId' in message) {
+        showRematchOfferToast(message);
+    } else if ('byUsername' in message) {
+        showTransientNotice(`${message.byUsername} ha rechazado la revancha.`);
+        resetRematchButton();
+    } else if ('code' in message) {
+        showTransientNotice(message.message);
+        resetRematchButton();
+    }
+}
+
+function showRematchOfferToast(offer) {
+    pendingRematchOffer = offer;
+    const presetLabel = TIME_CONTROL_LABELS[offer.timeControlPreset] || offer.timeControlPreset;
+    document.getElementById('rematch-offer-text').textContent =
+        `${offer.fromUsername} te propone la revancha (${presetLabel}).`;
+    document.getElementById('rematch-offer-toast').hidden = false;
+}
+
+function hideRematchOfferToast() {
+    pendingRematchOffer = null;
+    document.getElementById('rematch-offer-toast').hidden = true;
+}
+
+function resetRematchButton() {
+    const btn = document.getElementById('rematch-btn');
+    if (!btn.hidden) {
+        btn.disabled = false;
+        btn.textContent = 'Revancha';
+    }
+}
+
+let transientNoticeTimeout = null;
+
+function showTransientNotice(text) {
+    const el = document.getElementById('transient-notice');
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(transientNoticeTimeout);
+    transientNoticeTimeout = setTimeout(() => {
+        el.hidden = true;
+    }, 4000);
 }
 
 /**
@@ -294,6 +375,11 @@ function connectAndGoToLobby(token) {
         // exactamente donde estábamos en vez de mandarnos siempre al lobby.
         const userId = getUserIdFromToken(token);
         ensureWhoAmIDisplayed(userId);
+        // Canal persistente para avisos que no dependen de ninguna pantalla concreta
+        // (hoy: ofertas de revancha) — la suscripción vieja, si la había, ya murió con
+        // la conexión anterior, así que volver a suscribirse aquí es lo correcto tanto
+        // la primera vez como tras cualquier reconexión.
+        userChannelSubscription = subscribeToUserChannel(userId, handleUserChannelMessage);
         const stored = getStoredActiveGame();
         if (stored) {
             enterGameScreen(stored.gameId, stored.color);
@@ -334,6 +420,7 @@ function enterGameScreen(gameId, color) {
 
     hideGameOverModal();
     hideDrawOfferBanner();
+    hideRematchOfferToast();
     document.getElementById('game-message').textContent = '';
 
     gameSubscription = subscribeToGame(gameId, handleGameMessage);
@@ -466,6 +553,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('modal-back-to-lobby-btn').addEventListener('click', leaveFinishedGameToLobby);
+
+    document.getElementById('rematch-btn').addEventListener('click', () => {
+        if (!lastFinishedGame) {
+            return;
+        }
+        proposeRematch(
+            lastFinishedGame.opponentUserId,
+            lastFinishedGame.timeControlPreset,
+            lastFinishedGame.myColorInThatGame
+        );
+        const btn = document.getElementById('rematch-btn');
+        btn.disabled = true;
+        btn.textContent = 'Esperando respuesta...';
+    });
+
+    document.getElementById('rematch-accept-btn').addEventListener('click', () => {
+        respondToRematch(true);
+        hideRematchOfferToast();
+    });
+
+    document.getElementById('rematch-decline-btn').addEventListener('click', () => {
+        respondToRematch(false);
+        hideRematchOfferToast();
+    });
 
     document.getElementById('history-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());

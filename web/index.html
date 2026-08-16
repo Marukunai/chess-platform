@@ -191,9 +191,23 @@
                 <h2 id="game-over-title" class="modal-card__title"></h2>
                 <p id="game-over-subtitle" class="modal-card__subtitle"></p>
                 <span id="game-over-rating-change" class="rating-change modal-card__rating" hidden></span>
-                <button id="modal-back-to-lobby-btn" class="btn btn--primary btn--block">Volver al menú</button>
+                <button id="rematch-btn" class="btn btn--primary btn--block" hidden>Revancha</button>
+                <button id="modal-back-to-lobby-btn" class="btn btn--ghost btn--block">Volver al menú</button>
             </div>
         </div>
+
+        <!-- Aviso de revancha — fuera de cualquier pantalla, para que pueda aparecer sin
+             importar en qué pantalla esté quien la recibe (lobby, perfil, historial...) -->
+        <div id="rematch-offer-toast" class="rematch-toast" hidden>
+            <p id="rematch-offer-text"></p>
+            <div class="rematch-toast__actions">
+                <button id="rematch-accept-btn" class="btn btn--primary">Aceptar</button>
+                <button id="rematch-decline-btn" class="btn btn--ghost">Rechazar</button>
+            </div>
+        </div>
+
+        <!-- Notificación breve y autoocultable, para avisos puntuales (p. ej. "X rechazó la revancha") -->
+        <div id="transient-notice" class="transient-notice" hidden></div>
 
         <!-- Pantalla de historial de partidas -->
         <section id="history-screen" class="screen screen--centered" hidden>

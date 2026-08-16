@@ -834,6 +834,66 @@ a {
     margin-bottom: 1.5rem;
 }
 
+.modal-card #rematch-btn {
+    margin-bottom: 0.75rem;
+}
+
+/* ---- Aviso de revancha (flotante, independiente de la pantalla activa) ---- */
+
+.rematch-toast {
+    position: fixed;
+    top: 5.5rem;
+    right: 1.5rem;
+    z-index: 2100;
+    background: var(--felt);
+    border: 1px solid var(--brass);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 1.1rem 1.25rem;
+    width: min(320px, calc(100vw - 3rem));
+    animation: modal-zoom-in 0.3s ease-out;
+}
+
+.rematch-toast[hidden] {
+    display: none;
+}
+
+.rematch-toast p {
+    margin: 0 0 0.75rem;
+    color: var(--parchment);
+    font-size: 0.9rem;
+}
+
+.rematch-toast__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.rematch-toast__actions .btn {
+    flex: 1;
+}
+
+/* ---- Notificación breve autoocultable ---- */
+
+.transient-notice {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2100;
+    background: var(--ink-raised);
+    border: 1px solid var(--felt-border);
+    border-radius: 999px;
+    padding: 0.6rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--parchment);
+    box-shadow: var(--shadow-card);
+}
+
+.transient-notice[hidden] {
+    display: none;
+}
+
 /* ---- Planilla (el elemento firma) ---- */
 
 .scoresheet-wrap {

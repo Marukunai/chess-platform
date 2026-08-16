@@ -183,3 +183,29 @@ por el mismo motivo.
 no necesita mantener nada vivo entre navegaciones — un blog, páginas de marketing,
 documentación. Ahí un `.html` por página es más simple y no hay motivo para
 complicarlo.
+
+## ADR-015: Canal STOMP persistente por usuario (`/topic/user/{userId}`)
+
+**Decisión:** además de `/topic/game/{gameId}` (mientras dura una partida concreta) y
+`/topic/matchmaking/{userId}` (mientras se está en la cola buscando rival), existe un
+tercer canal, `/topic/user/{userId}`, al que el cliente se suscribe una única vez justo
+al conectar (`connectAndGoToLobby` en `main.js`) y mantiene mientras dure la sesión,
+sin importar en qué pantalla esté ni si hay alguna partida activa.
+
+**Motivo:** proponer una revancha pasa *después* de que la partida original ya terminó
+— su `GameSession` ya se eliminó del registro (ver `GameEndNotifier`), y con ella
+cualquier canal ligado a esa partida concreta. Mientras tanto, quien recibe la
+propuesta puede estar en cualquier sitio: todavía mirando el modal de fin de partida,
+de vuelta en el lobby, revisando su historial o su perfil. Ninguno de los dos canales
+existentes (`/topic/game/{gameId}`, ligado a una partida que ya no existe;
+`/topic/matchmaking/{userId}`, del que el cliente se desuscribe en cuanto encuentra
+partida, ver `onMatchFound`) llega a esas pantallas. Un canal fijo por usuario, vivo
+toda la sesión, sí.
+
+No hace falta tocar `WebSocketConfig`: `enableSimpleBroker("/topic")` ya habilita
+cualquier destino bajo ese prefijo, así que `/topic/user/{userId}` funciona exactamente
+igual que los otros dos sin configuración adicional.
+
+**Alcance actual:** solo lo usa la revancha (`RematchController`), pero está pensado
+como el sitio natural para cualquier futuro aviso que tenga que alcanzar a un usuario
+concreto sin importar la pantalla — no una pieza de un solo uso.

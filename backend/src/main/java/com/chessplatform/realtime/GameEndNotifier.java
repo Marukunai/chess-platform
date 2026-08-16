@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.rating.GameResultRecorder.RatingChanges;
 import com.chessplatform.realtime.dto.GameOverMessage;
@@ -48,12 +49,18 @@ public class GameEndNotifier {
             log.error("No se pudo registrar el resultado de la partida {}", session.gameId(), e);
         }
 
+        String timeControlPreset = TimeControl.presetNameFor(session.initialTime(), session.increment())
+                .orElse(null);
+
         messagingTemplate.convertAndSend(
                 "/topic/game/%s".formatted(session.gameId()),
                 new GameOverMessage(
                         session.gameId(), result, reason,
                         ratingChanges.map(RatingChanges::whiteChange).orElse(null),
-                        ratingChanges.map(RatingChanges::blackChange).orElse(null)
+                        ratingChanges.map(RatingChanges::blackChange).orElse(null),
+                        session.whitePlayerId(), session.whiteUsername(),
+                        session.blackPlayerId(), session.blackUsername(),
+                        timeControlPreset
                 )
         );
         sessionRegistry.remove(session.gameId());
