@@ -113,6 +113,30 @@ function subscribeToGame(gameId, onMessage) {
     });
 }
 
+/**
+ * Canal por-usuario, distinto de /topic/game/{gameId} — este NO depende de estar
+ * dentro de ninguna partida ni pantalla concreta, se suscribe una sola vez al conectar
+ * y se mantiene mientras dure la sesión (ver connectAndGoToLobby en main.js). Hace
+ * falta para poder avisar de una revancha a alguien que ya volvió al lobby, está viendo
+ * su perfil, o donde sea — /topic/game/{gameId} ya no sirve para eso porque esa partida
+ * ya terminó y nadie sigue suscrito a su topic.
+ */
+function subscribeToUserChannel(userId, onMessage) {
+    return stompClient.subscribe(`/topic/user/${userId}`, (message) => {
+        onMessage(JSON.parse(message.body));
+    });
+}
+
+function proposeRematch(opponentUserId, timeControlPreset, myColorInPreviousGame) {
+    stompClient.send('/app/rematch/propose', {}, JSON.stringify({
+        opponentUserId, timeControlPreset, myColorInPreviousGame,
+    }));
+}
+
+function respondToRematch(accept) {
+    stompClient.send('/app/rematch/respond', {}, JSON.stringify({ accept }));
+}
+
 function joinGame(gameId) {
     stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify({}));
 }

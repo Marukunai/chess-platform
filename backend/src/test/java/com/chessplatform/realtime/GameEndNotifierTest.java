@@ -113,4 +113,35 @@ class GameEndNotifierTest {
         assertThat(gameOver.whiteRatingChange()).isNull();
         assertThat(gameOver.blackRatingChange()).isNull();
     }
+
+    @Test
+    void endGameIncludesPlayersAndTimeControlPresetForAPossibleRematch() {
+        GameSession session = newSession(); // 10min+0 == ningún preset conocido a propósito, ver el siguiente test
+        session.setUsernames("alice", "bob");
+        sessionRegistry.create(session);
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + session.gameId()), payload.capture());
+        GameOverMessage gameOver = (GameOverMessage) payload.getValue();
+        assertThat(gameOver.whitePlayerId()).isEqualTo("white-player");
+        assertThat(gameOver.whiteUsername()).isEqualTo("alice");
+        assertThat(gameOver.blackPlayerId()).isEqualTo("black-player");
+        assertThat(gameOver.blackUsername()).isEqualTo("bob");
+        assertThat(gameOver.timeControlPreset()).isNull(); // 10min+0 no es ninguno de los cuatro presets
+    }
+
+    @Test
+    void endGameResolvesTheTimeControlPresetWhenItMatchesAKnownOne() {
+        GameSession blitzSession = new GameSession("white-player", "black-player",
+                java.time.Duration.ofMinutes(5), java.time.Duration.ofSeconds(3)); // == TimeControl.BLITZ
+        sessionRegistry.create(blitzSession);
+
+        notifier.endGame(blitzSession, "1-0", "checkmate");
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/game/" + blitzSession.gameId()), payload.capture());
+        assertThat(((GameOverMessage) payload.getValue()).timeControlPreset()).isEqualTo("BLITZ");
+    }
 }
