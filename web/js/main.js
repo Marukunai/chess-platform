@@ -19,6 +19,11 @@ let lastFinishedGame = null;
 // rechacemos) — null si no hay ninguna pendiente ahora mismo.
 let pendingRematchOffer = null;
 
+// El último perfil que se pidió al servidor — se reutiliza para rellenar el formulario
+// de edición sin tener que volver a pedirlo, y se sustituye por la respuesta del PUT
+// en cuanto se guarda un cambio.
+let currentProfile = null;
+
 const TIME_CONTROL_LABELS = { BULLET: 'bullet', BLITZ: 'blitz', RAPID: 'rápidas', CLASSICAL: 'clásicas' };
 
 // El servidor solo manda el reloj EXACTO cuando algo cambia (una jugada, unirse a la
@@ -640,7 +645,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('profile-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());
         try {
-            renderProfile(await fetchUserProfile(userId));
+            currentProfile = await fetchUserProfile(userId);
+            renderProfile(currentProfile);
             showScreen('profile-screen');
         } catch (error) {
             alert(error.message);
@@ -649,6 +655,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('profile-back-btn').addEventListener('click', () => {
         showScreen('lobby-screen');
+    });
+
+    document.getElementById('edit-profile-btn').addEventListener('click', () => {
+        if (currentProfile) {
+            fillEditProfileForm(currentProfile);
+        }
+        showScreen('edit-profile-screen');
+    });
+
+    document.getElementById('edit-profile-cancel-btn').addEventListener('click', () => {
+        showScreen('profile-screen');
+    });
+
+    document.getElementById('edit-profile-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const userId = getUserIdFromToken(getStoredToken());
+        const username = document.getElementById('edit-username').value.trim();
+        const country = document.getElementById('edit-country').value.trim();
+        const avatarUrl = document.getElementById('edit-avatar-url').value.trim();
+
+        try {
+            currentProfile = await updateUserProfile(userId, { username, country, avatarUrl });
+            renderProfile(currentProfile);
+            // El indicador "Conectado como..." también debe reflejar el nombre nuevo —
+            // fijamos myUsername primero para que ensureWhoAmIDisplayed lo reutilice sin
+            // volver a pedirlo al servidor (ver su propia lógica: solo pide si está vacío).
+            myUsername = currentProfile.username;
+            ensureWhoAmIDisplayed(userId);
+            showScreen('profile-screen');
+        } catch (error) {
+            document.getElementById('edit-profile-error').textContent = error.message;
+        }
     });
 
     document.getElementById('leaderboard-btn').addEventListener('click', async () => {
