@@ -1,11 +1,28 @@
-// Perfil y ranking — de lectura pública, igual que el historial. Reutiliza el estilo de
-// la planilla (.scoresheet) para el ranking: una clasificación de torneo es el mismo
-// tipo de artefacto (tabla numerada, monoespaciada), no un componente nuevo de cero.
+// Perfil y ranking. Consultar (GET) es de lectura pública, igual que el historial.
+// Editar (PUT) sí necesita el token — es la primera petición HTTP normal del cliente
+// que lo manda, todo lo demás hasta ahora o bien no necesitaba identidad (login,
+// registro) o iba por WebSocket, donde el token ya viaja en el CONNECT (ver ADR-008).
 
 async function fetchUserProfile(userId) {
     const response = await fetch(`${BACKEND_HTTP_URL}/api/users/${userId}`);
     if (!response.ok) {
         throw new Error(`Error ${response.status} al cargar el perfil`);
+    }
+    return response.json();
+}
+
+async function updateUserProfile(userId, { username, country, avatarUrl }) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getStoredToken()}`,
+        },
+        body: JSON.stringify({ username, country, avatarUrl }),
+    });
+    if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || body?.message || `Error ${response.status} al guardar el perfil`);
     }
     return response.json();
 }
@@ -19,7 +36,25 @@ async function fetchLeaderboard() {
 }
 
 function renderProfile(profile) {
+    const avatarEl = document.getElementById('profile-avatar');
+    if (profile.avatarUrl) {
+        avatarEl.src = profile.avatarUrl;
+        avatarEl.alt = `Avatar de ${profile.username}`;
+        avatarEl.hidden = false;
+    } else {
+        avatarEl.hidden = true;
+    }
+
     document.getElementById('profile-username').textContent = profile.username;
+
+    const countryEl = document.getElementById('profile-country');
+    if (profile.country) {
+        countryEl.textContent = profile.country;
+        countryEl.hidden = false;
+    } else {
+        countryEl.hidden = true;
+    }
+
     document.getElementById('profile-rating-value').textContent = profile.rating;
     document.getElementById('profile-games').textContent = profile.gamesPlayed;
     document.getElementById('profile-wins').textContent = profile.wins;
@@ -37,6 +72,14 @@ function renderProfile(profile) {
     } else {
         checkmateEl.hidden = true;
     }
+}
+
+/** Rellena el formulario de edición con lo que ya se sabe del perfil, para no partir de campos vacíos. */
+function fillEditProfileForm(profile) {
+    document.getElementById('edit-username').value = profile.username || '';
+    document.getElementById('edit-country').value = profile.country || '';
+    document.getElementById('edit-avatar-url').value = profile.avatarUrl || '';
+    document.getElementById('edit-profile-error').textContent = '';
 }
 
 function renderLeaderboard(entries, viewerUserId) {

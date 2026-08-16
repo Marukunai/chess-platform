@@ -1,6 +1,7 @@
 package com.chessplatform.persistence.controller;
 
 import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
+import com.chessplatform.persistence.dto.UpdateProfileRequest;
 import com.chessplatform.persistence.dto.UserProfileResponse;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
@@ -11,6 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -75,9 +79,9 @@ class UserControllerTest {
         List<LeaderboardEntryResponse> leaderboard = controller.leaderboard();
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
-        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
-        assertThat(leaderboard.getFirst().rating()).isEqualTo(1800);
+        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
+        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
+        assertThat(leaderboard.get(0).rating()).isEqualTo(1800);
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
     }
@@ -151,5 +155,108 @@ class UserControllerTest {
 
         assertThat(profile.wins()).isEqualTo(2);
         assertThat(profile.winsByCheckmate()).isEqualTo(1);
+    }
+
+    private static Authentication authenticationFor(String userId) {
+        return new UsernamePasswordAuthenticationToken(userId, null, List.of());
+    }
+
+    @Test
+    void updateProfileRejectsWhenThereIsNoAuthentication() {
+        assertThatThrownBy(() ->
+                controller.updateProfile("alice-id", new UpdateProfileRequest("alice2", null, null), null))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void updateProfileRejectsEditingSomeoneElsesProfile() {
+        assertThatThrownBy(() ->
+                controller.updateProfile("alice-id", new UpdateProfileRequest("alice2", null, null),
+                        authenticationFor("bob-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void updateProfileRejectsABlankUsername() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.updateProfile("alice-id", new UpdateProfileRequest("   ", null, null),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateProfileRejectsAUsernameAlreadyTakenBySomeoneElse() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(new User("bob", "hash")));
+
+        assertThatThrownBy(() ->
+                controller.updateProfile("alice-id", new UpdateProfileRequest("bob", null, null),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void updateProfileAllowsKeepingYourOwnCurrentUsername() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+
+        // No debe consultar findByUsername("alice") ni tratarlo como duplicado consigo misma.
+        UserProfileResponse profile = controller.updateProfile(
+                "alice-id", new UpdateProfileRequest("alice", "España", null), authenticationFor("alice-id"));
+
+        assertThat(profile.username()).isEqualTo("alice");
+        assertThat(profile.country()).isEqualTo("España");
+    }
+
+    @Test
+    void updateProfileSavesTheNewFieldsAndReturnsThem() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("alice_nueva")).thenReturn(Optional.empty());
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+
+        UserProfileResponse profile = controller.updateProfile(
+                "alice-id",
+                new UpdateProfileRequest("alice_nueva", "España", "https://ejemplo.com/avatar.png"),
+                authenticationFor("alice-id"));
+
+        assertThat(profile.username()).isEqualTo("alice_nueva");
+        assertThat(profile.country()).isEqualTo("España");
+        assertThat(profile.avatarUrl()).isEqualTo("https://ejemplo.com/avatar.png");
+        assertThat(alice.getUsername()).isEqualTo("alice_nueva"); // se persistió de verdad en la entidad
+    }
+
+    @Test
+    void updateProfileTreatsBlankCountryAndAvatarAsUnset() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+
+        UserProfileResponse profile = controller.updateProfile(
+                "alice-id", new UpdateProfileRequest("alice", "   ", ""), authenticationFor("alice-id"));
+
+        assertThat(profile.country()).isNull();
+        assertThat(profile.avatarUrl()).isNull();
     }
 }

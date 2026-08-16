@@ -13,6 +13,8 @@ package com.chessplatform.persistence.dto;
 public record UserProfileResponse(
         String userId,
         String username,
+        String country,
+        String avatarUrl,
         int rating,
         int ratingDeviation,
         int gamesPlayed,

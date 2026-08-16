@@ -23,6 +23,16 @@ public class User {
     @Column(nullable = false)
     private String passwordHash;
 
+    // Opcionales los dos — un jugador puede no querer decir de dónde es, o no tener
+    // ganas de poner una imagen. avatarUrl es solo un enlace a una imagen ya alojada en
+    // otro sitio (imgur, gravatar, lo que sea) — no subimos ni guardamos ningún archivo
+    // nosotros, evita meter almacenamiento de ficheros para esto.
+    @Column
+    private String country;
+
+    @Column
+    private String avatarUrl;
+
     @Column(nullable = false)
     private double rating = 1500.0;
 
@@ -52,6 +62,14 @@ public class User {
         return username;
     }
 
+    public String getCountry() {
+        return country;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
     public String getPasswordHash() {
         return passwordHash;
     }
@@ -77,5 +95,16 @@ public class User {
         this.rating = rating;
         this.ratingDeviation = ratingDeviation;
         this.volatility = volatility;
+    }
+
+    /**
+     * Los tres campos editables por el propio usuario, siempre juntos — la validación
+     * de verdad (username no vacío, no duplicado) vive en el controlador, que es quien
+     * tiene acceso al repositorio para comprobar duplicados; aquí solo se asignan.
+     */
+    public void updateProfile(String username, String country, String avatarUrl) {
+        this.username = username;
+        this.country = country;
+        this.avatarUrl = avatarUrl;
     }
 }

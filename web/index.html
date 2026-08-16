@@ -80,7 +80,9 @@
         <section id="profile-screen" class="screen screen--centered" hidden>
             <div class="card card--auth">
                 <h2 class="card__title">Mi perfil</h2>
+                <img id="profile-avatar" class="profile-avatar" hidden alt="">
                 <p id="profile-username" class="profile-username"></p>
+                <p id="profile-country" class="profile-country" hidden></p>
                 <div class="profile-rating">
                     <span id="profile-rating-value" class="profile-rating__value">—</span>
                     <span class="profile-rating__label">rating</span>
@@ -104,7 +106,34 @@
                     </div>
                 </div>
                 <p id="profile-checkmate-wins" class="profile-checkmate-wins" hidden></p>
+                <button id="edit-profile-btn" class="btn btn--ghost btn--block">Editar perfil</button>
                 <button id="profile-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
+        <!-- Pantalla de edición de perfil -->
+        <section id="edit-profile-screen" class="screen screen--centered" hidden>
+            <div class="card card--auth">
+                <h2 class="card__title">Editar perfil</h2>
+                <form id="edit-profile-form">
+                    <label class="field">
+                        <span class="field__label">Usuario</span>
+                        <input type="text" id="edit-username" required>
+                    </label>
+                    <label class="field">
+                        <span class="field__label">País</span>
+                        <input type="text" id="edit-country" placeholder="Opcional">
+                    </label>
+                    <label class="field">
+                        <span class="field__label">URL de avatar</span>
+                        <input type="url" id="edit-avatar-url" placeholder="Opcional — enlace a una imagen ya alojada">
+                    </label>
+                    <div class="auth-buttons">
+                        <button type="submit" class="btn btn--primary">Guardar</button>
+                        <button type="button" id="edit-profile-cancel-btn" class="btn btn--ghost">Cancelar</button>
+                    </div>
+                </form>
+                <p id="edit-profile-error" class="error-text" role="alert"></p>
             </div>
         </section>
 

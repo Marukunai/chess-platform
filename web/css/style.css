@@ -344,10 +344,27 @@ a {
 
 /* ---- Perfil ---- */
 
+.profile-avatar {
+    display: block;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    border: 2px solid var(--brass);
+}
+
 .profile-username {
     text-align: center;
     color: var(--parchment-dim);
     margin: 0 0 1rem;
+}
+
+.profile-country {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+    margin: -0.75rem 0 1rem;
 }
 
 .profile-rating {
@@ -420,6 +437,10 @@ a {
     font-size: 0.85rem;
     color: var(--parchment-dim);
     margin: -0.5rem 0 1.5rem;
+}
+
+#edit-profile-btn {
+    margin-bottom: 0.75rem;
 }
 
 /* ---- Ranking (misma pieza visual que la planilla, otro dato) ---- */

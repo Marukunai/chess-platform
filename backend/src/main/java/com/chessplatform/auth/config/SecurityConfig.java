@@ -2,12 +2,14 @@ package com.chessplatform.auth.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -19,9 +21,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final CorsProperties corsProperties;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(CorsProperties corsProperties) {
+    public SecurityConfig(CorsProperties corsProperties, JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.corsProperties = corsProperties;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
@@ -36,15 +40,17 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable()) // API stateless con JWT, sin cookies de sesión
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/games/**", "/api/users/**", "/ws/**", "/health", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/ws/**", "/health", "/error").permitAll()
+                        // Solo LECTURA es pública en /api/games/** y /api/users/** — revisar
+                        // partidas o perfiles (propios o ajenos) es normal en cualquier
+                        // plataforma de ajedrez real. Escribir (editar tu propio perfil) sí
+                        // necesita identidad de verdad, por eso JwtAuthenticationFilter ya
+                        // hacía falta — ver su javadoc y el de más abajo.
+                        .requestMatchers(HttpMethod.GET, "/api/games/**", "/api/users/**").permitAll()
                         .anyRequest().authenticated()
-                );
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // /api/games/** es de lectura pública a propósito: revisar partidas (propias o
-        // ajenas) es normal en cualquier plataforma de ajedrez real (lichess,
-        // chess.com), y así tampoco depende de que exista JwtAuthenticationFilter
-        // todavía (sigue pendiente, ver nota más abajo).
-        //
         // /health es el endpoint que usa el healthcheck del proveedor de hosting
         // (Render) para saber si el backend está vivo — tiene que ser accesible sin
         // autenticar, nadie va a mandarle un JWT.
@@ -61,11 +67,6 @@ public class SecurityConfig {
         // puede llevar cabecera Authorization (los navegadores no lo permiten en la
         // petición de upgrade). La identidad real se valida más abajo, en el propio
         // frame STOMP CONNECT — ver StompAuthChannelInterceptor en realtime/config.
-        //
-        // TODO: cuando exista el primer endpoint REST más allá de /api/auth/** que
-        // necesite identidad (perfil, historial de partidas...), añadir aquí un
-        // JwtAuthenticationFilter clásico antes de UsernamePasswordAuthenticationFilter.
-        // No lo añado todavía porque no habría ningún endpoint que lo necesitara.
 
         return http.build();
     }
