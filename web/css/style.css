@@ -384,6 +384,13 @@ a {
     text-align: center;
 }
 
+.profile-checkmate-wins {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+    margin: -0.5rem 0 1.5rem;
+}
+
 /* ---- Ranking (misma pieza visual que la planilla, otro dato) ---- */
 
 .scoresheet-wrap--tall {

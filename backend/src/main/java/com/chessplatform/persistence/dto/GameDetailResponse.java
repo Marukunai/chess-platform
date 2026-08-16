@@ -14,6 +14,7 @@ public record GameDetailResponse(
         String whiteUsername,
         String blackUsername,
         String result,
+        String reason,
         String timeControl,
         String playedAt,
         List<String> movesNotation,

@@ -42,6 +42,12 @@ class UserControllerTest {
         return game;
     }
 
+    private static Game gameOf(User white, User black, String result, String reason) {
+        Game game = gameOf(white, black, result);
+        game.setReason(reason);
+        return game;
+    }
+
     /**
      * User.getId() no tiene setter a propósito (lo gestiona JPA al persistir de
      * verdad) — en un test unitario puro, sin base de datos, necesitamos fijarlo a mano
@@ -124,5 +130,26 @@ class UserControllerTest {
         assertThat(profile.wins()).isZero();
         assertThat(profile.losses()).isZero();
         assertThat(profile.draws()).isZero();
+    }
+
+    @Test
+    void profileCountsOnlyCheckmateWinsWithinWinsByCheckmate() {
+        User viewer = new User("alice", "hash");
+        setId(viewer, "alice-id");
+        User opponent = new User("bob", "hash");
+        setId(opponent, "bob-id");
+
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(viewer));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(viewer, opponent, "1-0", "checkmate"), // alice gana por jaque mate
+                        gameOf(viewer, opponent, "1-0", "resignation"), // alice gana, pero por rendición
+                        gameOf(opponent, viewer, "1-0", "checkmate") // alice pierde por jaque mate — no cuenta
+                ));
+
+        UserProfileResponse profile = controller.profile("alice-id");
+
+        assertThat(profile.wins()).isEqualTo(2);
+        assertThat(profile.winsByCheckmate()).isEqualTo(1);
     }
 }

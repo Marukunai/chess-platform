@@ -40,7 +40,7 @@ public class GameEndNotifier {
     public void endGame(GameSession session, String result, String reason) {
         Optional<RatingChanges> ratingChanges = Optional.empty();
         try {
-            ratingChanges = gameResultRecorder.record(session, result);
+            ratingChanges = gameResultRecorder.record(session, result, reason);
         } catch (RuntimeException e) {
             // Un fallo al guardar (p. ej. la base de datos caída) no debería impedir que
             // los jugadores se enteren de que la partida ha terminado — es peor dejarlos

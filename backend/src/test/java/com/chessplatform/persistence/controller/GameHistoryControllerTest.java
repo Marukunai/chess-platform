@@ -42,11 +42,17 @@ class GameHistoryControllerTest {
         return game;
     }
 
+    private static Game gameOf(User white, User black, String result, String reason, String moveList) {
+        Game game = gameOf(white, black, result, moveList);
+        game.setReason(reason);
+        return game;
+    }
+
     @Test
     void historyForUserMapsGamesToSummaries() {
         User alice = new User("alice", "hash");
         User bob = new User("bob", "hash");
-        Game game = gameOf(alice, bob, "1-0", "e2e4 e7e5");
+        Game game = gameOf(alice, bob, "1-0", "checkmate", "e2e4 e7e5");
         when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("user-1", "user-1"))
                 .thenReturn(List.of(game));
 
@@ -57,6 +63,7 @@ class GameHistoryControllerTest {
         assertThat(summary.whiteUsername()).isEqualTo("alice");
         assertThat(summary.blackUsername()).isEqualTo("bob");
         assertThat(summary.result()).isEqualTo("1-0");
+        assertThat(summary.reason()).isEqualTo("checkmate");
         assertThat(summary.timeControl()).isEqualTo("5+3");
     }
 
@@ -102,5 +109,17 @@ class GameHistoryControllerTest {
 
         assertThatThrownBy(() -> controller.gameDetail("missing-game"))
                 .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void gameDetailIncludesTheReason() {
+        User alice = new User("alice", "hash");
+        User bob = new User("bob", "hash");
+        Game game = gameOf(alice, bob, "0-1", "resignation", "e2e4");
+        when(gameRepository.findById("game-1")).thenReturn(Optional.of(game));
+
+        GameDetailResponse detail = controller.gameDetail("game-1");
+
+        assertThat(detail.reason()).isEqualTo("resignation");
     }
 }

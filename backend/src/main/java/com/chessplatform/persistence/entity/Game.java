@@ -27,6 +27,14 @@ public class Game {
     @Column(nullable = false)
     private String result; // "1-0" | "0-1" | "1/2-1/2"
 
+    // "checkmate" | "resignation" | "timeout" | "stalemate" | "fifty-move-rule" |
+    // "threefold-repetition" | "agreement" | "abandonment" — el mismo valor que ya
+    // viajaba en GameOverMessage al terminar la partida, ahora también persistido para
+    // poder mostrarlo en el historial. Nullable: partidas de antes de que existiera
+    // este campo no lo tienen.
+    @Column
+    private String reason;
+
     // Jugadas en notación UCI separadas por espacios ("e2e4 e7e5 g1f3 ..."), no PGN real
     // (eso — notación algebraica con desambiguación, símbolos de jaque/mate — sigue
     // siendo su propio ítem de Fase 2: importación/exportación de PGN). El servidor
@@ -80,6 +88,14 @@ public class Game {
 
     public void setResult(String result) {
         this.result = result;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
     public String getMoveList() {

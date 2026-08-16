@@ -44,9 +44,11 @@ public class GameResultRecorder {
 
     /**
      * @param result "1-0" | "0-1" | "1/2-1/2"
+     * @param reason "checkmate" | "resignation" | "timeout" | "stalemate" |
+     *               "fifty-move-rule" | "threefold-repetition" | "agreement" | "abandonment"
      * @return los cambios de rating aplicados, o vacío si no se pudo (ver javadoc de la clase)
      */
-    public Optional<RatingChanges> record(GameSession session, String result) {
+    public Optional<RatingChanges> record(GameSession session, String result, String reason) {
         Optional<User> maybeWhite = userRepository.findById(session.whitePlayerId());
         Optional<User> maybeBlack = userRepository.findById(session.blackPlayerId());
         if (maybeWhite.isEmpty() || maybeBlack.isEmpty()) {
@@ -72,6 +74,7 @@ public class GameResultRecorder {
         String timeControlLabel = "%d+%d".formatted(session.initialTime().toMinutes(), session.increment().getSeconds());
         Game game = new Game(white, black, timeControlLabel);
         game.setResult(result);
+        game.setReason(reason);
         game.setMoveList(session.board().moveHistory().stream()
                 .map(Move::toUci)
                 .collect(Collectors.joining(" ")));

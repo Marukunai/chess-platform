@@ -55,6 +55,7 @@ public class UserController {
         int wins = 0;
         int losses = 0;
         int draws = 0;
+        int winsByCheckmate = 0;
         for (Game game : games) {
             if ("1/2-1/2".equals(game.getResult())) {
                 draws++;
@@ -65,6 +66,9 @@ public class UserController {
             boolean userWon = userIsWhite == whiteWon;
             if (userWon) {
                 wins++;
+                if ("checkmate".equals(game.getReason())) {
+                    winsByCheckmate++;
+                }
             } else {
                 losses++;
             }
@@ -78,7 +82,8 @@ public class UserController {
                 games.size(),
                 wins,
                 losses,
-                draws
+                draws,
+                winsByCheckmate
         );
     }
 }
