@@ -118,6 +118,22 @@ public class UserController {
             }
         }
 
+        // games ya viene ordenado por fecha descendente (ver la consulta arriba), así
+        // que el primer encuentro de cada rival en el recorrido es, precisamente, la
+        // partida más reciente contra esa persona — distinct() conserva ese orden de
+        // primera aparición.
+        List<UserProfileResponse.RecentOpponent> recentOpponents = games.stream()
+                .map(game -> {
+                    boolean userIsWhite = user.getId().equals(game.getWhitePlayer().getId());
+                    User opponent = userIsWhite ? game.getBlackPlayer() : game.getWhitePlayer();
+                    return new UserProfileResponse.RecentOpponent(opponent.getId(), opponent.getUsername());
+                })
+                .distinct()
+                .limit(5)
+                .toList();
+
+        int winRatePercent = games.isEmpty() ? 0 : (int) Math.round(wins * 100.0 / games.size());
+
         return new UserProfileResponse(
                 user.getId(),
                 user.getUsername(),
@@ -129,7 +145,9 @@ public class UserController {
                 wins,
                 losses,
                 draws,
-                winsByCheckmate
+                winsByCheckmate,
+                winRatePercent,
+                recentOpponents
         );
     }
 }

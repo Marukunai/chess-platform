@@ -67,6 +67,29 @@ function getStoredActiveGame() {
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
     document.getElementById(screenId).removeAttribute('hidden');
+    updateReturnToGameButton();
+}
+
+/**
+ * Se recalcula solo (sin depender de que cada sitio que cambia de pantalla o termina
+ * una partida se acuerde de avisar) mirando dos cosas: si hay una partida en curso
+ * (currentGameId) y cuál es la pantalla visible ahora mismo. Cubre el hueco real: antes
+ * de esto, entrar a "Ver perfil" o "Editar perfil" desde una partida en marcha te
+ * dejaba sin ninguna forma de volver salvo recargar la página — la suscripción y el
+ * reloj seguían vivos de fondo (nunca se cortan solo por cambiar de pantalla), así que
+ * solo hacía falta un camino de vuelta, no reconectar nada.
+ */
+function updateReturnToGameButton() {
+    const btn = document.getElementById('return-to-game-btn');
+    const activeScreen = document.querySelector('.screen:not([hidden])');
+    const activeScreenId = activeScreen ? activeScreen.id : null;
+    btn.hidden = !(currentGameId && activeScreenId !== 'game-screen');
+}
+
+function returnToActiveGame() {
+    if (currentGameId) {
+        showScreen('game-screen');
+    }
 }
 
 function formatClock(ms) {
@@ -151,6 +174,12 @@ function handleGameNoLongerExists() {
     enterLobby(getUserIdFromToken(getStoredToken()));
 }
 
+// IDs de los dos jugadores de la partida en curso — para poder pedir el perfil del
+// rival al hacer clic en su nombre (ver showProfileQuickView). Se renuevan en cada
+// sincronización de estado, no solo al empezar la partida.
+let currentWhitePlayerId = null;
+let currentBlackPlayerId = null;
+
 function handleStateSync(state) {
     clockState = {
         whiteMs: state.whiteTimeRemainingMs,
@@ -160,8 +189,12 @@ function handleStateSync(state) {
     };
     renderClockDisplay(); // pinta ya mismo, no esperar al primer tick del intervalo
 
+    currentWhitePlayerId = state.whitePlayerId;
+    currentBlackPlayerId = state.blackPlayerId;
     document.getElementById('player-name-white').textContent = state.whiteUsername || 'Blancas';
     document.getElementById('player-name-black').textContent = state.blackUsername || 'Negras';
+    setClockAvatar('player-avatar-white', state.whiteAvatarUrl);
+    setClockAvatar('player-avatar-black', state.blackAvatarUrl);
     document.getElementById('clock-row-white').classList.toggle('clock__row--active', state.turn === 'white');
     document.getElementById('clock-row-black').classList.toggle('clock__row--active', state.turn === 'black');
 
@@ -199,6 +232,66 @@ function buildLastMoveForAnimation(state) {
     };
 }
 
+function setClockAvatar(elementId, avatarUrl) {
+    const el = document.getElementById(elementId);
+    if (avatarUrl) {
+        el.src = avatarUrl;
+        el.hidden = false;
+    } else {
+        el.hidden = true;
+    }
+}
+
+/**
+ * Vista rápida del perfil de cualquiera — al hacer clic en un nombre en partida o en
+ * una fila del ranking (ver profile.js). Reutiliza /api/users/{userId}, el mismo
+ * endpoint público que ya usa la pantalla de perfil completa.
+ */
+async function showProfileQuickView(userId) {
+    if (!userId) {
+        return;
+    }
+    try {
+        const profile = await fetchUserProfile(userId);
+        renderProfileQuickView(profile);
+        document.getElementById('profile-quickview-modal').hidden = false;
+    } catch (error) {
+        showTransientNotice(error.message);
+    }
+}
+
+function renderProfileQuickView(profile) {
+    const avatarEl = document.getElementById('quickview-avatar');
+    if (profile.avatarUrl) {
+        avatarEl.src = profile.avatarUrl;
+        avatarEl.alt = `Avatar de ${profile.username}`;
+        avatarEl.hidden = false;
+    } else {
+        avatarEl.hidden = true;
+    }
+
+    document.getElementById('quickview-username').textContent = profile.username;
+
+    const countryEl = document.getElementById('quickview-country');
+    if (profile.country) {
+        countryEl.textContent = profile.country;
+        countryEl.hidden = false;
+    } else {
+        countryEl.hidden = true;
+    }
+
+    document.getElementById('quickview-rating').textContent = profile.rating;
+    document.getElementById('quickview-winrate').textContent = `${profile.winRatePercent}% de victorias`;
+    document.getElementById('quickview-games').textContent = profile.gamesPlayed;
+    document.getElementById('quickview-wins').textContent = profile.wins;
+    document.getElementById('quickview-losses').textContent = profile.losses;
+    document.getElementById('quickview-draws').textContent = profile.draws;
+}
+
+function hideProfileQuickView() {
+    document.getElementById('profile-quickview-modal').hidden = true;
+}
+
 function handleGameOver(gameOver) {
     const myRatingChange = myColor === 'white' ? gameOver.whiteRatingChange : gameOver.blackRatingChange;
 
@@ -216,6 +309,7 @@ function handleGameOver(gameOver) {
     clearActiveGame();
     stopClockTicking();
     hideDrawOfferBanner();
+    updateReturnToGameButton(); // por si la partida termina mientras estás en otra pantalla
 }
 
 function showGameOverModal(gameOver, myRatingChange) {
@@ -362,33 +456,84 @@ function setSearchingState(searching) {
     statusEl.textContent = searching ? 'Buscando rival...' : '';
 }
 
-// Nombre propio, cacheado tras consultarlo una vez — para el indicador persistente
-// junto a "Conectado" (ver ensureWhoAmIDisplayed). Se pide a /api/users/{userId} (ya
-// existía para el perfil) en vez de sacarlo del JWT, porque el JWT solo lleva el
-// userId, no el nombre de usuario.
+// Nombre y avatar propios, cacheados tras consultarlos una vez — para el desplegable
+// persistente junto a "Conectado" (ver ensureWhoAmIDisplayed). Se piden a
+// /api/users/{userId} (ya existía para el perfil) en vez de sacarlos del JWT, porque el
+// JWT solo lleva el userId.
 let myUsername = null;
+let myAvatarUrl = null;
 
 async function ensureWhoAmIDisplayed(userId) {
     if (!myUsername) {
         try {
             const profile = await fetchUserProfile(userId);
             myUsername = profile.username;
+            myAvatarUrl = profile.avatarUrl;
         } catch {
             return; // no es crítico — un adorno de cabecera, no bloqueamos nada por esto
         }
     }
-    const el = document.getElementById('whoami');
-    el.textContent = '';
-    el.append('Conectado como ');
-    const strong = document.createElement('strong');
-    strong.textContent = myUsername;
-    el.appendChild(strong);
-    el.hidden = false;
+    document.getElementById('whoami-name').textContent = myUsername;
+    setClockAvatar('whoami-avatar', myAvatarUrl); // mismo helper que los avatares del reloj, mismo comportamiento
+    document.getElementById('whoami-dropdown').hidden = false;
 }
 
 function hideWhoAmI() {
     myUsername = null;
-    document.getElementById('whoami').hidden = true;
+    myAvatarUrl = null;
+    document.getElementById('whoami-dropdown').hidden = true;
+    document.getElementById('whoami-menu').hidden = true;
+}
+
+/** Reutilizada tanto por el botón del lobby como por "Ver mi perfil" del desplegable. */
+async function goToProfileScreen() {
+    const userId = getUserIdFromToken(getStoredToken());
+    try {
+        currentProfile = await fetchUserProfile(userId);
+        renderProfile(currentProfile);
+        showScreen('profile-screen');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+/**
+ * A diferencia del botón "Editar perfil" de dentro de la propia pantalla de perfil
+ * (que ya tiene currentProfile cargado a la fuerza), esta versión puede llamarse desde
+ * cualquier sitio a través del desplegable — así que primero se asegura de tener el
+ * perfil, en vez de asumirlo.
+ */
+/**
+ * El nombre y el avatar quedan fijados dentro de GameSession en cuanto empieza una
+ * partida (ver setUsernames()/setAvatars() en el backend) — cambiarlos a media partida
+ * dejaría al rival viendo la versión vieja hasta que termine, una inconsistencia
+ * confusa sin ningún beneficio real. El país no se captura en ningún sitio por
+ * partida, así que ese sí se puede cambiar en cualquier momento.
+ */
+function updateEditProfileLockState() {
+    const locked = Boolean(currentGameId);
+    document.getElementById('edit-profile-locked-notice').hidden = !locked;
+    document.getElementById('edit-username').disabled = locked;
+    document.getElementById('edit-avatar-url').disabled = locked;
+}
+
+async function goToEditProfileScreen() {
+    if (!currentProfile) {
+        await goToProfileScreen();
+    }
+    if (currentProfile) {
+        fillEditProfileForm(currentProfile);
+        updateEditProfileLockState();
+        showScreen('edit-profile-screen');
+    }
+}
+
+function performLogout() {
+    clearStoredToken();
+    clearActiveGame();
+    disconnect();
+    hideWhoAmI();
+    showScreen('auth-screen');
 }
 
 function connectAndGoToLobby(token) {
@@ -446,6 +591,8 @@ function enterGameScreen(gameId, color) {
     hideRematchOfferToast();
     document.getElementById('game-message').textContent = '';
     document.getElementById('chat-log').innerHTML = '';
+    setClockAvatar('player-avatar-white', null);
+    setClockAvatar('player-avatar-black', null);
 
     gameSubscription = subscribeToGame(gameId, handleGameMessage);
     joinGame(gameId);
@@ -515,13 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('logout-btn').addEventListener('click', () => {
-        clearStoredToken();
-        clearActiveGame();
-        disconnect();
-        hideWhoAmI();
-        showScreen('auth-screen');
-    });
+    document.getElementById('logout-btn').addEventListener('click', performLogout);
 
     // Salida manual por si alguien no quiere esperar al reintento automático (que ahora
     // no tiene límite, ver websocket-client.js) — p. ej. si sabe que su token está
@@ -533,11 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const giveUp = confirm('Seguimos intentando reconectar. ¿Prefieres cerrar sesión y volver a entrar tú mismo?');
         if (giveUp) {
-            clearStoredToken();
-            clearActiveGame();
-            disconnect();
-            hideWhoAmI();
-            showScreen('auth-screen');
+            performLogout();
         }
     });
 
@@ -642,25 +779,57 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('replay-prev-btn').addEventListener('click', replayGoToPrevious);
     document.getElementById('replay-next-btn').addEventListener('click', replayGoToNext);
 
-    document.getElementById('profile-btn').addEventListener('click', async () => {
-        const userId = getUserIdFromToken(getStoredToken());
-        try {
-            currentProfile = await fetchUserProfile(userId);
-            renderProfile(currentProfile);
-            showScreen('profile-screen');
-        } catch (error) {
-            alert(error.message);
-        }
-    });
+    document.getElementById('return-to-game-btn').addEventListener('click', returnToActiveGame);
+
+    document.getElementById('profile-btn').addEventListener('click', goToProfileScreen);
 
     document.getElementById('profile-back-btn').addEventListener('click', () => {
         showScreen('lobby-screen');
     });
 
+    // Desplegable "Conectado como..." — accesible desde cualquier pantalla, no solo el lobby.
+    document.getElementById('whoami-toggle').addEventListener('click', (event) => {
+        event.stopPropagation(); // si no, el listener de "clic fuera" de abajo lo cerraría en el mismo clic
+        const menu = document.getElementById('whoami-menu');
+        menu.hidden = !menu.hidden;
+    });
+
+    document.addEventListener('click', (event) => {
+        const dropdown = document.getElementById('whoami-dropdown');
+        if (!dropdown.contains(event.target)) {
+            document.getElementById('whoami-menu').hidden = true;
+        }
+    });
+
+    document.getElementById('whoami-view-profile').addEventListener('click', () => {
+        document.getElementById('whoami-menu').hidden = true;
+        goToProfileScreen();
+    });
+
+    document.getElementById('whoami-edit-profile').addEventListener('click', () => {
+        document.getElementById('whoami-menu').hidden = true;
+        goToEditProfileScreen();
+    });
+
+    document.getElementById('whoami-logout').addEventListener('click', () => {
+        document.getElementById('whoami-menu').hidden = true;
+        performLogout();
+    });
+
+    // Vista rápida del perfil del rival — clic en su nombre durante la partida.
+    document.getElementById('player-name-white-btn').addEventListener('click', () => {
+        showProfileQuickView(currentWhitePlayerId);
+    });
+    document.getElementById('player-name-black-btn').addEventListener('click', () => {
+        showProfileQuickView(currentBlackPlayerId);
+    });
+    document.getElementById('quickview-close-btn').addEventListener('click', hideProfileQuickView);
+
     document.getElementById('edit-profile-btn').addEventListener('click', () => {
         if (currentProfile) {
             fillEditProfileForm(currentProfile);
         }
+        updateEditProfileLockState();
         showScreen('edit-profile-screen');
     });
 
@@ -678,10 +847,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             currentProfile = await updateUserProfile(userId, { username, country, avatarUrl });
             renderProfile(currentProfile);
-            // El indicador "Conectado como..." también debe reflejar el nombre nuevo —
-            // fijamos myUsername primero para que ensureWhoAmIDisplayed lo reutilice sin
-            // volver a pedirlo al servidor (ver su propia lógica: solo pide si está vacío).
+            // El desplegable "Conectado como..." también debe reflejar el nombre/avatar
+            // nuevos — los fijamos primero para que ensureWhoAmIDisplayed los reutilice
+            // sin volver a pedirlos al servidor (ver su propia lógica: solo pide si
+            // myUsername está vacío).
             myUsername = currentProfile.username;
+            myAvatarUrl = currentProfile.avatarUrl;
             ensureWhoAmIDisplayed(userId);
             showScreen('profile-screen');
         } catch (error) {

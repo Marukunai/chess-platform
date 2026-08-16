@@ -23,7 +23,21 @@
                 <span class="wordmark__text">Chess Platform</span>
             </div>
             <div class="header-right">
-                <span id="whoami" class="whoami" hidden></span>
+                <button id="return-to-game-btn" class="btn btn--primary return-to-game-btn" hidden type="button">
+                    &#9823; Volver a la partida
+                </button>
+                <div id="whoami-dropdown" class="whoami-dropdown" hidden>
+                    <button id="whoami-toggle" class="whoami-toggle" type="button">
+                        <img id="whoami-avatar" class="whoami-avatar" hidden alt="">
+                        <span id="whoami-name"></span>
+                        <span class="whoami-caret" aria-hidden="true">&#9662;</span>
+                    </button>
+                    <div id="whoami-menu" class="whoami-menu" hidden>
+                        <button id="whoami-view-profile" class="whoami-menu__item" type="button">Ver mi perfil</button>
+                        <button id="whoami-edit-profile" class="whoami-menu__item" type="button">Editar perfil</button>
+                        <button id="whoami-logout" class="whoami-menu__item" type="button">Cerrar sesión</button>
+                    </div>
+                </div>
                 <div id="connection-status" class="status status--disconnected">Desconectado</div>
             </div>
         </header>
@@ -87,6 +101,7 @@
                     <span id="profile-rating-value" class="profile-rating__value">—</span>
                     <span class="profile-rating__label">rating</span>
                 </div>
+                <p id="profile-winrate" class="profile-winrate"></p>
                 <div class="stat-grid">
                     <div class="stat-grid__item">
                         <span id="profile-games" class="stat-grid__value">—</span>
@@ -106,6 +121,12 @@
                     </div>
                 </div>
                 <p id="profile-checkmate-wins" class="profile-checkmate-wins" hidden></p>
+
+                <div id="recent-opponents" class="recent-opponents" hidden>
+                    <p class="recent-opponents__label">Rivales recientes</p>
+                    <div id="recent-opponents-list" class="recent-opponents__list"></div>
+                </div>
+
                 <button id="edit-profile-btn" class="btn btn--ghost btn--block">Editar perfil</button>
                 <button id="profile-back-btn" class="btn btn--ghost btn--block">Volver</button>
             </div>
@@ -115,6 +136,10 @@
         <section id="edit-profile-screen" class="screen screen--centered" hidden>
             <div class="card card--auth">
                 <h2 class="card__title">Editar perfil</h2>
+                <p id="edit-profile-locked-notice" class="edit-profile-locked-notice" hidden>
+                    Tienes una partida en curso — el nombre y el avatar se quedan fijos hasta que termine
+                    (tu rival ya los está viendo tal cual eran al empezar). El país sí puedes cambiarlo ahora.
+                </p>
                 <form id="edit-profile-form">
                     <label class="field">
                         <span class="field__label">Usuario</span>
@@ -165,19 +190,21 @@
                 <aside class="sidebar">
                     <div class="clock">
                         <div id="clock-row-black" class="clock__row">
-                            <span class="clock__name">
+                            <button id="player-name-black-btn" class="clock__name" type="button">
+                                <img id="player-avatar-black" class="clock__avatar" hidden alt="">
                                 <span class="player-color-icon player-color-icon--black"
                                     aria-hidden="true">&#9823;</span>
                                 <span id="player-name-black">Negras</span>
-                            </span>
+                            </button>
                             <div id="clock-black" class="clock__player">--:--</div>
                         </div>
                         <div id="clock-row-white" class="clock__row">
-                            <span class="clock__name">
+                            <button id="player-name-white-btn" class="clock__name" type="button">
+                                <img id="player-avatar-white" class="clock__avatar" hidden alt="">
                                 <span class="player-color-icon player-color-icon--white"
                                     aria-hidden="true">&#9823;</span>
                                 <span id="player-name-white">Blancas</span>
-                            </span>
+                            </button>
                             <div id="clock-white" class="clock__player">--:--</div>
                         </div>
                     </div>
@@ -246,6 +273,42 @@
 
         <!-- Notificación breve y autoocultable, para avisos puntuales (p. ej. "X rechazó la revancha") -->
         <div id="transient-notice" class="transient-notice" hidden></div>
+
+        <!-- Vista rápida del perfil de otro jugador — al hacer clic en un nombre en
+             partida o en una fila del ranking. Reutiliza los mismos estilos que la
+             pantalla de perfil completa, en una tarjeta más pequeña. -->
+        <div id="profile-quickview-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div class="modal-card modal-card--quickview">
+                <img id="quickview-avatar" class="profile-avatar" hidden alt="">
+                <h2 id="quickview-username" class="modal-card__title"></h2>
+                <p id="quickview-country" class="profile-country" hidden></p>
+                <div class="profile-rating">
+                    <span id="quickview-rating" class="profile-rating__value">—</span>
+                    <span class="profile-rating__label">rating</span>
+                </div>
+                <p id="quickview-winrate" class="profile-winrate"></p>
+                <div class="stat-grid">
+                    <div class="stat-grid__item">
+                        <span id="quickview-games" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Partidas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--win">
+                        <span id="quickview-wins" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Ganadas</span>
+                    </div>
+                    <div class="stat-grid__item stat-grid__item--loss">
+                        <span id="quickview-losses" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Perdidas</span>
+                    </div>
+                    <div class="stat-grid__item">
+                        <span id="quickview-draws" class="stat-grid__value">—</span>
+                        <span class="stat-grid__label">Tablas</span>
+                    </div>
+                </div>
+                <button id="quickview-close-btn" class="btn btn--ghost btn--block">Cerrar</button>
+            </div>
+        </div>
 
         <!-- Pantalla de historial de partidas -->
         <section id="history-screen" class="screen screen--centered" hidden>

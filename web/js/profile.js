@@ -56,6 +56,7 @@ function renderProfile(profile) {
     }
 
     document.getElementById('profile-rating-value').textContent = profile.rating;
+    document.getElementById('profile-winrate').textContent = `${profile.winRatePercent}% de victorias`;
     document.getElementById('profile-games').textContent = profile.gamesPlayed;
     document.getElementById('profile-wins').textContent = profile.wins;
     document.getElementById('profile-losses').textContent = profile.losses;
@@ -72,6 +73,34 @@ function renderProfile(profile) {
     } else {
         checkmateEl.hidden = true;
     }
+
+    renderRecentOpponents(profile.recentOpponents);
+}
+
+/**
+ * Chips clicables, cada uno abre la vista rápida de ese rival (showProfileQuickView
+ * vive en main.js, que se carga después de este archivo — funciona igual: la llamada
+ * solo ocurre al hacer clic, mucho después de que todos los scripts ya estén cargados).
+ */
+function renderRecentOpponents(recentOpponents) {
+    const container = document.getElementById('recent-opponents');
+    const list = document.getElementById('recent-opponents-list');
+    list.innerHTML = '';
+
+    if (!recentOpponents || recentOpponents.length === 0) {
+        container.hidden = true;
+        return;
+    }
+
+    for (const opponent of recentOpponents) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'recent-opponents__chip';
+        chip.textContent = opponent.username;
+        chip.addEventListener('click', () => showProfileQuickView(opponent.userId));
+        list.appendChild(chip);
+    }
+    container.hidden = false;
 }
 
 /** Rellena el formulario de edición con lo que ya se sabe del perfil, para no partir de campos vacíos. */
@@ -95,10 +124,12 @@ function renderLeaderboard(entries, viewerUserId) {
 
     for (const entry of entries) {
         const row = document.createElement('tr');
+        row.className = 'standings__row';
         if (entry.userId === viewerUserId) {
             row.classList.add('standings__self');
         }
         row.innerHTML = `<td>${entry.rank}</td><td>${entry.username}</td><td>${entry.rating}</td>`;
+        row.addEventListener('click', () => showProfileQuickView(entry.userId));
         tbody.appendChild(row);
     }
 }

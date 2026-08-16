@@ -21,9 +21,14 @@ import java.util.List;
  * el cliente la usa para saber qué casilla animar al recibir el estado, algo que no se
  * puede sacar de forma fiable de movesNotation (la notación con coronación como
  * "exd8=Q" no tiene la casilla de destino en una posición fija dentro del texto).
- * whiteUsername/blackUsername: quiénes juegan — se manda en cada sincronización (no solo
- * al emparejar) para que estén disponibles también al reconectar o recargar la página,
- * momento en el que el cliente no tiene ningún otro sitio de donde sacarlos.
+ *
+ * whitePlayerId/blackPlayerId: el cliente los necesita para poder pedir el perfil del
+ * rival (vista rápida al hacer clic en su nombre) — sin esto, en partida solo se conoce
+ * el nombre de usuario, no el id con el que consultar /api/users/{userId}. No es una
+ * exposición nueva: estos mismos ids ya viajaban en GameOverMessage y en el historial.
+ * whiteUsername/blackUsername/whiteAvatarUrl/blackAvatarUrl: quiénes juegan y su
+ * avatar — se manda en cada sincronización (no solo al emparejar) para que estén
+ * disponibles también al reconectar o recargar la página.
  */
 public record GameStateSyncMessage(
         String gameId,
@@ -35,8 +40,12 @@ public record GameStateSyncMessage(
         String status,
         List<String> movesNotation,
         String lastMoveUci,
+        String whitePlayerId,
         String whiteUsername,
-        String blackUsername
+        String whiteAvatarUrl,
+        String blackPlayerId,
+        String blackUsername,
+        String blackAvatarUrl
 ) {
 
     /**
@@ -50,7 +59,7 @@ public record GameStateSyncMessage(
         List<String> legalMovesUci = legalMoves.stream().map(Move::toUci).toList();
         String status = inCheck ? "CHECK" : "IN_PROGRESS";
         List<Move> moveHistory = board.moveHistory();
-        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.getLast().toUci();
+        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1).toUci();
 
         return new GameStateSyncMessage(
                 session.gameId(),
@@ -62,8 +71,12 @@ public record GameStateSyncMessage(
                 status,
                 board.notationHistory(),
                 lastMoveUci,
+                session.whitePlayerId(),
                 session.whiteUsername(),
-                session.blackUsername()
+                session.whiteAvatarUrl(),
+                session.blackPlayerId(),
+                session.blackUsername(),
+                session.blackAvatarUrl()
         );
     }
 }

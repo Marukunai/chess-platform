@@ -62,6 +62,11 @@ public class GameSession {
     private String whiteUsername;
     private String blackUsername;
 
+    // Mismo patrón que los nombres de usuario, mismo motivo — nullable: un jugador
+    // puede no tener avatar fijado en su perfil.
+    private String whiteAvatarUrl;
+    private String blackAvatarUrl;
+
     public GameSession(String whitePlayerId, String blackPlayerId, Duration initialTime, Duration increment) {
         this(whitePlayerId, blackPlayerId, initialTime, increment, Clock.systemUTC());
     }
@@ -227,5 +232,18 @@ public class GameSession {
 
     public String blackUsername() {
         return blackUsername;
+    }
+
+    public void setAvatars(String whiteAvatarUrl, String blackAvatarUrl) {
+        this.whiteAvatarUrl = whiteAvatarUrl;
+        this.blackAvatarUrl = blackAvatarUrl;
+    }
+
+    public String whiteAvatarUrl() {
+        return whiteAvatarUrl;
+    }
+
+    public String blackAvatarUrl() {
+        return blackAvatarUrl;
     }
 }

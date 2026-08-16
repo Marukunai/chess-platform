@@ -74,7 +74,7 @@ class MatchmakingServiceTest {
 
     @Test
     void tickDoesNothingWithFewerThanTwoPlayers() {
-        queue.enqueue("solo-player", "solo-player", 1500, TimeControl.BLITZ);
+        queue.enqueue("solo-player", "solo-player", null, 1500, TimeControl.BLITZ);
 
         service.tick();
 
@@ -84,8 +84,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickMatchesTwoPlayersWithCloseRatingsAndSameTimeControl() {
-        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", "bob", 1520, TimeControl.BLITZ); // dentro de la ventana inicial (100)
+        queue.enqueue("alice", "alice", null, 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", null, 1520, TimeControl.BLITZ); // dentro de la ventana inicial (100)
 
         service.tick();
 
@@ -99,8 +99,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickSetsBothUsernamesOnTheCreatedSession() {
-        queue.enqueue("alice-id", "alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob-id", "bob", 1520, TimeControl.BLITZ);
+        queue.enqueue("alice-id", "alice", null, 1500, TimeControl.BLITZ);
+        queue.enqueue("bob-id", "bob", null, 1520, TimeControl.BLITZ);
 
         service.tick();
 
@@ -113,9 +113,23 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    void tickSetsBothAvatarsOnTheCreatedSession() {
+        queue.enqueue("alice-id", "alice", "https://ejemplo.com/alice.png", 1500, TimeControl.BLITZ);
+        queue.enqueue("bob-id", "bob", null, 1520, TimeControl.BLITZ); // bob sin avatar fijado
+
+        service.tick();
+
+        GameSession session = sessionRegistry.allSessions().iterator().next();
+        Set<String> avatars = new java.util.HashSet<>();
+        avatars.add(session.whiteAvatarUrl());
+        avatars.add(session.blackAvatarUrl());
+        assertThat(avatars).contains("https://ejemplo.com/alice.png", (String) null);
+    }
+
+    @Test
     void tickDoesNotMatchPlayersWithDifferentTimeControls() {
-        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", "bob", 1500, TimeControl.RAPID);
+        queue.enqueue("alice", "alice", null, 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", null, 1500, TimeControl.RAPID);
 
         service.tick();
 
@@ -125,8 +139,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickDoesNotMatchRatingsFarApartInitially() {
-        queue.enqueue("alice", "alice", 1000, TimeControl.BLITZ);
-        queue.enqueue("bob", "bob", 2000, TimeControl.BLITZ); // 1000 puntos de diferencia
+        queue.enqueue("alice", "alice", null, 1000, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", null, 2000, TimeControl.BLITZ); // 1000 puntos de diferencia
 
         service.tick();
 
@@ -136,8 +150,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickEventuallyMatchesFarApartRatingsAsTheWaitGrows() {
-        queue.enqueue("alice", "alice", 1000, TimeControl.BLITZ);
-        queue.enqueue("bob", "bob", 2000, TimeControl.BLITZ);
+        queue.enqueue("alice", "alice", null, 1000, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", null, 2000, TimeControl.BLITZ);
 
         clock.advance(Duration.ofSeconds(60)); // la ventana ya creció mucho para ambos
         service.tick();
@@ -147,8 +161,8 @@ class MatchmakingServiceTest {
 
     @Test
     void matchedPlayersGetAssignedToOppositeColorsInTheSameGame() {
-        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", "bob", 1500, TimeControl.BLITZ);
+        queue.enqueue("alice", "alice", null, 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", null, 1500, TimeControl.BLITZ);
 
         service.tick();
 
