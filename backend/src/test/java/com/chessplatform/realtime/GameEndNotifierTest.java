@@ -67,14 +67,14 @@ class GameEndNotifierTest {
 
         notifier.endGame(session, "1-0", "checkmate");
 
-        verify(gameResultRecorder).record(session, "1-0");
+        verify(gameResultRecorder).record(session, "1-0", "checkmate");
     }
 
     @Test
     void endGameStillBroadcastsAndCleansUpEvenIfRecordingTheResultFails() {
         GameSession session = newSession();
         sessionRegistry.create(session);
-        doThrow(new RuntimeException("base de datos caída")).when(gameResultRecorder).record(session, "1-0");
+        doThrow(new RuntimeException("base de datos caída")).when(gameResultRecorder).record(session, "1-0", "checkmate");
 
         notifier.endGame(session, "1-0", "checkmate");
 
@@ -88,7 +88,7 @@ class GameEndNotifierTest {
     void endGameIncludesTheRatingChangesFromGameResultRecorderInTheBroadcast() {
         GameSession session = newSession();
         sessionRegistry.create(session);
-        when(gameResultRecorder.record(session, "1-0")).thenReturn(Optional.of(new RatingChanges(12.5, -12.5)));
+        when(gameResultRecorder.record(session, "1-0", "checkmate")).thenReturn(Optional.of(new RatingChanges(12.5, -12.5)));
 
         notifier.endGame(session, "1-0", "checkmate");
 
@@ -103,7 +103,7 @@ class GameEndNotifierTest {
     void endGameSendsNullRatingChangesWhenRecordingFails() {
         GameSession session = newSession();
         sessionRegistry.create(session);
-        doThrow(new RuntimeException("base de datos caída")).when(gameResultRecorder).record(session, "1-0");
+        doThrow(new RuntimeException("base de datos caída")).when(gameResultRecorder).record(session, "1-0", "checkmate");
 
         notifier.endGame(session, "1-0", "checkmate");
 

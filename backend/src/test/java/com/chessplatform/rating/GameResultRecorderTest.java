@@ -56,7 +56,7 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
 
-        recorder.record(newSession(), "1-0");
+        recorder.record(newSession(), "1-0", "checkmate");
 
         ArgumentCaptor<User> savedUsers = ArgumentCaptor.forClass(User.class);
         verify(userRepository, times(2)).save(savedUsers.capture());
@@ -74,7 +74,7 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
 
-        recorder.record(newSession(), "0-1");
+        recorder.record(newSession(), "0-1", "checkmate");
 
         ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
         verify(gameRepository).save(savedGame.capture());
@@ -89,7 +89,7 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.empty());
         when(userRepository.findById("black-id")).thenReturn(Optional.of(new User("black-user", "hash")));
 
-        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0");
+        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0", "checkmate");
 
         assertThat(result).isEmpty();
         verify(userRepository, never()).save(any());
@@ -103,7 +103,7 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
 
-        recorder.record(newSession(), "1/2-1/2");
+        recorder.record(newSession(), "1/2-1/2", "agreement");
 
         assertThat(white.getRating()).isCloseTo(1500.0, within(0.001));
         assertThat(black.getRating()).isCloseTo(1500.0, within(0.001));
@@ -120,7 +120,7 @@ class GameResultRecorderTest {
         session.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
         session.applyMove(new Move(Square.of(4, 6), Square.of(4, 4))); // e7-e5
 
-        recorder.record(session, "1-0");
+        recorder.record(session, "1-0", "checkmate");
 
         ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
         verify(gameRepository).save(savedGame.capture());
@@ -134,7 +134,7 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
 
-        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0");
+        Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0", "checkmate");
 
         assertThat(result).isPresent();
         assertThat(result.get().whiteChange()).isGreaterThan(0); // ganó, cambio positivo
@@ -152,11 +152,25 @@ class GameResultRecorderTest {
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
 
-        recorder.record(newSession(), "1-0");
+        recorder.record(newSession(), "1-0", "checkmate");
 
         ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
         verify(gameRepository).save(savedGame.capture());
         assertThat(savedGame.getValue().getWhiteRatingChange()).isGreaterThan(0);
         assertThat(savedGame.getValue().getBlackRatingChange()).isLessThan(0);
+    }
+
+    @Test
+    void recordSavesTheReasonOnTheGameItself() {
+        User white = new User("white-user", "hash");
+        User black = new User("black-user", "hash");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+
+        recorder.record(newSession(), "0-1", "resignation");
+
+        ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(savedGame.capture());
+        assertThat(savedGame.getValue().getReason()).isEqualTo("resignation");
     }
 }

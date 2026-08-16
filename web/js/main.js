@@ -16,17 +16,6 @@ let isSearchingForMatch = false;
 let clockState = null; // { whiteMs, blackMs, turn, syncedAt }
 let clockTickInterval = null;
 
-const GAME_OVER_REASON_LABELS = {
-    checkmate: 'Jaque mate',
-    resignation: 'Rendición',
-    timeout: 'Tiempo agotado',
-    stalemate: 'Ahogado',
-    'fifty-move-rule': 'Regla de 50 movimientos',
-    'threefold-repetition': 'Triple repetición',
-    abandonment: 'Abandono',
-    agreement: 'Acuerdo mutuo',
-};
-
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
     document.getElementById(screenId).removeAttribute('hidden');

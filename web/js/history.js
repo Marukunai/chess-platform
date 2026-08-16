@@ -49,7 +49,10 @@ function renderHistoryList(games, viewerUserId, onSelect) {
         const meta = document.createElement('div');
         meta.className = 'history-item__meta';
         const date = new Date(game.playedAt).toLocaleString();
-        meta.textContent = `${game.result} · ${game.timeControl} · ${date}`;
+        const reasonLabel = GAME_OVER_REASON_LABELS[game.reason] || game.reason;
+        meta.textContent = reasonLabel
+            ? `${game.result} · ${reasonLabel} · ${game.timeControl} · ${date}`
+            : `${game.result} · ${game.timeControl} · ${date}`;
 
         const rightSide = document.createElement('div');
         rightSide.className = 'history-item__right';
@@ -120,8 +123,10 @@ function openReplay(game) {
     replayFenPositions = game.fenPositions;
     replayMoves = game.movesNotation;
     replayIndex = 0;
+    const reasonLabel = GAME_OVER_REASON_LABELS[game.reason] || game.reason;
+    const resultText = reasonLabel ? `${game.result} (${reasonLabel})` : game.result;
     document.getElementById('replay-info').textContent =
-        `${game.whiteUsername} vs ${game.blackUsername} — ${game.result} (${game.timeControl})`;
+        `${game.whiteUsername} vs ${game.blackUsername} — ${resultText} (${game.timeControl})`;
     renderScoresheet('replay-move-list', replayMoves);
     renderReplayPosition();
 }

@@ -19,6 +19,7 @@ public record GameSummaryResponse(
         String blackUserId,
         String blackUsername,
         String result,
+        String reason,
         String timeControl,
         String playedAt,
         Double whiteRatingChange,

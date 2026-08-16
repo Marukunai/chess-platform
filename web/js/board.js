@@ -19,6 +19,22 @@ const PIECE_GLYPH = {
     K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟',
 };
 
+/**
+ * Compartido entre main.js (mensaje de fin de partida en vivo) y history.js (cada fila
+ * del historial y la reproducción) — vive aquí porque board.js ya se carga antes que
+ * los dos.
+ */
+const GAME_OVER_REASON_LABELS = {
+    checkmate: 'Jaque mate',
+    resignation: 'Rendición',
+    timeout: 'Tiempo agotado',
+    stalemate: 'Ahogado',
+    'fifty-move-rule': 'Regla de 50 movimientos',
+    'threefold-repetition': 'Triple repetición',
+    abandonment: 'Abandono',
+    agreement: 'Acuerdo mutuo',
+};
+
 const DRAG_THRESHOLD_PX = 6;
 const ARROW_COLOR = 'var(--verdigris)';
 const HIGHLIGHT_COLOR = 'var(--garnet)';

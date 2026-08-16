@@ -25,6 +25,18 @@ function renderProfile(profile) {
     document.getElementById('profile-wins').textContent = profile.wins;
     document.getElementById('profile-losses').textContent = profile.losses;
     document.getElementById('profile-draws').textContent = profile.draws;
+
+    // Único desglose por motivo que se muestra aquí — de las victorias, cuántas fueron
+    // dando jaque mate. El resto de motivos (rendición, tiempo...) solo se ven partida a
+    // partida en el historial, no agregados: con 8 motivos posibles, desglosarlos todos
+    // aquí sería más ruido que información.
+    const checkmateEl = document.getElementById('profile-checkmate-wins');
+    if (profile.wins > 0) {
+        checkmateEl.textContent = `${profile.winsByCheckmate} de ${profile.wins} victorias por jaque mate`;
+        checkmateEl.hidden = false;
+    } else {
+        checkmateEl.hidden = true;
+    }
 }
 
 function renderLeaderboard(entries, viewerUserId) {
