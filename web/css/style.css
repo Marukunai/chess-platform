@@ -666,11 +666,38 @@ a {
 }
 
 .clock__name {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.85rem;
     color: var(--parchment-dim);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/*
+ * Mismo tratamiento que las piezas del tablero (.square__piece--white/--black): relleno
+ * sólido + contorno fino del color contrario, para que se lea igual de bien sin
+ * depender de qué fondo tenga detrás. Es a propósito el mismo glifo de peón, no un
+ * icono nuevo — refuerza que "esto representa un bando", igual que en el tablero.
+ */
+.player-color-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.player-color-icon--white {
+    color: var(--parchment);
+    -webkit-text-stroke: 1px var(--ink);
+    paint-order: stroke fill;
+}
+
+.player-color-icon--black {
+    color: var(--ink);
+    -webkit-text-stroke: 1px var(--parchment);
+    paint-order: stroke fill;
 }
 
 .clock__row--active .clock__name {
