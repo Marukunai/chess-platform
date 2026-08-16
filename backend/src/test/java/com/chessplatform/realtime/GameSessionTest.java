@@ -201,4 +201,22 @@ class GameSessionTest {
 
         assertThat(session.drawOfferedBy()).isNull();
     }
+
+    @Test
+    void usernamesAreNullUntilSetUsernamesIsCalled() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        assertThat(session.whiteUsername()).isNull();
+        assertThat(session.blackUsername()).isNull();
+    }
+
+    @Test
+    void setUsernamesFixesBothNames() {
+        GameSession session = new GameSession("white-player", "black-player", Duration.ofMinutes(10), Duration.ZERO);
+
+        session.setUsernames("alice", "bob");
+
+        assertThat(session.whiteUsername()).isEqualTo("alice");
+        assertThat(session.blackUsername()).isEqualTo("bob");
+    }
 }

@@ -21,6 +21,9 @@ import java.util.List;
  * el cliente la usa para saber qué casilla animar al recibir el estado, algo que no se
  * puede sacar de forma fiable de movesNotation (la notación con coronación como
  * "exd8=Q" no tiene la casilla de destino en una posición fija dentro del texto).
+ * whiteUsername/blackUsername: quiénes juegan — se manda en cada sincronización (no solo
+ * al emparejar) para que estén disponibles también al reconectar o recargar la página,
+ * momento en el que el cliente no tiene ningún otro sitio de donde sacarlos.
  */
 public record GameStateSyncMessage(
         String gameId,
@@ -31,7 +34,9 @@ public record GameStateSyncMessage(
         List<String> legalMovesUci,
         String status,
         List<String> movesNotation,
-        String lastMoveUci
+        String lastMoveUci,
+        String whiteUsername,
+        String blackUsername
 ) {
 
     /**
@@ -45,7 +50,7 @@ public record GameStateSyncMessage(
         List<String> legalMovesUci = legalMoves.stream().map(Move::toUci).toList();
         String status = inCheck ? "CHECK" : "IN_PROGRESS";
         List<Move> moveHistory = board.moveHistory();
-        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1).toUci();
+        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.getLast().toUci();
 
         return new GameStateSyncMessage(
                 session.gameId(),
@@ -56,7 +61,9 @@ public record GameStateSyncMessage(
                 legalMovesUci,
                 status,
                 board.notationHistory(),
-                lastMoveUci
+                lastMoveUci,
+                session.whiteUsername(),
+                session.blackUsername()
         );
     }
 }

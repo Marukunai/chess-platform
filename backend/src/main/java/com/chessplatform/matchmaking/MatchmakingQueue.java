@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class MatchmakingQueue {
 
-    public record WaitingPlayer(String playerId, int rating, TimeControl timeControl, Instant queuedAt) {
+    public record WaitingPlayer(String playerId, String username, int rating, TimeControl timeControl, Instant queuedAt) {
         public Duration waitingTime(Instant now) {
             return Duration.between(queuedAt, now);
         }
@@ -24,9 +24,9 @@ public class MatchmakingQueue {
     // autowiring con un segundo constructor. Ver setClock() más abajo para tests.
     private Clock clock = Clock.systemUTC();
 
-    public void enqueue(String playerId, int rating, TimeControl timeControl) {
+    public void enqueue(String playerId, String username, int rating, TimeControl timeControl) {
         remove(playerId); // evita duplicados si ya estaba esperando (p. ej. doble click)
-        queue.add(new WaitingPlayer(playerId, rating, timeControl, Instant.now(clock)));
+        queue.add(new WaitingPlayer(playerId, username, rating, timeControl, Instant.now(clock)));
     }
 
     public void remove(String playerId) {

@@ -135,6 +135,23 @@ a {
     filter: brightness(1.2);
 }
 
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.whoami {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--parchment-dim);
+}
+
+.whoami strong {
+    color: var(--brass-bright);
+    font-weight: 600;
+}
+
 /* ---- Pantallas ---- */
 
 .screen[hidden] {
@@ -641,6 +658,26 @@ a {
     gap: 0.5rem;
 }
 
+.clock__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.clock__name {
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clock__row--active .clock__name {
+    color: var(--brass-bright);
+    font-weight: 600;
+}
+
 .clock__player {
     font-family: var(--font-mono);
     font-size: 1.6rem;
@@ -651,6 +688,7 @@ a {
     border: 1px solid var(--felt-border);
     border-radius: var(--radius-sm);
     color: var(--parchment-dim);
+    flex-shrink: 0;
 }
 
 .turn-indicator {

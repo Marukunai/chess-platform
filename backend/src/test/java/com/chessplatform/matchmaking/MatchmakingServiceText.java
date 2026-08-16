@@ -74,7 +74,7 @@ class MatchmakingServiceTest {
 
     @Test
     void tickDoesNothingWithFewerThanTwoPlayers() {
-        queue.enqueue("solo-player", 1500, TimeControl.BLITZ);
+        queue.enqueue("solo-player", "solo-player", 1500, TimeControl.BLITZ);
 
         service.tick();
 
@@ -84,8 +84,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickMatchesTwoPlayersWithCloseRatingsAndSameTimeControl() {
-        queue.enqueue("alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", 1520, TimeControl.BLITZ); // dentro de la ventana inicial (100)
+        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", 1520, TimeControl.BLITZ); // dentro de la ventana inicial (100)
 
         service.tick();
 
@@ -98,9 +98,24 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    void tickSetsBothUsernamesOnTheCreatedSession() {
+        queue.enqueue("alice-id", "alice", 1500, TimeControl.BLITZ);
+        queue.enqueue("bob-id", "bob", 1520, TimeControl.BLITZ);
+
+        service.tick();
+
+        GameSession session = sessionRegistry.allSessions().iterator().next();
+        // El color se sortea al azar (ver pairUp), así que comprobamos el PAR de
+        // nombres sin asumir quién quedó blancas — lo importante es que cada nombre
+        // viaje pegado al id de jugador correcto, no a cuál le tocó cada color.
+        assertThat(Set.of(session.whiteUsername(), session.blackUsername()))
+                .isEqualTo(Set.of("alice", "bob"));
+    }
+
+    @Test
     void tickDoesNotMatchPlayersWithDifferentTimeControls() {
-        queue.enqueue("alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", 1500, TimeControl.RAPID);
+        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", 1500, TimeControl.RAPID);
 
         service.tick();
 
@@ -110,8 +125,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickDoesNotMatchRatingsFarApartInitially() {
-        queue.enqueue("alice", 1000, TimeControl.BLITZ);
-        queue.enqueue("bob", 2000, TimeControl.BLITZ); // 1000 puntos de diferencia
+        queue.enqueue("alice", "alice", 1000, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", 2000, TimeControl.BLITZ); // 1000 puntos de diferencia
 
         service.tick();
 
@@ -121,8 +136,8 @@ class MatchmakingServiceTest {
 
     @Test
     void tickEventuallyMatchesFarApartRatingsAsTheWaitGrows() {
-        queue.enqueue("alice", 1000, TimeControl.BLITZ);
-        queue.enqueue("bob", 2000, TimeControl.BLITZ);
+        queue.enqueue("alice", "alice", 1000, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", 2000, TimeControl.BLITZ);
 
         clock.advance(Duration.ofSeconds(60)); // la ventana ya creció mucho para ambos
         service.tick();
@@ -132,8 +147,8 @@ class MatchmakingServiceTest {
 
     @Test
     void matchedPlayersGetAssignedToOppositeColorsInTheSameGame() {
-        queue.enqueue("alice", 1500, TimeControl.BLITZ);
-        queue.enqueue("bob", 1500, TimeControl.BLITZ);
+        queue.enqueue("alice", "alice", 1500, TimeControl.BLITZ);
+        queue.enqueue("bob", "bob", 1500, TimeControl.BLITZ);
 
         service.tick();
 
@@ -144,10 +159,10 @@ class MatchmakingServiceTest {
                 .map(m -> (MatchFoundMessage) m)
                 .toList();
 
-        assertThat(messages.getFirst().gameId()).isEqualTo(messages.get(1).gameId());
-        assertThat(Set.of(messages.getFirst().color(), messages.get(1).color())).isEqualTo(Set.of("white", "black"));
+        assertThat(messages.get(0).gameId()).isEqualTo(messages.get(1).gameId());
+        assertThat(Set.of(messages.get(0).color(), messages.get(1).color())).isEqualTo(Set.of("white", "black"));
 
-        GameSession session = sessionRegistry.find(messages.getFirst().gameId()).orElseThrow();
+        GameSession session = sessionRegistry.find(messages.get(0).gameId()).orElseThrow();
         assertThat(Set.of(session.whitePlayerId(), session.blackPlayerId())).isEqualTo(Set.of("alice", "bob"));
     }
 }
