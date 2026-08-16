@@ -16,6 +16,35 @@ let isSearchingForMatch = false;
 let clockState = null; // { whiteMs, blackMs, turn, syncedAt }
 let clockTickInterval = null;
 
+// Recordar en qué partida estábamos (y de qué color) sobrevive a un F5 o a cerrar y
+// reabrir la pestaña — ver connectAndGoToLobby(), que la consulta nada más conectar
+// (tanto la primera vez como tras cualquier reconexión) para decidir si hay que volver
+// derecho a una partida en curso en vez de al lobby. myColor es puramente de
+// presentación (de qué lado se pinta el turno, qué jugadas se resaltan) — la única
+// autoridad real sobre quién puede mover es el propio backend, así que guardarlo tal
+// cual en localStorage no abre ningún hueco de seguridad.
+const ACTIVE_GAME_STORAGE_KEY = 'chess-platform-active-game';
+
+function storeActiveGame(gameId, color) {
+    localStorage.setItem(ACTIVE_GAME_STORAGE_KEY, JSON.stringify({ gameId, color }));
+}
+
+function clearActiveGame() {
+    localStorage.removeItem(ACTIVE_GAME_STORAGE_KEY);
+}
+
+function getStoredActiveGame() {
+    const raw = localStorage.getItem(ACTIVE_GAME_STORAGE_KEY);
+    if (!raw) {
+        return null;
+    }
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return null; // localStorage corrupto o de un formato viejo — mejor ignorarlo que romper el arranque
+    }
+}
+
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.setAttribute('hidden', ''));
     document.getElementById(screenId).removeAttribute('hidden');
@@ -63,8 +92,26 @@ function handleGameMessage(message) {
     } else if ('result' in message) {
         handleGameOver(message);
     } else if ('code' in message) {
-        document.getElementById('game-message').textContent = message.message;
+        if (message.code === 'GAME_NOT_FOUND') {
+            // Pasa al reconectar (F5, o tras perder la conexión un rato) si la partida ya
+            // había terminado mientras tanto — no tiene sentido quedarse en la pantalla
+            // de partida esperando algo que ya no existe.
+            handleGameNoLongerExists();
+        } else {
+            document.getElementById('game-message').textContent = message.message;
+        }
     }
+}
+
+function handleGameNoLongerExists() {
+    clearActiveGame();
+    if (gameSubscription) {
+        gameSubscription.unsubscribe();
+        gameSubscription = null;
+    }
+    stopClockTicking();
+    currentGameId = null;
+    enterLobby(getUserIdFromToken(getStoredToken()));
 }
 
 function handleStateSync(state) {
@@ -115,6 +162,7 @@ function handleGameOver(gameOver) {
     showGameOverModal(gameOver, myRatingChange);
 
     currentGameId = null;
+    clearActiveGame();
     stopClockTicking();
     hideDrawOfferBanner();
 }
@@ -207,26 +255,59 @@ function setSearchingState(searching) {
 
 function connectAndGoToLobby(token) {
     connect(token, () => {
+        // Se llama tras CADA conexión lograda, no solo la primera — así una reconexión
+        // en mitad de una partida (o simplemente recargar la página) nos devuelve
+        // exactamente donde estábamos en vez de mandarnos siempre al lobby.
         const userId = getUserIdFromToken(token);
-        showScreen('lobby-screen');
-
-        matchmakingSubscription = subscribeToMatchmaking(userId, (message) => {
-            if (message.gameId) {
-                onMatchFound(message);
-            } else if (message.code) {
-                document.getElementById('matchmaking-status').textContent = message.message;
-            }
-        });
+        const stored = getStoredActiveGame();
+        if (stored) {
+            enterGameScreen(stored.gameId, stored.color);
+        } else {
+            enterLobby(userId);
+        }
     }, () => {
-        clearStoredToken();
-        showScreen('auth-screen');
-        document.getElementById('auth-error').textContent = 'Sesión caducada o token inválido, vuelve a entrar.';
+        // Conexión perdida pero seguimos reintentando en segundo plano, indefinidamente
+        // (ver websocket-client.js) — no navegamos a ningún sitio ni tocamos el token
+        // solo por esto. El indicador "Reconectando..." ya lo deja claro por sí solo, y
+        // es clicable si alguien no quiere esperar (ver el listener de
+        // connection-status más abajo).
     });
 }
 
+function enterLobby(userId) {
+    showScreen('lobby-screen');
+    matchmakingSubscription = subscribeToMatchmaking(userId, (message) => {
+        if (message.gameId) {
+            onMatchFound(message);
+        } else if (message.code) {
+            document.getElementById('matchmaking-status').textContent = message.message;
+        }
+    });
+}
+
+/**
+ * Punto único para entrar en la pantalla de partida — tanto al emparejar de cero
+ * (onMatchFound) como al recuperar una partida en curso (connectAndGoToLobby, tras
+ * F5 o una reconexión). Volver a llamarla sobre una partida ya en marcha es seguro:
+ * vuelve a suscribirse (la suscripción vieja murió con la conexión anterior) y vuelve
+ * a pedir el estado, sin duplicar nada.
+ */
+function enterGameScreen(gameId, color) {
+    currentGameId = gameId;
+    myColor = color;
+    storeActiveGame(gameId, color);
+
+    hideGameOverModal();
+    hideDrawOfferBanner();
+    document.getElementById('game-message').textContent = '';
+
+    gameSubscription = subscribeToGame(gameId, handleGameMessage);
+    joinGame(gameId);
+    showScreen('game-screen');
+    startClockTicking();
+}
+
 function onMatchFound(match) {
-    currentGameId = match.gameId;
-    myColor = match.color;
     setSearchingState(false);
 
     if (matchmakingSubscription) {
@@ -234,14 +315,7 @@ function onMatchFound(match) {
         matchmakingSubscription = null;
     }
 
-    hideGameOverModal();
-    hideDrawOfferBanner();
-    document.getElementById('game-message').textContent = '';
-
-    gameSubscription = subscribeToGame(currentGameId, handleGameMessage);
-    joinGame(currentGameId); // pide el estado inicial de la partida
-    showScreen('game-screen');
-    startClockTicking();
+    enterGameScreen(match.gameId, match.color);
 }
 
 function leaveFinishedGameToLobby() {
@@ -251,6 +325,7 @@ function leaveFinishedGameToLobby() {
     }
     stopClockTicking();
     clockState = null;
+    clearActiveGame();
     hideGameOverModal();
     setSearchingState(false); // por si venía pegado "Buscando rival..." de antes de esta partida
     showScreen('lobby-screen');
@@ -296,8 +371,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('logout-btn').addEventListener('click', () => {
         clearStoredToken();
+        clearActiveGame();
         disconnect();
         showScreen('auth-screen');
+    });
+
+    // Salida manual por si alguien no quiere esperar al reintento automático (que ahora
+    // no tiene límite, ver websocket-client.js) — p. ej. si sabe que su token está
+    // caducado de verdad y prefiere volver a entrar ya. Solo hace algo mientras el
+    // indicador NO está en verde (tiene la clase status--clickable, ver setConnectionStatus).
+    document.getElementById('connection-status').addEventListener('click', (event) => {
+        if (!event.target.classList.contains('status--clickable')) {
+            return;
+        }
+        const giveUp = confirm('Seguimos intentando reconectar. ¿Prefieres cerrar sesión y volver a entrar tú mismo?');
+        if (giveUp) {
+            clearStoredToken();
+            clearActiveGame();
+            disconnect();
+            showScreen('auth-screen');
+        }
     });
 
     document.getElementById('find-match-btn').addEventListener('click', () => {

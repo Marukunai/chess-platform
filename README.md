@@ -212,6 +212,19 @@ sorpresa — cada una tiene su `TODO` correspondiente en el código:
   `docs/architecture-decisions.md`), no ha hecho falta construirlo — es lo primero que
   tocaría en cuanto aparezca uno.
 
+- **Una partida en curso no sobrevive a que el backend se reinicie**: `GameSession`
+  vive solo en memoria (`GameSessionRegistry`) y no se guarda en la base de datos hasta
+  que termina de forma normal (jaque mate, rendición, tiempo, tablas...) — ver
+  `GameResultRecorder`. Si el proceso del backend se reinicia a media partida (un
+  despliegue, un `Ctrl+C`, o el propio *free tier* de Render "despertando" tras dormir),
+  esa partida desaparece sin dejar rastro, ni siquiera en el historial. La reconexión
+  del cliente (ver ADR-012 y `websocket-client.js`) resuelve los baches de red o cerrar
+  y reabrir la pestaña — el servidor sigue teniendo la partida guardada en memoria, solo
+  hay que volver a engancharse — pero no puede hacer nada si el propio servidor pierde
+  esa memoria. Arreglarlo de verdad implicaría persistir el estado de cada partida de
+  forma continua mientras está en curso, no solo al terminar — un cambio bastante más
+  grande que la reconexión en sí, y que de momento se deja fuera a propósito.
+
 ## Licencia
 
 Proyecto personal / de aprendizaje. Ajusta esta sección si más adelante decides
