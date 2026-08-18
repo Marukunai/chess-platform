@@ -59,7 +59,7 @@ public record GameStateSyncMessage(
         List<String> legalMovesUci = legalMoves.stream().map(Move::toUci).toList();
         String status = inCheck ? "CHECK" : "IN_PROGRESS";
         List<Move> moveHistory = board.moveHistory();
-        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1).toUci();
+        String lastMoveUci = moveHistory.isEmpty() ? null : moveHistory.getLast().toUci();
 
         return new GameStateSyncMessage(
                 session.gameId(),
