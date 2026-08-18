@@ -481,7 +481,7 @@ function renderAnnotations() {
     // que el resto del tablero (100 unidades = 1 casilla).
     svg.innerHTML = `<defs>
         <marker id="arrow-tip-${activeBoardElementId}" markerUnits="userSpaceOnUse"
-                markerWidth="34" markerHeight="30" refX="30" refY="15" orient="auto">
+                markerWidth="40" markerHeight="30" refX="30" refY="15" orient="auto">
             <path d="M0,2 L30,15 L0,28 Z" fill="${ARROW_COLOR}" />
         </marker>
     </defs>`;
