@@ -354,15 +354,30 @@ function hideGameOverModal() {
  * hoy solo lo usa la revancha, pero está pensado para cualquier aviso que tenga que
  * llegar sin importar en qué pantalla esté quien lo recibe.
  */
+/**
+ * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
+ * hoy lo usan la revancha y las solicitudes de amistad, así que hace falta distinguir
+ * seis formas distintas. RematchOfferMessage y FriendRequestNotification comparten
+ * fromUserId+fromUsername (solo el primero tiene además timeControlPreset), y
+ * RematchDeclinedMessage/FriendRequestAcceptedNotification comparten byUsername (solo
+ * el segundo tiene además byUserId) — por eso el campo MÁS ESPECÍFICO de cada par se
+ * comprueba primero, y el más genérico queda como última opción dentro de cada rama.
+ */
 function handleUserChannelMessage(message) {
     if ('gameId' in message && 'color' in message) {
         // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
         onMatchFound(message);
-    } else if ('fromUserId' in message) {
+    } else if ('timeControlPreset' in message) {
         showRematchOfferToast(message);
+    } else if ('byUserId' in message) {
+        showTransientNotice(`${message.byUsername} ha aceptado tu solicitud de amistad.`);
+        refreshFriendsScreenIfVisible();
     } else if ('byUsername' in message) {
         showTransientNotice(`${message.byUsername} ha rechazado la revancha.`);
         resetRematchButton();
+    } else if ('fromUserId' in message) {
+        showTransientNotice(`${message.fromUsername} te ha enviado una solicitud de amistad.`);
+        refreshFriendsScreenIfVisible();
     } else if ('code' in message) {
         showTransientNotice(message.message);
         resetRematchButton();
@@ -941,5 +956,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('leaderboard-back-btn').addEventListener('click', () => {
         showScreen('lobby-screen');
+    });
+
+    document.getElementById('friends-btn').addEventListener('click', async () => {
+        document.getElementById('friend-search-input').value = '';
+        document.getElementById('friend-search-results').innerHTML = '';
+        showScreen('friends-screen');
+        await refreshFriendsScreen();
+    });
+
+    document.getElementById('friends-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
+    document.getElementById('friend-search-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const query = document.getElementById('friend-search-input').value.trim();
+        const resultsEl = document.getElementById('friend-search-results');
+        if (query.length < 2) {
+            resultsEl.textContent = 'Escribe al menos 2 caracteres.';
+            return;
+        }
+        try {
+            renderSearchResults(await searchUsers(query));
+        } catch (error) {
+            resultsEl.textContent = '';
+            showTransientNotice(error.message);
+        }
     });
 });
