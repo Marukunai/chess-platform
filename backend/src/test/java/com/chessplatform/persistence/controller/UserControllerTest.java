@@ -97,9 +97,9 @@ class UserControllerTest {
         List<LeaderboardEntryResponse> leaderboard = controller.leaderboard();
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
-        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
-        assertThat(leaderboard.get(0).rating()).isEqualTo(1800);
+        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
+        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
+        assertThat(leaderboard.getFirst().rating()).isEqualTo(1800);
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
     }

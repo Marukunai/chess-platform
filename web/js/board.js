@@ -1,6 +1,6 @@
 // Tablero interactivo: renderiza desde FEN (llega del servidor en cada
 // GameStateSyncMessage) y construye jugadas en notación algebraica para enviar por
-// WebSocket. Ya no hay posición fija — todo sale de lo que manda el backend.
+// WebSocket. Ya no hay posición fija — sale de lo que manda el backend.
 //
 // Modelo de interacción: clic-clic y arrastrar conviven. El arrastre se detecta con
 // Pointer Events (unifica ratón y toque en el mismo código, arrastrar con el dedo sale
