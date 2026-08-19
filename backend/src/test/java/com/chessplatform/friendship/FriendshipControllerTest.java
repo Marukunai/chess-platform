@@ -10,6 +10,7 @@ import com.chessplatform.persistence.entity.Friendship;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,11 +45,14 @@ class FriendshipControllerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private PresenceService presenceService;
+
     private FriendshipController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new FriendshipController(userRepository, friendshipRepository, messagingTemplate);
+        controller = new FriendshipController(userRepository, friendshipRepository, messagingTemplate, presenceService);
     }
 
     private static Authentication authenticationFor(String userId) {
@@ -105,7 +109,7 @@ class FriendshipControllerTest {
         List<UserSearchResultResponse> results = controller.search("bob", authenticationFor("alice-id"));
 
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).friendshipStatus()).isEqualTo("NONE");
+        assertThat(results.getFirst().friendshipStatus()).isEqualTo("NONE");
     }
 
     @Test
@@ -120,7 +124,7 @@ class FriendshipControllerTest {
 
         List<UserSearchResultResponse> results = controller.search("bob", authenticationFor("alice-id"));
 
-        assertThat(results.get(0).friendshipStatus()).isEqualTo("PENDING_SENT");
+        assertThat(results.getFirst().friendshipStatus()).isEqualTo("PENDING_SENT");
     }
 
     @Test
@@ -135,7 +139,7 @@ class FriendshipControllerTest {
 
         List<UserSearchResultResponse> results = controller.search("bob", authenticationFor("alice-id"));
 
-        assertThat(results.get(0).friendshipStatus()).isEqualTo("PENDING_RECEIVED");
+        assertThat(results.getFirst().friendshipStatus()).isEqualTo("PENDING_RECEIVED");
     }
 
     @Test
@@ -151,7 +155,7 @@ class FriendshipControllerTest {
 
         List<UserSearchResultResponse> results = controller.search("bob", authenticationFor("alice-id"));
 
-        assertThat(results.get(0).friendshipStatus()).isEqualTo("FRIENDS");
+        assertThat(results.getFirst().friendshipStatus()).isEqualTo("FRIENDS");
     }
 
     @Test
@@ -214,8 +218,8 @@ class FriendshipControllerTest {
         List<FriendRequestResponse> requests = controller.pendingRequests(authenticationFor("bob-id"));
 
         assertThat(requests).hasSize(1);
-        assertThat(requests.get(0).friendshipId()).isEqualTo("friendship-1");
-        assertThat(requests.get(0).fromUsername()).isEqualTo("alice");
+        assertThat(requests.getFirst().friendshipId()).isEqualTo("friendship-1");
+        assertThat(requests.getFirst().fromUsername()).isEqualTo("alice");
     }
 
     @Test
@@ -299,9 +303,28 @@ class FriendshipControllerTest {
 
         when(friendshipRepository.findAcceptedFriendships("alice-id"))
                 .thenReturn(List.of(aliceRequestedBob, carolRequestedAlice));
+        when(presenceService.statusOf(org.mockito.ArgumentMatchers.anyString())).thenReturn("OFFLINE");
 
         List<FriendResponse> friends = controller.friends(authenticationFor("alice-id"));
 
         assertThat(friends).extracting(FriendResponse::username).containsExactlyInAnyOrder("bob", "carol");
+    }
+
+    @Test
+    void friendsIncludesEachFriendsCurrentPresenceStatus() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of(friendship));
+        when(presenceService.statusOf("bob-id")).thenReturn("IN_GAME");
+
+        List<FriendResponse> friends = controller.friends(authenticationFor("alice-id"));
+
+        assertThat(friends).hasSize(1);
+        assertThat(friends.getFirst().status()).isEqualTo("IN_GAME");
     }
 }

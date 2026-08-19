@@ -10,6 +10,7 @@ import com.chessplatform.persistence.entity.Friendship;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
@@ -42,12 +43,14 @@ public class FriendshipController {
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final PresenceService presenceService;
 
     public FriendshipController(UserRepository userRepository, FriendshipRepository friendshipRepository,
-                                SimpMessagingTemplate messagingTemplate) {
+                                SimpMessagingTemplate messagingTemplate, PresenceService presenceService) {
         this.userRepository = userRepository;
         this.friendshipRepository = friendshipRepository;
         this.messagingTemplate = messagingTemplate;
+        this.presenceService = presenceService;
     }
 
     @GetMapping("/search")
@@ -134,7 +137,8 @@ public class FriendshipController {
         return friendshipRepository.findAcceptedFriendships(userId).stream()
                 .map(f -> {
                     User friend = f.theOtherUser(userId);
-                    return new FriendResponse(friend.getId(), friend.getUsername(), friend.getAvatarUrl());
+                    return new FriendResponse(friend.getId(), friend.getUsername(), friend.getAvatarUrl(),
+                            presenceService.statusOf(friend.getId()));
                 })
                 .toList();
     }
