@@ -9,5 +9,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
 
-    List<User> findTop50ByOrderByRatingDesc();
+    // DeletedAtIsNull en vez de un findTop50ByOrderByRatingDesc() sin más — una cuenta
+    // borrada (ver User.anonymizeForDeletion) no debe aparecer en el ranking.
+    List<User> findTop50ByDeletedAtIsNullOrderByRatingDesc();
 }

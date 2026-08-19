@@ -27,6 +27,36 @@ async function updateUserProfile(userId, { username, country, avatarUrl }) {
     return response.json();
 }
 
+async function changePassword(userId, currentPassword, newPassword) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/${userId}/password`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getStoredToken()}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || body?.message || `Error ${response.status} al cambiar la contraseña`);
+    }
+}
+
+async function deleteAccount(userId, password) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getStoredToken()}`,
+        },
+        body: JSON.stringify({ password }),
+    });
+    if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || body?.message || `Error ${response.status} al borrar la cuenta`);
+    }
+}
+
 async function fetchLeaderboard() {
     const response = await fetch(`${BACKEND_HTTP_URL}/api/users/leaderboard`);
     if (!response.ok) {

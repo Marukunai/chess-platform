@@ -17,6 +17,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -109,5 +111,21 @@ class AuthControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void loginRejectsADeletedAccountWithoutEvenCheckingThePassword() {
+        User user = new User("maru", "hash-almacenado");
+        user.anonymizeForDeletion("usuario-eliminado-abcd1234", "hash-inservible", java.time.Instant.now());
+        when(userRepository.findByUsername("usuario-eliminado-abcd1234")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> controller.login(
+                new AuthController.LoginRequest("usuario-eliminado-abcd1234", "cualquier-cosa")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        // isDeleted() corta por cortocircuito antes de llegar a comprobar la contraseña
+        // (ver el orden del || en login()) — ni falta que hace, ya está descartada.
+        verify(passwordEncoder, never()).matches(any(), any());
     }
 }
