@@ -351,22 +351,21 @@ function hideGameOverModal() {
 
 /**
  * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
- * hoy solo lo usa la revancha, pero está pensado para cualquier aviso que tenga que
- * llegar sin importar en qué pantalla esté quien lo recibe.
- */
-/**
- * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
- * hoy lo usan la revancha y las solicitudes de amistad, así que hace falta distinguir
- * seis formas distintas. RematchOfferMessage y FriendRequestNotification comparten
- * fromUserId+fromUsername (solo el primero tiene además timeControlPreset), y
- * RematchDeclinedMessage/FriendRequestAcceptedNotification comparten byUsername (solo
- * el segundo tiene además byUserId) — por eso el campo MÁS ESPECÍFICO de cada par se
- * comprueba primero, y el más genérico queda como última opción dentro de cada rama.
+ * hoy los usan revancha, amistad, presencia y chat directo, así que hace falta
+ * distinguir OCHO formas. Tres grupos comparten campos entre sí:
+ *   - RematchOfferMessage / FriendRequestNotification / DirectMessageNotification
+ *     comparten fromUserId+fromUsername (solo el primero tiene timeControlPreset, solo
+ *     el tercero tiene messageId+text) — por eso esos dos campos se comprueban ANTES
+ *     que el fromUserId genérico, que queda como última opción del grupo.
+ *   - RematchDeclinedMessage / FriendRequestAcceptedNotification comparten byUsername
+ *     (solo el segundo tiene además byUserId) — mismo motivo, byUserId primero.
  */
 function handleUserChannelMessage(message) {
     if ('gameId' in message && 'color' in message) {
         // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
         onMatchFound(message);
+    } else if ('messageId' in message) {
+        handleDirectMessageNotification(message);
     } else if ('timeControlPreset' in message) {
         showRematchOfferToast(message);
     } else if ('byUserId' in message) {
@@ -375,6 +374,8 @@ function handleUserChannelMessage(message) {
     } else if ('byUsername' in message) {
         showTransientNotice(`${message.byUsername} ha rechazado la revancha.`);
         resetRematchButton();
+    } else if ('status' in message) {
+        handlePresenceUpdate(message);
     } else if ('fromUserId' in message) {
         showTransientNotice(`${message.fromUsername} te ha enviado una solicitud de amistad.`);
         refreshFriendsScreenIfVisible();
@@ -984,4 +985,26 @@ document.addEventListener('DOMContentLoaded', () => {
             showTransientNotice(error.message);
         }
     });
+
+    document.getElementById('dnd-toggle-input').addEventListener('change', (event) => {
+        setDoNotDisturb(event.target.checked);
+    });
+
+    document.getElementById('dm-chat-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = document.getElementById('dm-chat-input');
+        const text = input.value.trim();
+        if (!text || !currentDmFriendId) {
+            return;
+        }
+        try {
+            await sendDirectMessage(currentDmFriendId, text);
+            appendDirectMessageToLog(myUsername, text, false);
+            input.value = '';
+        } catch (error) {
+            showTransientNotice(error.message);
+        }
+    });
+
+    document.getElementById('dm-chat-close-btn').addEventListener('click', hideDirectMessageChat);
 });
