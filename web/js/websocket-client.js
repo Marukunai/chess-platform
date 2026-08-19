@@ -166,6 +166,10 @@ function sendChatMessage(gameId, text) {
     stompClient.send(`/app/game/${gameId}/chat`, {}, JSON.stringify({ text }));
 }
 
+function setDoNotDisturb(enabled) {
+    stompClient.send('/app/presence/dnd', {}, JSON.stringify({ enabled }));
+}
+
 function setConnectionStatus(state) {
     const statusEl = document.getElementById('connection-status');
     const labels = { connected: 'Conectado', reconnecting: 'Reconectando...', disconnected: 'Desconectado' };

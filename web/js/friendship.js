@@ -79,9 +79,7 @@ function buildFriendRowInfo(userId, username, avatarUrl) {
     info.appendChild(name);
 
     return info;
-}
-
-function renderSearchResults(results) {
+} function renderSearchResults(results) {
     const container = document.getElementById('friend-search-results');
     container.innerHTML = '';
 
@@ -192,8 +190,46 @@ function renderFriendsList(friends) {
     for (const friend of friends) {
         const row = document.createElement('div');
         row.className = 'friend-row';
-        row.appendChild(buildFriendRowInfo(friend.userId, friend.username, friend.avatarUrl));
+        row.dataset.userId = friend.userId; // para poder actualizar el punto de estado en directo, ver handlePresenceUpdate
+
+        const info = buildFriendRowInfo(friend.userId, friend.username, friend.avatarUrl);
+        const dot = document.createElement('span');
+        applyPresenceToDot(dot, friend.status);
+        info.prepend(dot);
+        row.appendChild(info);
+
+        const action = document.createElement('div');
+        action.className = 'friend-row__action';
+        const chatBtn = document.createElement('button');
+        chatBtn.type = 'button';
+        chatBtn.className = 'btn btn--ghost';
+        chatBtn.textContent = 'Chat';
+        chatBtn.addEventListener('click', () => openDirectMessageChat(friend.userId, friend.username));
+        action.appendChild(chatBtn);
+        row.appendChild(action);
+
         list.appendChild(row);
+    }
+}
+
+const PRESENCE_LABELS = {
+    ONLINE: 'En línea',
+    OFFLINE: 'Desconectado',
+    IN_GAME: 'En partida',
+    DO_NOT_DISTURB: 'No molestar',
+};
+
+function applyPresenceToDot(dotEl, status) {
+    const normalized = status || 'OFFLINE';
+    dotEl.className = `presence-dot presence-dot--${normalized.toLowerCase().replace(/_/g, '-')}`;
+    dotEl.title = PRESENCE_LABELS[normalized] || normalized;
+}
+
+/** Actualiza solo el punto de la fila correspondiente, sin recargar toda la lista — se llama al recibir un PresenceUpdateMessage en vivo. */
+function handlePresenceUpdate(update) {
+    const dot = document.querySelector(`.friend-row[data-user-id="${update.userId}"] .presence-dot`);
+    if (dot) {
+        applyPresenceToDot(dot, update.status);
     }
 }
 
@@ -212,5 +248,88 @@ async function refreshFriendsScreen() {
 function refreshFriendsScreenIfVisible() {
     if (!document.getElementById('friends-screen').hidden) {
         refreshFriendsScreen();
+    }
+}
+
+/* ============================= Chat privado con un amigo ============================= */
+// A diferencia del chat de partida (efímero, solo retransmisión), esta conversación se
+// guarda de verdad en el servidor — por eso hay que pedir el historial al abrir, no
+// basta con ir acumulando lo que llega mientras la pestaña está abierta.
+
+let currentDmFriendId = null;
+
+async function fetchDirectMessages(friendId) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/friends/${friendId}/messages`, {
+        headers: { Authorization: `Bearer ${getStoredToken()}` },
+    });
+    if (!response.ok) {
+        throw new Error(`Error ${response.status} al cargar la conversación`);
+    }
+    return response.json();
+}
+
+async function sendDirectMessage(friendId, text) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/friends/${friendId}/messages`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getStoredToken()}`,
+        },
+        body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || body?.message || `Error ${response.status} al enviar el mensaje`);
+    }
+    return response.json();
+}
+
+async function openDirectMessageChat(friendId, friendUsername) {
+    currentDmFriendId = friendId;
+    document.getElementById('dm-chat-title').textContent = `Chat con ${friendUsername}`;
+    document.getElementById('dm-chat-log').innerHTML = '';
+    document.getElementById('dm-chat-modal').hidden = false;
+
+    try {
+        const messages = await fetchDirectMessages(friendId);
+        for (const message of messages) {
+            const isFromFriend = message.senderUserId === friendId;
+            appendDirectMessageToLog(isFromFriend ? friendUsername : myUsername, message.text, isFromFriend);
+        }
+    } catch (error) {
+        showTransientNotice(error.message);
+    }
+}
+
+function hideDirectMessageChat() {
+    currentDmFriendId = null;
+    document.getElementById('dm-chat-modal').hidden = true;
+}
+
+function appendDirectMessageToLog(senderLabel, text, isFromFriend) {
+    const log = document.getElementById('dm-chat-log');
+    const entry = document.createElement('p');
+    entry.className = `chat__message ${isFromFriend ? '' : 'chat__message--mine'}`;
+    const strong = document.createElement('strong');
+    strong.textContent = `${senderLabel}: `;
+    entry.appendChild(strong);
+    entry.append(text);
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+/**
+ * Un mensaje puede llegar mientras la conversación con esa persona está abierta (se
+ * añade directamente al chat) o mientras se está en cualquier otra pantalla (se avisa
+ * con una notificación breve, sin interrumpir nada) — ver handleUserChannelMessage en
+ * main.js, que decide cuál de los dos casos aplica antes de llamar aquí.
+ */
+function handleDirectMessageNotification(notification) {
+    const chatIsOpenWithSender = currentDmFriendId === notification.fromUserId
+        && !document.getElementById('dm-chat-modal').hidden;
+    if (chatIsOpenWithSender) {
+        appendDirectMessageToLog(notification.fromUsername, notification.text, true);
+    } else {
+        showTransientNotice(`Nuevo mensaje de ${notification.fromUsername}.`);
     }
 }

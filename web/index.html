@@ -248,7 +248,13 @@
         <!-- Pantalla de amigos: buscar, solicitudes recibidas, lista de amigos -->
         <section id="friends-screen" class="screen screen--centered" hidden>
             <div class="card card--wide">
-                <h2 class="card__title">Amigos</h2>
+                <div class="friends-header">
+                    <h2 class="card__title">Amigos</h2>
+                    <label class="dnd-toggle">
+                        <input type="checkbox" id="dnd-toggle-input">
+                        <span>No molestar</span>
+                    </label>
+                </div>
 
                 <form id="friend-search-form" class="friend-search-form">
                     <input type="text" id="friend-search-input" class="friend-search-input"
@@ -396,6 +402,21 @@
                     </div>
                 </div>
                 <button id="quickview-close-btn" class="btn btn--ghost btn--block">Cerrar</button>
+            </div>
+        </div>
+
+        <!-- Chat privado con un amigo — a diferencia del chat de partida, esta conversación se guarda de verdad -->
+        <div id="dm-chat-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div class="modal-card modal-card--chat">
+                <h2 id="dm-chat-title" class="modal-card__title"></h2>
+                <div id="dm-chat-log" class="chat__log dm-chat-log"></div>
+                <form id="dm-chat-form" class="chat__form">
+                    <input id="dm-chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="1000"
+                        autocomplete="off">
+                    <button type="submit" class="btn btn--primary">Enviar</button>
+                </form>
+                <button type="button" id="dm-chat-close-btn" class="btn btn--ghost btn--block">Cerrar</button>
             </div>
         </div>
 

@@ -1456,3 +1456,68 @@ a {
     color: var(--parchment-dim);
     white-space: nowrap;
 }
+
+/* ---- Presencia (punto de estado junto a cada amigo) ---- */
+
+.friends-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+
+.friends-header .card__title {
+    margin-bottom: 0;
+}
+
+.dnd-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--parchment-dim);
+    cursor: pointer;
+}
+
+.presence-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.presence-dot--online {
+    background: var(--verdigris);
+    box-shadow: 0 0 4px var(--verdigris);
+}
+
+.presence-dot--offline {
+    background: var(--parchment-dim);
+    opacity: 0.5;
+}
+
+.presence-dot--in-game {
+    background: var(--brass-bright);
+    box-shadow: 0 0 4px var(--brass-bright);
+}
+
+.presence-dot--do-not-disturb {
+    background: var(--garnet);
+}
+
+/* ---- Chat privado con un amigo (modal) ---- */
+
+.modal-card--chat {
+    max-width: 380px;
+    text-align: left;
+}
+
+.modal-card--chat .modal-card__title {
+    text-align: center;
+}
+
+.dm-chat-log {
+    max-height: 260px;
+    min-height: 120px;
+}
