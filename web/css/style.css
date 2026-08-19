@@ -168,6 +168,20 @@ a {
     margin-bottom: 1.25rem;
 }
 
+.account-security-actions {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--felt-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.account-security-actions .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .field input:disabled {
     opacity: 0.5;
     cursor: not-allowed;

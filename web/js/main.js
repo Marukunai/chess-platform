@@ -507,14 +507,18 @@ async function goToProfileScreen() {
  * El nombre y el avatar quedan fijados dentro de GameSession en cuanto empieza una
  * partida (ver setUsernames()/setAvatars() en el backend) — cambiarlos a media partida
  * dejaría al rival viendo la versión vieja hasta que termine, una inconsistencia
- * confusa sin ningún beneficio real. El país no se captura en ningún sitio por
- * partida, así que ese sí se puede cambiar en cualquier momento.
+ * confusa sin ningún beneficio real. Borrar la cuenta a media partida también se
+ * bloquea (dejaría al rival con un GameSession apuntando a un usuario que ya no existe
+ * de verdad). El país no se captura en ningún sitio por partida, así que ese sí se
+ * puede cambiar en cualquier momento — y cambiar la contraseña tampoco se bloquea,
+ * porque no se muestra ni se usa en ningún sitio de la partida en curso.
  */
 function updateEditProfileLockState() {
     const locked = Boolean(currentGameId);
     document.getElementById('edit-profile-locked-notice').hidden = !locked;
     document.getElementById('edit-username').disabled = locked;
     document.getElementById('edit-avatar-url').disabled = locked;
+    document.getElementById('open-delete-account-btn').disabled = locked;
 }
 
 async function goToEditProfileScreen() {
@@ -857,6 +861,71 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen('profile-screen');
         } catch (error) {
             document.getElementById('edit-profile-error').textContent = error.message;
+        }
+    });
+
+    document.getElementById('go-to-change-password-btn').addEventListener('click', () => {
+        document.getElementById('change-password-form').reset();
+        document.getElementById('change-password-error').textContent = '';
+        document.getElementById('change-password-success').hidden = true;
+        showScreen('change-password-screen');
+    });
+
+    document.getElementById('change-password-cancel-btn').addEventListener('click', () => {
+        showScreen('edit-profile-screen');
+    });
+
+    document.getElementById('change-password-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const errorEl = document.getElementById('change-password-error');
+        errorEl.textContent = '';
+
+        const current = document.getElementById('change-password-current').value;
+        const next = document.getElementById('change-password-new').value;
+        const confirmNext = document.getElementById('change-password-confirm').value;
+
+        if (next !== confirmNext) {
+            errorEl.textContent = 'Las dos contraseñas nuevas no coinciden.';
+            return;
+        }
+
+        try {
+            const userId = getUserIdFromToken(getStoredToken());
+            await changePassword(userId, current, next);
+            document.getElementById('change-password-form').reset();
+            document.getElementById('change-password-success').hidden = false;
+        } catch (error) {
+            errorEl.textContent = error.message;
+        }
+    });
+
+    // El botón ya viene deshabilitado por updateEditProfileLockState() mientras hay una
+    // partida en curso — este listener ni se dispara en ese caso (un <button disabled>
+    // no genera eventos de clic), así que no hace falta repetir la comprobación aquí.
+    document.getElementById('open-delete-account-btn').addEventListener('click', () => {
+        document.getElementById('delete-account-password').value = '';
+        document.getElementById('delete-account-error').textContent = '';
+        document.getElementById('delete-account-modal').hidden = false;
+    });
+
+    document.getElementById('delete-account-cancel-btn').addEventListener('click', () => {
+        document.getElementById('delete-account-modal').hidden = true;
+    });
+
+    document.getElementById('delete-account-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const errorEl = document.getElementById('delete-account-error');
+        errorEl.textContent = '';
+        const password = document.getElementById('delete-account-password').value;
+
+        try {
+            const userId = getUserIdFromToken(getStoredToken());
+            await deleteAccount(userId, password);
+            document.getElementById('delete-account-modal').hidden = true;
+            performLogout();
+            alert('Tu cuenta se ha borrado correctamente.');
+        } catch (error) {
+            errorEl.textContent = error.message;
         }
     });
 

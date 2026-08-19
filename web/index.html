@@ -138,7 +138,8 @@
                 <h2 class="card__title">Editar perfil</h2>
                 <p id="edit-profile-locked-notice" class="edit-profile-locked-notice" hidden>
                     Tienes una partida en curso — el nombre y el avatar se quedan fijos hasta que termine
-                    (tu rival ya los está viendo tal cual eran al empezar). El país sí puedes cambiarlo ahora.
+                    (tu rival ya los está viendo tal cual eran al empezar), y no se puede borrar la cuenta
+                    mientras tanto. El país sí puedes cambiarlo ahora.
                 </p>
                 <form id="edit-profile-form">
                     <label class="field">
@@ -159,8 +160,69 @@
                     </div>
                 </form>
                 <p id="edit-profile-error" class="error-text" role="alert"></p>
+
+                <div class="account-security-actions">
+                    <button type="button" id="go-to-change-password-btn" class="btn btn--ghost btn--block">
+                        Cambiar contraseña
+                    </button>
+                    <button type="button" id="open-delete-account-btn" class="btn btn--danger btn--block">
+                        Borrar cuenta
+                    </button>
+                </div>
             </div>
         </section>
+
+        <!-- Cambiar contraseña — pantalla propia, mismo patrón que editar perfil -->
+        <section id="change-password-screen" class="screen screen--centered" hidden>
+            <div class="card card--auth">
+                <h2 class="card__title">Cambiar contraseña</h2>
+                <form id="change-password-form">
+                    <label class="field">
+                        <span class="field__label">Contraseña actual</span>
+                        <input type="password" id="change-password-current" required autocomplete="current-password">
+                    </label>
+                    <label class="field">
+                        <span class="field__label">Contraseña nueva</span>
+                        <input type="password" id="change-password-new" required autocomplete="new-password">
+                        <span class="field__hint">Mínimo 8 caracteres</span>
+                    </label>
+                    <label class="field">
+                        <span class="field__label">Repite la contraseña nueva</span>
+                        <input type="password" id="change-password-confirm" required autocomplete="new-password">
+                    </label>
+                    <div class="auth-buttons">
+                        <button type="submit" class="btn btn--primary">Guardar contraseña</button>
+                        <button type="button" id="change-password-cancel-btn" class="btn btn--ghost">Cancelar</button>
+                    </div>
+                </form>
+                <p id="change-password-error" class="error-text" role="alert"></p>
+                <p id="change-password-success" class="status-text" hidden>Contraseña actualizada correctamente.</p>
+            </div>
+        </section>
+
+        <!-- Borrar cuenta — modal, no pantalla: es una confirmación puntual, no un sitio en el que quedarse -->
+        <div id="delete-account-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div class="modal-card">
+                <h2 class="modal-card__title">Borrar cuenta</h2>
+                <p class="modal-card__subtitle">
+                    Tu nombre pasará a "Usuario eliminado" y no podrás volver a entrar con esta cuenta.
+                    Tus partidas guardadas seguirán existiendo para tus rivales. Esto no se puede deshacer.
+                </p>
+                <form id="delete-account-form">
+                    <label class="field">
+                        <span class="field__label">Confirma tu contraseña</span>
+                        <input type="password" id="delete-account-password" required autocomplete="current-password">
+                    </label>
+                    <p id="delete-account-error" class="error-text" role="alert"></p>
+                    <div class="auth-buttons">
+                        <button type="submit" class="btn btn--danger btn--block">Borrar mi cuenta
+                            definitivamente</button>
+                        <button type="button" id="delete-account-cancel-btn" class="btn btn--ghost">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <!-- Pantalla de ranking -->
         <section id="leaderboard-screen" class="screen screen--centered" hidden>

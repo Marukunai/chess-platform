@@ -1,5 +1,7 @@
 package com.chessplatform.persistence.controller;
 
+import com.chessplatform.persistence.dto.ChangePasswordRequest;
+import com.chessplatform.persistence.dto.DeleteAccountRequest;
 import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
 import com.chessplatform.persistence.dto.UpdateProfileRequest;
 import com.chessplatform.persistence.dto.UserProfileResponse;
@@ -10,18 +12,26 @@ import com.chessplatform.persistence.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,11 +43,19 @@ class UserControllerTest {
     @Mock
     private GameRepository gameRepository;
 
+    // Real de verdad, no mockeado — es un algoritmo puro y rápido, y así los tests de
+    // contraseña comprueban el comportamiento real (que "abc" no haga match con el hash
+    // de "xyz"), no una suposición de lo que haría un mock.
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private static final Instant FIXED_NOW = Instant.parse("2026-01-01T00:00:00Z");
+    private final Clock fixedClock = Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
+
     private UserController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new UserController(userRepository, gameRepository);
+        controller = new UserController(userRepository, gameRepository, passwordEncoder);
+        controller.setClock(fixedClock);
     }
 
     private static Game gameOf(User white, User black, String result) {
@@ -74,7 +92,7 @@ class UserControllerTest {
         alice.applyRatingUpdate(1800, 120, 0.06);
         User bob = new User("bob", "hash");
         bob.applyRatingUpdate(1600, 120, 0.06);
-        when(userRepository.findTop50ByOrderByRatingDesc()).thenReturn(List.of(alice, bob));
+        when(userRepository.findTop50ByDeletedAtIsNullOrderByRatingDesc()).thenReturn(List.of(alice, bob));
 
         List<LeaderboardEntryResponse> leaderboard = controller.leaderboard();
 
@@ -340,5 +358,144 @@ class UserControllerTest {
 
         assertThat(profile.country()).isNull();
         assertThat(profile.avatarUrl()).isNull();
+    }
+
+    @Test
+    void changePasswordRejectsEditingSomeoneElsesAccount() {
+        assertThatThrownBy(() ->
+                controller.changePassword("alice-id", new ChangePasswordRequest("x", "newpassword1"),
+                        authenticationFor("bob-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void changePasswordRejectsAnIncorrectCurrentPassword() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.changePassword("alice-id", new ChangePasswordRequest("incorrecta", "nuevapass123"),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void changePasswordRejectsATooShortNewPassword() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.changePassword("alice-id", new ChangePasswordRequest("correcta123", "corta"),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void changePasswordSavesANewWorkingHash() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        controller.changePassword("alice-id", new ChangePasswordRequest("correcta123", "nuevapass456"),
+                authenticationFor("alice-id"));
+
+        assertThat(passwordEncoder.matches("nuevapass456", alice.getPasswordHash())).isTrue();
+        assertThat(passwordEncoder.matches("correcta123", alice.getPasswordHash())).isFalse();
+    }
+
+    @Test
+    void changePasswordRejectsSettingTheSamePasswordAgain() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.changePassword("alice-id", new ChangePasswordRequest("correcta123", "correcta123"),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(userRepository, never()).save(alice);
+    }
+
+    @Test
+    void changePasswordRejectsReusingAPasswordFromRecentHistory() {
+        User alice = new User("alice", passwordEncoder.encode("original123"));
+        setId(alice, "alice-id");
+        // Ya cambiada una vez antes — "original123" queda en el historial, ya no es la actual.
+        alice.changePassword(passwordEncoder.encode("segunda456"));
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.changePassword("alice-id", new ChangePasswordRequest("segunda456", "original123"),
+                        authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void deleteAccountRejectsDeletingSomeoneElsesAccount() {
+        assertThatThrownBy(() ->
+                controller.deleteAccount("alice-id", new DeleteAccountRequest("x"), authenticationFor("bob-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void deleteAccountRejectsAnIncorrectPassword() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.deleteAccount("alice-id", new DeleteAccountRequest("incorrecta"), authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(alice.isDeleted()).isFalse(); // nada se tocó tras el rechazo
+    }
+
+    @Test
+    void deleteAccountAnonymizesTheUserInsteadOfRemovingTheRow() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-1234-5678-abcd");
+        when(userRepository.findById("alice-1234-5678-abcd")).thenReturn(Optional.of(alice));
+
+        controller.deleteAccount("alice-1234-5678-abcd", new DeleteAccountRequest("correcta123"),
+                authenticationFor("alice-1234-5678-abcd"));
+
+        assertThat(alice.isDeleted()).isTrue();
+        assertThat(alice.getUsername()).isEqualTo("usuario-eliminado-alice-12"); // primeros 8 caracteres del id
+        assertThat(alice.getCountry()).isNull();
+        assertThat(alice.getAvatarUrl()).isNull();
+        // Con la contraseña original ya no se puede entrar — la nueva es aleatoria e inaccesible.
+        assertThat(passwordEncoder.matches("correcta123", alice.getPasswordHash())).isFalse();
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue()).isSameAs(alice);
+    }
+
+    @Test
+    void deleteAccountDoesNotSaveAnythingWhenThePasswordIsWrong() {
+        User alice = new User("alice", passwordEncoder.encode("correcta123"));
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+
+        assertThatThrownBy(() ->
+                controller.deleteAccount("alice-id", new DeleteAccountRequest("incorrecta"), authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(userRepository, never()).save(alice);
     }
 }

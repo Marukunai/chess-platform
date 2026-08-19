@@ -53,9 +53,14 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@RequestBody LoginRequest request) {
         User user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> unauthorized());
+                .orElseThrow(this::unauthorized);
 
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        // Comprobar isDeleted() aquí es en realidad un cinturón y tirantes: como
+        // anonymizeForDeletion() cambia el username, un login con el nombre original ya
+        // fallaría solo por no encontrar a nadie con findByUsername(). Se deja explícito
+        // de todas formas — que una cuenta borrada nunca pueda entrar no debería depender
+        // de un efecto colateral de cómo está hecha la anonimización.
+        if (user.isDeleted() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw unauthorized();
         }
 

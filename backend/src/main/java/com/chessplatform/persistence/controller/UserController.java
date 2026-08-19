@@ -1,5 +1,7 @@
 package com.chessplatform.persistence.controller;
 
+import com.chessplatform.persistence.dto.ChangePasswordRequest;
+import com.chessplatform.persistence.dto.DeleteAccountRequest;
 import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
 import com.chessplatform.persistence.dto.UpdateProfileRequest;
 import com.chessplatform.persistence.dto.UserProfileResponse;
@@ -9,6 +11,8 @@ import com.chessplatform.persistence.repository.GameRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,31 +21,50 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 /**
  * Perfiles y clasificación. Consultar (GET) es de lectura pública a propósito, igual
  * que el historial (ver GameHistoryController): ver el perfil o el ranking de
- * cualquiera es normal en cualquier plataforma de ajedrez real. Editar (PUT) sí
- * necesita identidad de verdad — ver SecurityConfig y JwtAuthenticationFilter, que
- * existen justo por este endpoint.
+ * cualquiera es normal en cualquier plataforma de ajedrez real. Editar (PUT), cambiar
+ * contraseña y borrar la cuenta sí necesitan identidad de verdad — ver SecurityConfig y
+ * JwtAuthenticationFilter, que existen justo por este endpoint.
  */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
+    private static final int MIN_PASSWORD_LENGTH = 8; // misma regla que en el registro, ver AuthController
+
     private final UserRepository userRepository;
     private final GameRepository gameRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserController(UserRepository userRepository, GameRepository gameRepository) {
+    // Mutable y con valor por defecto en vez de un segundo constructor — con dos
+    // constructores, Spring no sabe cuál autoconectar (ninguno lleva @Autowired) y
+    // falla al arrancar con "No default constructor found". Mismo patrón que ya se usa
+    // en MatchmakingQueue.setClock(): un único constructor de verdad, y esto solo lo
+    // toca un test para no depender del instante exacto en el que corre de verdad.
+    private Clock clock = Clock.systemUTC();
+
+    public UserController(UserRepository userRepository, GameRepository gameRepository,
+                          PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.gameRepository = gameRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    void setClock(Clock clock) {
+        this.clock = clock;
     }
 
     @GetMapping("/leaderboard")
     public List<LeaderboardEntryResponse> leaderboard() {
-        List<User> topPlayers = userRepository.findTop50ByOrderByRatingDesc();
+        List<User> topPlayers = userRepository.findTop50ByDeletedAtIsNullOrderByRatingDesc();
         return IntStream.range(0, topPlayers.size())
                 .mapToObj(i -> {
                     User user = topPlayers.get(i);
@@ -68,12 +91,7 @@ public class UserController {
     @PutMapping("/{userId}")
     public UserProfileResponse updateProfile(@PathVariable String userId, @RequestBody UpdateProfileRequest request,
                                              Authentication authentication) {
-        if (authentication == null || !userId.equals(authentication.getName())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo puedes editar tu propio perfil");
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+        User user = requireOwnAccount(userId, authentication);
 
         String newUsername = request.username() == null ? "" : request.username().trim();
         if (newUsername.isBlank()) {
@@ -87,6 +105,69 @@ public class UserController {
         userRepository.save(user);
 
         return toProfileResponse(user);
+    }
+
+    @PutMapping("/{userId}/password")
+    public void changePassword(@PathVariable String userId, @RequestBody ChangePasswordRequest request,
+                               Authentication authentication) {
+        User user = requireOwnAccount(userId, authentication);
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseña actual no es correcta");
+        }
+        if (request.newPassword() == null || request.newPassword().length() < MIN_PASSWORD_LENGTH) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La contraseña nueva debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres");
+        }
+        // Cubre a la vez "es igual a la actual" y "es una de las últimas que ya tuviste"
+        // — la actual cuenta como una más de esas últimas, ver User.matchesAnyRecentPassword().
+        if (user.matchesAnyRecentPassword(request.newPassword(), passwordEncoder)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La contraseña nueva no puede coincidir con ninguna de las últimas 5 que has usado");
+        }
+
+        user.changePassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+    }
+
+    /**
+     * Borrado lógico, no DELETE de verdad — ver el javadoc de User.deletedAt. Exige la
+     * contraseña igual que cambiarla: es la acción más destructiva de todas, así que el
+     * listón de confirmación no puede ser más bajo que el de un cambio de contraseña
+     * normal.
+     */
+    @DeleteMapping("/{userId}")
+    public void deleteAccount(@PathVariable String userId, @RequestBody DeleteAccountRequest request,
+                              Authentication authentication) {
+        User user = requireOwnAccount(userId, authentication);
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseña no es correcta");
+        }
+
+        // Primeros 8 caracteres del id (un UUID) bastan para que no choque con nadie,
+        // y se leen mejor que el UUID entero si algún día aparecen en algún sitio.
+        String anonymizedUsername = "usuario-eliminado-" + user.getId().substring(0, 8);
+        // Un hash de verdad de BCrypt, pero de una contraseña aleatoria que nadie
+        // conoce — así el login queda descartado sin necesitar un campo "activo"
+        // aparte que comprobar en cada sitio (ver AuthController.login()).
+        String unusablePasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+
+        user.anonymizeForDeletion(anonymizedUsername, unusablePasswordHash, Instant.now(clock));
+        userRepository.save(user);
+    }
+
+    /**
+     * Comparte la comprobación de "¿esta identidad autenticada puede tocar este
+     * perfil?" entre los tres endpoints de escritura — mismo motivo que ya se explica
+     * en updateProfile().
+     */
+    private User requireOwnAccount(String userId, Authentication authentication) {
+        if (authentication == null || !userId.equals(authentication.getName())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo puedes modificar tu propia cuenta");
+        }
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     }
 
     private String blankToNull(String value) {
