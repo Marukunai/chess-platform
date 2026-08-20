@@ -163,6 +163,9 @@
                 <p id="edit-profile-error" class="error-text" role="alert"></p>
 
                 <div class="account-security-actions">
+                    <button type="button" id="go-to-board-settings-from-profile-btn" class="btn btn--ghost btn--block">
+                        🎨 Apariencia del tablero
+                    </button>
                     <button type="button" id="go-to-change-password-btn" class="btn btn--ghost btn--block">
                         Cambiar contraseña
                     </button>
@@ -277,6 +280,26 @@
             </div>
         </section>
 
+        <!-- Apariencia del tablero — cosmético, solo para quien lo cambia (localStorage,
+             nunca se manda al servidor). Se llega aquí desde la partida o desde editar
+             perfil, siempre a la misma pantalla. -->
+        <section id="board-settings-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 class="card__title">Apariencia del tablero</h2>
+                <p class="board-settings__hint">
+                    Solo lo ves tú — tu rival sigue viendo el tablero con su propia configuración.
+                </p>
+
+                <p class="board-settings__label">Colores del tablero</p>
+                <div id="board-theme-options" class="theme-swatch-grid"></div>
+
+                <p class="board-settings__label">Estilo de piezas</p>
+                <div id="piece-style-options" class="theme-swatch-grid theme-swatch-grid--pieces"></div>
+
+                <button id="board-settings-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
         <!-- Pantalla de partida -->
         <section id="game-screen" class="screen" hidden>
             <main class="table">
@@ -337,6 +360,8 @@
                     </div>
 
                     <div class="controls">
+                        <button id="open-board-settings-btn" class="btn btn--ghost btn--block">🎨 Apariencia del
+                            tablero</button>
                         <button id="offer-draw-btn" class="btn btn--ghost btn--block">Ofrecer tablas</button>
                         <button id="resign-btn" class="btn btn--danger btn--block">Rendirse</button>
                     </div>
@@ -466,6 +491,7 @@
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
+    <script src="js/board-theme.js"></script>
     <script src="js/history.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/friendship.js"></script>

@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Historial de partidas — de lectura pública a propósito, como en cualquier plataforma
- * de ajedrez real (lichess, chess.com): revisar partidas ajenas es parte normal de
+ * de ajedrez real: revisar partidas ajenas es parte normal de
  * estudiar rivales o simplemente mirar. Por eso vive fuera de "anyRequest().authenticated()"
  * en SecurityConfig, y por eso no hace falta el JwtAuthenticationFilter (todavía
  * pendiente) para que esto funcione.

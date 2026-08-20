@@ -39,7 +39,8 @@ let clockTickInterval = null;
 // reabrir la pestaña — ver connectAndGoToLobby(), que la consulta nada más conectar
 // (tanto la primera vez como tras cualquier reconexión) para decidir si hay que volver
 // derecho a una partida en curso en vez de al lobby. myColor es puramente de
-// presentación (de qué lado se pinta el turno, qué jugadas se resaltan) — la única
+// presentación (de qué lado se pinta el turno, qué jugadas se resaltan, y ahora también
+// qué bando se pinta abajo en el tablero — ver renderBoard() en board.js) — la única
 // autoridad real sobre quién puede mover es el propio backend, así que guardarlo tal
 // cual en localStorage no abre ningún hueco de seguridad.
 const ACTIVE_GAME_STORAGE_KEY = 'chess-platform-active-game';
@@ -214,7 +215,7 @@ function handleStateSync(state) {
     const lastMove = buildLastMoveForAnimation(state);
     // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
     // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
-    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor, lastMove);
+    renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor, lastMove, myColor || 'white');
     renderScoresheet('move-list', state.movesNotation);
 
     document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
@@ -361,27 +362,34 @@ function hideGameOverModal() {
  *     (solo el segundo tiene además byUserId) — mismo motivo, byUserId primero.
  */
 function handleUserChannelMessage(message) {
-    if ('gameId' in message && 'color' in message) {
-        // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
-        onMatchFound(message);
-    } else if ('messageId' in message) {
-        handleDirectMessageNotification(message);
-    } else if ('timeControlPreset' in message) {
-        showRematchOfferToast(message);
-    } else if ('byUserId' in message) {
-        showTransientNotice(`${message.byUsername} ha aceptado tu solicitud de amistad.`);
-        refreshFriendsScreenIfVisible();
-    } else if ('byUsername' in message) {
-        showTransientNotice(`${message.byUsername} ha rechazado la revancha.`);
-        resetRematchButton();
-    } else if ('status' in message) {
-        handlePresenceUpdate(message);
-    } else if ('fromUserId' in message) {
-        showTransientNotice(`${message.fromUsername} te ha enviado una solicitud de amistad.`);
-        refreshFriendsScreenIfVisible();
-    } else if ('code' in message) {
-        showTransientNotice(message.message);
-        resetRematchButton();
+    try {
+        if ('gameId' in message && 'color' in message) {
+            // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
+            onMatchFound(message);
+        } else if ('messageId' in message) {
+            handleDirectMessageNotification(message);
+        } else if ('timeControlPreset' in message) {
+            showRematchOfferToast(message);
+        } else if ('byUserId' in message) {
+            showTransientNotice(`${message.byUsername} ha aceptado tu solicitud de amistad.`);
+            refreshFriendsScreenIfVisible();
+        } else if ('byUsername' in message) {
+            showTransientNotice(`${message.byUsername} ha rechazado la revancha.`);
+            resetRematchButton();
+        } else if ('status' in message) {
+            handlePresenceUpdate(message);
+        } else if ('fromUserId' in message) {
+            showTransientNotice(`${message.fromUsername} te ha enviado una solicitud de amistad.`);
+            refreshFriendsScreenIfVisible();
+        } else if ('code' in message) {
+            showTransientNotice(message.message);
+            resetRematchButton();
+        }
+    } catch (error) {
+        // Mismo motivo que en enterLobby: mejor un error visible en consola que un
+        // fallo mudo que deja a alguien con la partida ya empezada de verdad pero sin
+        // ninguna señal de ello en su propia pantalla.
+        console.error('Fallo al procesar un aviso de /topic/user:', error, message);
     }
 }
 
@@ -586,10 +594,22 @@ function connectAndGoToLobby(token) {
 function enterLobby(userId) {
     showScreen('lobby-screen');
     matchmakingSubscription = subscribeToMatchmaking(userId, (message) => {
-        if (message.gameId) {
-            onMatchFound(message);
-        } else if (message.code) {
-            document.getElementById('matchmaking-status').textContent = message.message;
+        try {
+            if (message.gameId) {
+                onMatchFound(message);
+            } else if (message.code) {
+                document.getElementById('matchmaking-status').textContent = message.message;
+            }
+        } catch (error) {
+            // Antes, un fallo aquí dejaba a la persona atascada mirando "Buscando
+            // rival..." mientras la partida ya existía de verdad al otro lado (el
+            // rival sí entraba) — silencioso y sin ninguna pista de qué había pasado.
+            // Como mínimo ahora queda constancia en la consola, y sobre todo: como
+            // enterGameScreen ya hace lo imprescindible (guardar la partida, cambiar
+            // de pantalla) ANTES de lo que podría fallar, aunque esto se dispare la
+            // persona ya está viendo el tablero — ver el reordenamiento de
+            // enterGameScreen más abajo.
+            console.error('Fallo al procesar el emparejamiento:', error);
         }
     });
 }
@@ -600,11 +620,18 @@ function enterLobby(userId) {
  * F5 o una reconexión). Volver a llamarla sobre una partida ya en marcha es seguro:
  * vuelve a suscribirse (la suscripción vieja murió con la conexión anterior) y vuelve
  * a pedir el estado, sin duplicar nada.
+ *
+ * Orden deliberado: lo imprescindible (guardar el estado, cambiar a la pantalla de
+ * partida) va primero, y lo demás (limpiar restos de una partida anterior, suscribirse
+ * al chat, pedir el estado) va después — si alguno de esos pasos de "limpieza" fallara
+ * por lo que sea, la persona ya estaría viendo el tablero en vez de quedarse atascada en
+ * el lobby sin ninguna pista de qué pasó.
  */
 function enterGameScreen(gameId, color) {
     currentGameId = gameId;
     myColor = color;
     storeActiveGame(gameId, color);
+    showScreen('game-screen');
 
     hideGameOverModal();
     hideDrawOfferBanner();
@@ -616,7 +643,6 @@ function enterGameScreen(gameId, color) {
 
     gameSubscription = subscribeToGame(gameId, handleGameMessage);
     joinGame(gameId);
-    showScreen('game-screen');
     startClockTicking();
 }
 
@@ -631,6 +657,17 @@ function onMatchFound(match) {
     enterGameScreen(match.gameId, match.color);
 }
 
+/**
+ * matchmakingSubscription se cierra y se pone a null en cuanto se encuentra partida
+ * (ver onMatchFound) — no vuelve a abrirse sola. Por eso aquí se llama a enterLobby(),
+ * no a showScreen('lobby-screen') a secas: sin volver a suscribirse, la próxima vez
+ * que se pulsara "Buscar partida" el servidor SÍ emparejaría (y crearía la partida de
+ * verdad, jugable desde el otro lado), pero este cliente nunca se enteraría — se
+ * quedaría mirando "Buscando rival..." para siempre, sin ningún fallo visible, porque
+ * nadie estaría escuchando ya el canal por el que llega el aviso. Es justo el fallo que
+ * hacía que recargar la página (F5) "arreglara" el problema: un F5 fuerza a pasar de
+ * nuevo por connectAndGoToLobby(), que sí vuelve a suscribirse desde cero.
+ */
 function leaveFinishedGameToLobby() {
     if (gameSubscription) {
         gameSubscription.unsubscribe();
@@ -641,10 +678,37 @@ function leaveFinishedGameToLobby() {
     clearActiveGame();
     hideGameOverModal();
     setSearchingState(false); // por si venía pegado "Buscando rival..." de antes de esta partida
-    showScreen('lobby-screen');
+    enterLobby(getUserIdFromToken(getStoredToken()));
+}
+
+/**
+ * Pinta las dos rejillas de muestras con la selección actual ya marcada, y cablea cada
+ * una para aplicar + guardar + repintar (así la muestra seleccionada se actualiza al
+ * instante, sin esperar a nada) en cuanto se elige otra opción.
+ */
+function openBoardSettings() {
+    const prefs = getBoardPreferences();
+
+    renderBoardThemeOptions(prefs.boardTheme, (themeId) => {
+        applyBoardTheme(themeId);
+        saveBoardPreferences({ ...getBoardPreferences(), boardTheme: themeId });
+        openBoardSettings(); // repinta las dos rejillas para mover el marco de "seleccionado"
+    });
+
+    renderPieceStyleOptions(prefs.pieceStyle, (styleId) => {
+        applyPieceStyle(styleId);
+        saveBoardPreferences({ ...getBoardPreferences(), pieceStyle: styleId });
+        openBoardSettings();
+    });
+
+    showScreen('board-settings-screen');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Antes que nada — así el primer tablero que se pinte ya sale con el tema guardado,
+    // no con el de fábrica un instante antes de "saltar" al correcto.
+    applyStoredBoardPreferences();
+
     // El tablero necesita saber a quién avisar cuando el jugador elige una jugada.
     onMoveAttempt = (move) => {
         if (currentGameId) {
@@ -967,6 +1031,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('friends-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
+    // Apariencia del tablero — se llega aquí desde la partida o desde editar perfil,
+    // siempre a la misma pantalla (ver board-theme.js). "Volver" siempre al lobby, sin
+    // importar de dónde se vino — si había una partida en curso, el propio botón
+    // "Volver a la partida" (persistente en la cabecera) ya se encarga de eso.
+    document.getElementById('open-board-settings-btn').addEventListener('click', openBoardSettings);
+    document.getElementById('go-to-board-settings-from-profile-btn').addEventListener('click', openBoardSettings);
+
+    document.getElementById('board-settings-back-btn').addEventListener('click', () => {
         showScreen('lobby-screen');
     });
 

@@ -688,14 +688,14 @@ a {
  * contorno fino del tono contrario para que se lea bien encima de cualquier casilla.
  */
 .square__piece--white {
-    color: var(--parchment);
-    -webkit-text-stroke: 1.5px var(--ink);
+    color: var(--piece-white-fill, var(--parchment));
+    -webkit-text-stroke: 1.5px var(--piece-white-stroke, var(--ink));
     paint-order: stroke fill;
 }
 
 .square__piece--black {
-    color: var(--ink);
-    -webkit-text-stroke: 1.5px var(--parchment);
+    color: var(--piece-black-fill, var(--ink));
+    -webkit-text-stroke: 1.5px var(--piece-black-stroke, var(--parchment));
     paint-order: stroke fill;
 }
 
@@ -719,11 +719,11 @@ a {
 }
 
 .square--light .square__coord {
-    color: rgba(107, 74, 53, 0.65);
+    color: var(--square-coord-light, rgba(107, 74, 53, 0.65));
 }
 
 .square--dark .square__coord {
-    color: rgba(237, 230, 214, 0.55);
+    color: var(--square-coord-dark, rgba(237, 230, 214, 0.55));
 }
 
 .square--light {
@@ -1520,4 +1520,81 @@ a {
 .dm-chat-log {
     max-height: 260px;
     min-height: 120px;
+}
+
+/* ---- Apariencia del tablero (temas, cosmético y por-espectador) ---- */
+
+.board-settings__hint {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+    margin: -0.5rem 0 1.5rem;
+}
+
+.board-settings__label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--parchment-dim);
+    margin: 0 0 0.75rem;
+}
+
+.theme-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.75rem;
+}
+
+.theme-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--ink-raised);
+    border: 2px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    color: var(--parchment-dim);
+    width: 92px;
+}
+
+.theme-swatch:hover {
+    border-color: var(--brass);
+}
+
+.theme-swatch--selected {
+    border-color: var(--brass-bright);
+    color: var(--brass-bright);
+}
+
+.theme-swatch__preview {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--felt-border);
+}
+
+.theme-swatch--piece {
+    width: auto;
+    min-width: 92px;
+}
+
+.theme-swatch__piece-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    width: 56px;
+    height: 56px;
+    background: var(--felt);
+    border-radius: 4px;
+    font-size: 1.6rem;
 }
