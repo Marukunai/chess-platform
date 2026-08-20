@@ -90,9 +90,11 @@ public class FriendshipController {
 
         friendshipRepository.save(new Friendship(requester, target));
 
-        messagingTemplate.convertAndSend(
-                "/topic/user/%s".formatted(targetUserId),
-                new FriendRequestNotification(requesterId, requester.getUsername()));
+        if (!presenceService.isDoNotDisturb(targetUserId)) {
+            messagingTemplate.convertAndSend(
+                    "/topic/user/%s".formatted(targetUserId),
+                    new FriendRequestNotification(requesterId, requester.getUsername()));
+        }
     }
 
     /** Solo las que ME HAN LLEGADO (soy el addressee) — las que yo mismo envié no aparecen aquí. */
@@ -122,10 +124,13 @@ public class FriendshipController {
         if (request.accept()) {
             friendship.accept();
             friendshipRepository.save(friendship);
-            messagingTemplate.convertAndSend(
-                    "/topic/user/%s".formatted(friendship.getRequester().getId()),
-                    new FriendRequestAcceptedNotification(
-                            friendship.getAddressee().getId(), friendship.getAddressee().getUsername()));
+            String requesterId = friendship.getRequester().getId();
+            if (!presenceService.isDoNotDisturb(requesterId)) {
+                messagingTemplate.convertAndSend(
+                        "/topic/user/%s".formatted(requesterId),
+                        new FriendRequestAcceptedNotification(
+                                friendship.getAddressee().getId(), friendship.getAddressee().getUsername()));
+            }
         } else {
             friendshipRepository.delete(friendship);
         }

@@ -1,6 +1,7 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.matchmaking.TimeControl;
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.rating.GameResultRecorder.RatingChanges;
 import com.chessplatform.realtime.dto.GameOverMessage;
@@ -26,12 +27,14 @@ public class GameEndNotifier {
     private final GameSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameResultRecorder gameResultRecorder;
+    private final PresenceService presenceService;
 
     public GameEndNotifier(GameSessionRegistry sessionRegistry, SimpMessagingTemplate messagingTemplate,
-                           GameResultRecorder gameResultRecorder) {
+                           GameResultRecorder gameResultRecorder, PresenceService presenceService) {
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
         this.gameResultRecorder = gameResultRecorder;
+        this.presenceService = presenceService;
     }
 
     /**
@@ -64,5 +67,11 @@ public class GameEndNotifier {
                 )
         );
         sessionRegistry.remove(session.gameId());
+
+        // Después de quitarla del registro, no antes — statusOf() decide "en partida"
+        // mirando si sigue habiendo una sesión activa para este jugador, así que hay
+        // que avisar a los amigos justo después de que deje de haberla.
+        presenceService.notifyFriendsOfStatusChange(session.whitePlayerId());
+        presenceService.notifyFriendsOfStatusChange(session.blackPlayerId());
     }
 }

@@ -3,6 +3,7 @@ package com.chessplatform.rematch;
 import com.chessplatform.matchmaking.dto.MatchFoundMessage;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import com.chessplatform.realtime.dto.ErrorMessage;
@@ -37,6 +38,9 @@ class RematchControllerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private PresenceService presenceService;
+
     private RematchService rematchService;
     private GameSessionRegistry sessionRegistry;
     private RematchController controller;
@@ -45,7 +49,7 @@ class RematchControllerTest {
     void setUp() {
         rematchService = new RematchService();
         sessionRegistry = new GameSessionRegistry();
-        controller = new RematchController(rematchService, sessionRegistry, userRepository, messagingTemplate);
+        controller = new RematchController(rematchService, sessionRegistry, userRepository, messagingTemplate, presenceService);
     }
 
     private static Principal principalFor(String userId) {
@@ -149,5 +153,48 @@ class RematchControllerTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/user/bob-id"), payload.capture());
         assertThat(payload.getValue()).isInstanceOf(ErrorMessage.class);
+    }
+
+    @Test
+    void proposeSuppressesTheOfferWhenTheTargetHasDoNotDisturbEnabled() {
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(new User("alice", "hash")));
+        when(presenceService.isDoNotDisturb("bob-id")).thenReturn(true);
+
+        controller.propose(new RematchProposalMessage("bob-id", "BLITZ", "black"), principalFor("alice-id"));
+
+        // La propuesta se registra igualmente (rematchService la tiene) — solo se
+        // silencia el aviso en vivo, no la propuesta en sí.
+        assertThat(rematchService.find("bob-id")).isPresent();
+        verify(messagingTemplate, org.mockito.Mockito.never())
+                .convertAndSend(eq("/topic/user/bob-id"), org.mockito.ArgumentMatchers.any(Object.class));
+    }
+
+    @Test
+    void respondDecliningSuppressesTheNotificationWhenTheProposerHasDoNotDisturbEnabled() {
+        when(userRepository.findById("bob-id")).thenReturn(Optional.of(new User("bob", "hash")));
+        when(presenceService.isDoNotDisturb("alice-id")).thenReturn(true);
+        rematchService.propose(new RematchService.PendingRematch(
+                "alice-id", "alice", "bob-id",
+                com.chessplatform.engine.Color.WHITE, com.chessplatform.engine.Color.BLACK,
+                com.chessplatform.matchmaking.TimeControl.BLITZ, "BLITZ"));
+
+        controller.respond(new RematchResponseMessage(false), principalFor("bob-id"));
+
+        verify(messagingTemplate, org.mockito.Mockito.never())
+                .convertAndSend(eq("/topic/user/alice-id"), org.mockito.ArgumentMatchers.any(Object.class));
+    }
+
+    @Test
+    void respondAcceptingNotifiesFriendsOfBothPlayersThatTheyAreNowInAGame() {
+        when(userRepository.findById("bob-id")).thenReturn(Optional.of(new User("bob", "hash")));
+        rematchService.propose(new RematchService.PendingRematch(
+                "alice-id", "alice", "bob-id",
+                com.chessplatform.engine.Color.WHITE, com.chessplatform.engine.Color.BLACK,
+                com.chessplatform.matchmaking.TimeControl.BLITZ, "BLITZ"));
+
+        controller.respond(new RematchResponseMessage(true), principalFor("bob-id"));
+
+        verify(presenceService).notifyFriendsOfStatusChange("alice-id");
+        verify(presenceService).notifyFriendsOfStatusChange("bob-id");
     }
 }

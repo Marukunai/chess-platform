@@ -9,6 +9,7 @@ import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.DirectMessageRepository;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
@@ -39,14 +40,16 @@ public class DirectMessageController {
     private final FriendshipRepository friendshipRepository;
     private final DirectMessageRepository directMessageRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final PresenceService presenceService;
 
     public DirectMessageController(UserRepository userRepository, FriendshipRepository friendshipRepository,
                                    DirectMessageRepository directMessageRepository,
-                                   SimpMessagingTemplate messagingTemplate) {
+                                   SimpMessagingTemplate messagingTemplate, PresenceService presenceService) {
         this.userRepository = userRepository;
         this.friendshipRepository = friendshipRepository;
         this.directMessageRepository = directMessageRepository;
         this.messagingTemplate = messagingTemplate;
+        this.presenceService = presenceService;
     }
 
     @GetMapping
@@ -80,12 +83,15 @@ public class DirectMessageController {
 
         DirectMessage saved = directMessageRepository.save(new DirectMessage(sender, recipient, text));
 
-        // Si el destinatario está desconectado, no hay nadie escuchando este topic ahora
-        // mismo y no pasa nada — el mensaje ya está guardado, lo verá en su historial de
-        // conversación la próxima vez que la abra (ver conversation() arriba).
-        messagingTemplate.convertAndSend(
-                "/topic/user/%s".formatted(friendId),
-                new DirectMessageNotification(saved.getId(), userId, sender.getUsername(), text, saved.getSentAt().toString()));
+        // El mensaje se guarda igualmente aunque el destinatario tenga "no molestar" —
+        // solo se silencia el AVISO en vivo, no la entrega en sí. Lo verá en su
+        // historial de conversación la próxima vez que la abra (ver conversation()
+        // arriba), igual que si estuviera desconectado.
+        if (!presenceService.isDoNotDisturb(friendId)) {
+            messagingTemplate.convertAndSend(
+                    "/topic/user/%s".formatted(friendId),
+                    new DirectMessageNotification(saved.getId(), userId, sender.getUsername(), text, saved.getSentAt().toString()));
+        }
 
         return new DirectMessageResponse(saved.getId(), userId, text, saved.getSentAt().toString());
     }

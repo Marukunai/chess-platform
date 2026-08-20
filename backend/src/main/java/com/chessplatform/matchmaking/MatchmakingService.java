@@ -1,6 +1,7 @@
 package com.chessplatform.matchmaking;
 
 import com.chessplatform.matchmaking.dto.MatchFoundMessage;
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -30,13 +31,15 @@ public class MatchmakingService {
     private final MatchmakingQueue queue;
     private final GameSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
+    private final PresenceService presenceService;
     private final Random random = new Random();
 
     public MatchmakingService(MatchmakingQueue queue, GameSessionRegistry sessionRegistry,
-                              SimpMessagingTemplate messagingTemplate) {
+                              SimpMessagingTemplate messagingTemplate, PresenceService presenceService) {
         this.queue = queue;
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
+        this.presenceService = presenceService;
     }
 
     @Scheduled(fixedRate = TICK_INTERVAL_MS)
@@ -118,5 +121,11 @@ public class MatchmakingService {
         messagingTemplate.convertAndSend(
                 "/topic/matchmaking/%s".formatted(blackPlayerId),
                 new MatchFoundMessage(session.gameId(), "black"));
+
+        // Sus amigos deben verlos pasar a "en partida" sin tener que esperar a que se
+        // reconecten — statusOf() ya calcula esto solo a partir de GameSessionRegistry,
+        // pero nadie avisa del cambio si no se lo pedimos explícitamente aquí.
+        presenceService.notifyFriendsOfStatusChange(whitePlayerId);
+        presenceService.notifyFriendsOfStatusChange(blackPlayerId);
     }
 }
