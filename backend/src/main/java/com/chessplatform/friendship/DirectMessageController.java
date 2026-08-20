@@ -3,6 +3,7 @@ package com.chessplatform.friendship;
 import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
+import com.chessplatform.friendship.dto.MessagesReadNotification;
 import com.chessplatform.friendship.dto.SendDirectMessageRequest;
 import com.chessplatform.persistence.entity.DirectMessage;
 import com.chessplatform.persistence.entity.Friendship;
@@ -106,22 +107,48 @@ public class DirectMessageController {
         String userId = authentication.getName();
         requireFriendship(userId, friendId);
 
-        List<DirectMessage> messages = directMessageRepository.findConversation(userId, friendId);
-
         // Pedir la conversación ES verla — de paso se marcan como leídos los mensajes
-        // que llegaron mientras tanto. Reutiliza la misma lista que ya se pidió, sin
-        // hacer falta ninguna consulta aparte para esto.
+        // que llegaron mientras tanto (ver markUnreadMessagesAsRead). Esto cubre abrir
+        // el chat de cero; para un mensaje que llega en directo mientras la conversación
+        // YA está abierta hay un camino aparte, ver markConversationAsRead() más abajo —
+        // ese caso no pasa por aquí, porque no hay ningún nuevo GET de por medio.
+        List<DirectMessage> messages = directMessageRepository.findConversation(userId, friendId);
+        markUnreadMessagesAsRead(userId, friendId, messages);
+
+        return messages.stream()
+                .map(m -> new DirectMessageResponse(m.getId(), m.getSender().getId(), m.getText(), m.getSentAt().toString(), m.isRead()))
+                .toList();
+    }
+
+    /**
+     * Para cuando la conversación YA está abierta y llega un mensaje nuevo en directo
+     * por WebSocket — el cliente ya lo añade a la pantalla él solo (ver
+     * DirectMessageNotification), pero eso no pasa por ningún GET que lo marque leído
+     * en el servidor. Sin esto, alguien mirando la conversación en ese mismo instante
+     * seguiría viendo crecer su contador de no leídos por mensajes que ya está mirando.
+     */
+    @PostMapping("/api/friends/{friendId}/messages/read")
+    public void markConversationAsRead(@PathVariable String friendId, Authentication authentication) {
+        String userId = authentication.getName();
+        requireFriendship(userId, friendId);
+        markUnreadMessagesAsRead(userId, friendId, directMessageRepository.findConversation(userId, friendId));
+    }
+
+    private void markUnreadMessagesAsRead(String userId, String friendId, List<DirectMessage> messages) {
         List<DirectMessage> newlyRead = messages.stream()
                 .filter(m -> !m.isRead() && m.getRecipient().getId().equals(userId))
                 .toList();
         if (!newlyRead.isEmpty()) {
             newlyRead.forEach(DirectMessage::markAsRead);
             directMessageRepository.saveAll(newlyRead);
-        }
 
-        return messages.stream()
-                .map(m -> new DirectMessageResponse(m.getId(), m.getSender().getId(), m.getText(), m.getSentAt().toString()))
-                .toList();
+            // Todos esos mensajes los mandó la misma persona (friendId, el otro lado de
+            // esta conversación de dos) — le avisamos para que pueda ver "Leído" en su
+            // propia pantalla sin tener que volver a abrir nada.
+            messagingTemplate.convertAndSend(
+                    "/topic/user/%s".formatted(friendId),
+                    new MessagesReadNotification(userId));
+        }
     }
 
     @PostMapping("/api/friends/{friendId}/messages")
@@ -155,7 +182,7 @@ public class DirectMessageController {
                     new DirectMessageNotification(saved.getId(), userId, sender.getUsername(), text, saved.getSentAt().toString()));
         }
 
-        return new DirectMessageResponse(saved.getId(), userId, text, saved.getSentAt().toString());
+        return new DirectMessageResponse(saved.getId(), userId, text, saved.getSentAt().toString(), saved.isRead());
     }
 
     private void requireFriendship(String userId, String friendId) {

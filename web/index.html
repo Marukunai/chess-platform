@@ -26,6 +26,17 @@
                 <button id="return-to-game-btn" class="btn btn--primary return-to-game-btn" hidden type="button">
                     &#9823; Volver a la partida
                 </button>
+                <div id="chat-dropdown" class="chat-dropdown" hidden>
+                    <button id="chat-dropdown-toggle" class="chat-dropdown-toggle" type="button" title="Chat">
+                        <span aria-hidden="true">💬</span>
+                        <span id="chat-unread-badge" class="chat-unread-badge" hidden>0</span>
+                    </button>
+                    <div id="chat-dropdown-panel" class="chat-dropdown-panel" hidden>
+                        <input type="text" id="chat-dropdown-search" class="chat-dropdown-search"
+                            placeholder="Buscar amigo..." autocomplete="off">
+                        <div id="chat-dropdown-list" class="chat-dropdown-list"></div>
+                    </div>
+                </div>
                 <div id="whoami-dropdown" class="whoami-dropdown" hidden>
                     <button id="whoami-toggle" class="whoami-toggle" type="button">
                         <img id="whoami-avatar" class="whoami-avatar" hidden alt="">
@@ -461,6 +472,7 @@
             <div class="modal-card modal-card--chat">
                 <h2 id="dm-chat-title" class="modal-card__title"></h2>
                 <div id="dm-chat-log" class="chat__log dm-chat-log"></div>
+                <p id="dm-chat-read-receipt" class="dm-chat-read-receipt" hidden>✓ Leído</p>
                 <form id="dm-chat-form" class="chat__form">
                     <input id="dm-chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="1000"
                         autocomplete="off">
