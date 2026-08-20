@@ -431,6 +431,34 @@
             </div>
         </div>
 
+        <!-- Aviso de reto directo — mismo patrón que el de revancha, mismo motivo -->
+        <div id="challenge-offer-toast" class="rematch-toast" hidden>
+            <p id="challenge-offer-text"></p>
+            <div class="rematch-toast__actions">
+                <button id="challenge-accept-btn" class="btn btn--primary">Aceptar</button>
+                <button id="challenge-decline-btn" class="btn btn--ghost">Rechazar</button>
+            </div>
+        </div>
+
+        <!-- Elegir control de tiempo antes de mandar un reto — se abre desde la fila de un amigo -->
+        <div id="challenge-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div class="modal-card">
+                <h2 id="challenge-modal-title" class="modal-card__title"></h2>
+                <label class="field">
+                    <span class="field__label">Control de tiempo</span>
+                    <select id="challenge-time-control-select">
+                        <option value="BULLET">Bullet — 1+0</option>
+                        <option value="BLITZ" selected>Blitz — 5+3</option>
+                        <option value="RAPID">Rápidas — 10+5</option>
+                        <option value="CLASSICAL">Clásicas — 30+20</option>
+                    </select>
+                </label>
+                <button type="button" id="challenge-send-btn" class="btn btn--primary btn--block">Enviar reto</button>
+                <button type="button" id="challenge-cancel-btn" class="btn btn--ghost btn--block">Cancelar</button>
+            </div>
+        </div>
+
         <!-- Notificación breve y autoocultable, para avisos puntuales (p. ej. "X rechazó la revancha") -->
         <div id="transient-notice" class="transient-notice" hidden></div>
 

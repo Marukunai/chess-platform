@@ -1199,6 +1199,15 @@ a {
     display: none;
 }
 
+/* El aviso de reto reutiliza toda la apariencia de .rematch-toast, pero necesita su
+   propia posición — si algún día coincidieran un aviso de revancha y uno de reto a la
+   vez (viniendo de sitios distintos: la revancha de terminar una partida, el reto de un
+   amigo en cualquier otro momento), sin esto se pintarían exactamente superpuestos, uno
+   encima del otro, en vez de uno debajo del otro. */
+#challenge-offer-toast {
+    top: calc(5.5rem + 6.5rem);
+}
+
 .rematch-toast p {
     margin: 0 0 0.75rem;
     color: var(--parchment);

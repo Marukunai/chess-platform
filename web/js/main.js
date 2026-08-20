@@ -411,21 +411,29 @@ function hideGameOverModal() {
 
 /**
  * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
- * hoy los usan revancha, amistad, presencia y chat directo, así que hace falta
- * distinguir NUEVE formas. Tres grupos comparten campos entre sí:
- *   - RematchOfferMessage / FriendRequestNotification / DirectMessageNotification
- *     comparten fromUserId+fromUsername (solo el primero tiene timeControlPreset, solo
- *     el tercero tiene messageId+text) — por eso esos dos campos se comprueban ANTES
- *     que el fromUserId genérico, que queda como última opción del grupo.
- *   - RematchDeclinedMessage / FriendRequestAcceptedNotification comparten byUsername
- *     (solo el segundo tiene además byUserId) — mismo motivo, byUserId primero.
+ * hoy los usan revancha, retos directos, amistad, presencia y chat directo, así que
+ * hace falta distinguir ONCE formas. Cuatro grupos comparten campos entre sí:
+ *   - RematchOfferMessage / ChallengeOfferMessage / FriendRequestNotification /
+ *     DirectMessageNotification comparten fromUserId+fromUsername (el primero y el
+ *     segundo tienen además timeControlPreset, el tercero nada más, el cuarto
+ *     messageId+text) — por eso 'challenge' se comprueba ANTES que timeControlPreset a
+ *     secas, y ambos antes que el fromUserId genérico, que queda como última opción.
+ *   - RematchDeclinedMessage / ChallengeDeclinedMessage / FriendRequestAcceptedNotification
+ *     comparten byUsername (el segundo tiene además 'challenge', el tercero byUserId)
+ *     — mismo motivo, los más específicos primero.
  * MessagesReadNotification (readByUserId) no comparte campo con nada más, va aparte.
  */
 function handleUserChannelMessage(message) {
     try {
         if ('gameId' in message && 'color' in message) {
-            // Revancha aceptada — funciona exactamente igual que un emparejamiento normal.
+            // Revancha o reto aceptado — funciona exactamente igual que un emparejamiento normal.
             onMatchFound(message);
+        } else if ('challenge' in message) {
+            if ('timeControlPreset' in message) {
+                showChallengeOfferToast(message);
+            } else {
+                showTransientNotice(`${message.byUsername} ha rechazado tu reto.`);
+            }
         } else if ('messageId' in message) {
             handleDirectMessageNotification(message);
         } else if ('readByUserId' in message) {
@@ -466,6 +474,21 @@ function showRematchOfferToast(offer) {
 function hideRematchOfferToast() {
     pendingRematchOffer = null;
     document.getElementById('rematch-offer-toast').hidden = true;
+}
+
+let pendingChallengeOffer = null;
+
+function showChallengeOfferToast(offer) {
+    pendingChallengeOffer = offer;
+    const presetLabel = TIME_CONTROL_LABELS[offer.timeControlPreset] || offer.timeControlPreset;
+    document.getElementById('challenge-offer-text').textContent =
+        `${offer.fromUsername} te ha retado a una partida (${presetLabel}).`;
+    document.getElementById('challenge-offer-toast').hidden = false;
+}
+
+function hideChallengeOfferToast() {
+    pendingChallengeOffer = null;
+    document.getElementById('challenge-offer-toast').hidden = true;
 }
 
 function resetRematchButton() {
@@ -709,6 +732,7 @@ function enterGameScreen(gameId, color) {
     hideGameOverModal();
     hideDrawOfferBanner();
     hideRematchOfferToast();
+    hideChallengeOfferToast();
     document.getElementById('game-message').textContent = '';
     document.getElementById('chat-log').innerHTML = '';
     updateMuteButtonLabel(); // refleja de inmediato si el silencio sobrevivió (reconexión) o se reseteó (partida nueva)
@@ -913,6 +937,28 @@ document.addEventListener('DOMContentLoaded', () => {
         respondToRematch(false);
         hideRematchOfferToast();
     });
+
+    document.getElementById('challenge-accept-btn').addEventListener('click', () => {
+        respondToChallenge(true);
+        hideChallengeOfferToast();
+    });
+
+    document.getElementById('challenge-decline-btn').addEventListener('click', () => {
+        respondToChallenge(false);
+        hideChallengeOfferToast();
+    });
+
+    document.getElementById('challenge-send-btn').addEventListener('click', () => {
+        if (!challengeModalTargetUserId) {
+            return;
+        }
+        const timeControl = document.getElementById('challenge-time-control-select').value;
+        proposeChallenge(challengeModalTargetUserId, timeControl);
+        showTransientNotice('Reto enviado.');
+        closeChallengeModal();
+    });
+
+    document.getElementById('challenge-cancel-btn').addEventListener('click', closeChallengeModal);
 
     document.getElementById('history-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());
