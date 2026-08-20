@@ -38,7 +38,12 @@ app:
     # entorno ALLOWED_ORIGIN — ver ADR correspondiente en docs/architecture-decisions.md.
     allowed-origins: ${ALLOWED_ORIGIN:http://localhost:5500}
 
+giphy:
+  # Vacío por defecto a propósito: sin clave, GifSearchController devuelve una lista
+  # vacía en vez de fallar — el buscador de GIFs es una función más, no algo de lo que
+  # dependa el resto de la plataforma. Consíguela gratis en developers.giphy.com.
+  api-key: ${GIPHY_API_KEY:}
+
 logging:
   level:
     com.chessplatform: DEBUG
-    org.springframework.security: DEBUG
