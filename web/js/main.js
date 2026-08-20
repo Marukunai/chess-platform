@@ -353,13 +353,14 @@ function hideGameOverModal() {
 /**
  * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
  * hoy los usan revancha, amistad, presencia y chat directo, así que hace falta
- * distinguir OCHO formas. Tres grupos comparten campos entre sí:
+ * distinguir NUEVE formas. Tres grupos comparten campos entre sí:
  *   - RematchOfferMessage / FriendRequestNotification / DirectMessageNotification
  *     comparten fromUserId+fromUsername (solo el primero tiene timeControlPreset, solo
  *     el tercero tiene messageId+text) — por eso esos dos campos se comprueban ANTES
  *     que el fromUserId genérico, que queda como última opción del grupo.
  *   - RematchDeclinedMessage / FriendRequestAcceptedNotification comparten byUsername
  *     (solo el segundo tiene además byUserId) — mismo motivo, byUserId primero.
+ * MessagesReadNotification (readByUserId) no comparte campo con nada más, va aparte.
  */
 function handleUserChannelMessage(message) {
     try {
@@ -368,6 +369,8 @@ function handleUserChannelMessage(message) {
             onMatchFound(message);
         } else if ('messageId' in message) {
             handleDirectMessageNotification(message);
+        } else if ('readByUserId' in message) {
+            handleMessagesReadNotification(message);
         } else if ('timeControlPreset' in message) {
             showRematchOfferToast(message);
         } else if ('byUserId' in message) {
@@ -500,6 +503,8 @@ async function ensureWhoAmIDisplayed(userId) {
     document.getElementById('whoami-name').textContent = myUsername;
     setClockAvatar('whoami-avatar', myAvatarUrl); // mismo helper que los avatares del reloj, mismo comportamiento
     document.getElementById('whoami-dropdown').hidden = false;
+    document.getElementById('chat-dropdown').hidden = false;
+    refreshChatUnreadBadge(); // para saber ya desde el primer momento si hay algo sin leer, sin esperar a abrir el desplegable
 }
 
 function hideWhoAmI() {
@@ -507,6 +512,8 @@ function hideWhoAmI() {
     myAvatarUrl = null;
     document.getElementById('whoami-dropdown').hidden = true;
     document.getElementById('whoami-menu').hidden = true;
+    document.getElementById('chat-dropdown').hidden = true;
+    closeChatDropdown();
 }
 
 /** Reutilizada tanto por el botón del lobby como por "Ver mi perfil" del desplegable. */
@@ -878,10 +885,23 @@ document.addEventListener('DOMContentLoaded', () => {
         menu.hidden = !menu.hidden;
     });
 
+    document.getElementById('chat-dropdown-toggle').addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleChatDropdown();
+    });
+
+    document.getElementById('chat-dropdown-search').addEventListener('input', (event) => {
+        renderChatDropdownList(lastFetchedConversations, event.target.value);
+    });
+
     document.addEventListener('click', (event) => {
-        const dropdown = document.getElementById('whoami-dropdown');
-        if (!dropdown.contains(event.target)) {
+        const whoamiDropdown = document.getElementById('whoami-dropdown');
+        if (!whoamiDropdown.contains(event.target)) {
             document.getElementById('whoami-menu').hidden = true;
+        }
+        const chatDropdown = document.getElementById('chat-dropdown');
+        if (!chatDropdown.contains(event.target)) {
+            closeChatDropdown();
         }
     });
 
@@ -1075,6 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await sendDirectMessage(currentDmFriendId, text);
             appendDirectMessageToLog(myUsername, text, false);
+            hideReadReceipt(); // mensaje recién mandado — nadie lo ha podido leer todavía
             input.value = '';
         } catch (error) {
             showTransientNotice(error.message);

@@ -3,6 +3,7 @@ package com.chessplatform.friendship;
 import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
+import com.chessplatform.friendship.dto.MessagesReadNotification;
 import com.chessplatform.friendship.dto.SendDirectMessageRequest;
 import com.chessplatform.persistence.entity.DirectMessage;
 import com.chessplatform.persistence.entity.Friendship;
@@ -111,6 +112,25 @@ class DirectMessageControllerTest {
         assertThat(conversation.get(0).text()).isEqualTo("hola");
         assertThat(conversation.get(0).senderUserId()).isEqualTo("alice-id");
         assertThat(conversation.get(1).senderUserId()).isEqualTo("bob-id");
+    }
+
+    @Test
+    void conversationIncludesTheReadStatusOfEachMessage() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage stillUnread = new DirectMessage(alice, bob, "hola bob"); // el propio filtro de marcado solo toca mensajes dirigidos A MÍ, este es mío
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id"))
+                .thenReturn(List.of(readMessage(bob, alice, "ya leído"), stillUnread));
+
+        List<DirectMessageResponse> conversation = controller.conversation("bob-id", authenticationFor("alice-id"));
+
+        assertThat(conversation.get(0).read()).isTrue();
+        assertThat(conversation.get(1).read()).isFalse();
     }
 
     @Test
@@ -361,5 +381,85 @@ class DirectMessageControllerTest {
         DirectMessage message = new DirectMessage(sender, recipient, text);
         message.markAsRead();
         return message;
+    }
+
+    @Test
+    void markConversationAsReadMarksUnreadMessagesAddressedToMe() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage justArrived = new DirectMessage(bob, alice, "hola, estás ahí?");
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(justArrived));
+
+        controller.markConversationAsRead("bob-id", authenticationFor("alice-id"));
+
+        assertThat(justArrived.isRead()).isTrue();
+        verify(directMessageRepository).saveAll(List.of(justArrived));
+    }
+
+    @Test
+    void markConversationAsReadNotifiesTheOriginalSenderThatTheirMessagesWereRead() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage justArrived = new DirectMessage(bob, alice, "hola, estás ahí?");
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(justArrived));
+
+        controller.markConversationAsRead("bob-id", authenticationFor("alice-id"));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/user/bob-id"), payload.capture());
+        assertThat(((MessagesReadNotification) payload.getValue()).readByUserId()).isEqualTo("alice-id");
+    }
+
+    @Test
+    void markConversationAsReadDoesNotNotifyAnyoneWhenThereWasNothingUnread() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id"))
+                .thenReturn(List.of(readMessage(bob, alice, "ya leído hace tiempo")));
+
+        controller.markConversationAsRead("bob-id", authenticationFor("alice-id"));
+
+        verify(messagingTemplate, never()).convertAndSend(eq("/topic/user/bob-id"), any(Object.class));
+    }
+
+    @Test
+    void markConversationAsReadRejectsSomeoneWhoIsNotYourFriend() {
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.markConversationAsRead("bob-id", authenticationFor("alice-id")))
+                .isInstanceOf(ResponseStatusException.class);
+        verify(directMessageRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void markConversationAsReadDoesNothingWhenThereIsNothingUnread() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id"))
+                .thenReturn(List.of(readMessage(bob, alice, "ya leído hace tiempo")));
+
+        controller.markConversationAsRead("bob-id", authenticationFor("alice-id"));
+
+        verify(directMessageRepository, never()).saveAll(any());
     }
 }
