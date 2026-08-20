@@ -9,6 +9,7 @@ import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.DirectMessageRepository;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,11 +48,15 @@ class DirectMessageControllerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private PresenceService presenceService;
+
     private DirectMessageController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new DirectMessageController(userRepository, friendshipRepository, directMessageRepository, messagingTemplate);
+        controller = new DirectMessageController(userRepository, friendshipRepository, directMessageRepository,
+                messagingTemplate, presenceService);
     }
 
     private static Authentication authenticationFor(String userId) {
@@ -102,8 +107,8 @@ class DirectMessageControllerTest {
         List<DirectMessageResponse> conversation = controller.conversation("bob-id", authenticationFor("alice-id"));
 
         assertThat(conversation).hasSize(2);
-        assertThat(conversation.get(0).text()).isEqualTo("hola");
-        assertThat(conversation.get(0).senderUserId()).isEqualTo("alice-id");
+        assertThat(conversation.getFirst().text()).isEqualTo("hola");
+        assertThat(conversation.getFirst().senderUserId()).isEqualTo("alice-id");
         assertThat(conversation.get(1).senderUserId()).isEqualTo("bob-id");
     }
 
@@ -180,5 +185,28 @@ class DirectMessageControllerTest {
                 controller.send("un-extrano-id", new SendDirectMessageRequest("hola"), authenticationFor("alice-id")))
                 .isInstanceOf(ResponseStatusException.class);
         verify(directMessageRepository, never()).save(any());
+    }
+
+    @Test
+    void sendStillSavesTheMessageWhenTheRecipientHasDoNotDisturbEnabled() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(userRepository.findById("bob-id")).thenReturn(Optional.of(bob));
+        when(presenceService.isDoNotDisturb("bob-id")).thenReturn(true);
+        when(directMessageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DirectMessageResponse response = controller.send("bob-id", new SendDirectMessageRequest("hola bob"), authenticationFor("alice-id"));
+
+        // El mensaje se guarda y se devuelve igualmente — "no molestar" solo silencia
+        // el aviso en vivo, no la entrega. Lo verá en la conversación cuando la abra.
+        assertThat(response.text()).isEqualTo("hola bob");
+        verify(directMessageRepository).save(any());
+        verify(messagingTemplate, never()).convertAndSend(eq("/topic/user/bob-id"), any(Object.class));
     }
 }

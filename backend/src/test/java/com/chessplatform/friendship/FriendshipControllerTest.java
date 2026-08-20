@@ -327,4 +327,41 @@ class FriendshipControllerTest {
         assertThat(friends).hasSize(1);
         assertThat(friends.getFirst().status()).isEqualTo("IN_GAME");
     }
+
+    @Test
+    void sendRequestSuppressesTheNotificationWhenTheTargetHasDoNotDisturbEnabled() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(userRepository.findById("bob-id")).thenReturn(Optional.of(bob));
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.empty());
+        when(presenceService.isDoNotDisturb("bob-id")).thenReturn(true);
+
+        controller.sendRequest("bob-id", authenticationFor("alice-id"));
+
+        // La solicitud se guarda igualmente — solo se silencia el aviso en vivo.
+        verify(friendshipRepository).save(org.mockito.ArgumentMatchers.any());
+        verify(messagingTemplate, org.mockito.Mockito.never())
+                .convertAndSend(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object.class));
+    }
+
+    @Test
+    void respondToRequestAcceptingSuppressesTheNotificationWhenTheRequesterHasDoNotDisturbEnabled() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        when(friendshipRepository.findById("friendship-1")).thenReturn(Optional.of(friendship));
+        when(presenceService.isDoNotDisturb("alice-id")).thenReturn(true);
+
+        controller.respondToRequest("friendship-1", new RespondFriendRequestRequest(true), authenticationFor("bob-id"));
+
+        // La amistad se acepta igualmente — solo se silencia el aviso en vivo.
+        assertThat(friendship.getStatus()).isEqualTo(Friendship.STATUS_ACCEPTED);
+        verify(messagingTemplate, org.mockito.Mockito.never())
+                .convertAndSend(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object.class));
+    }
 }

@@ -1,6 +1,7 @@
 package com.chessplatform.matchmaking;
 
 import com.chessplatform.matchmaking.dto.MatchFoundMessage;
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,9 @@ class MatchmakingServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private PresenceService presenceService;
+
     private MutableClock clock;
     private MatchmakingQueue queue;
     private GameSessionRegistry sessionRegistry;
@@ -69,7 +73,7 @@ class MatchmakingServiceTest {
         queue = new MatchmakingQueue();
         queue.setClock(clock);
         sessionRegistry = new GameSessionRegistry();
-        service = new MatchmakingService(queue, sessionRegistry, messagingTemplate);
+        service = new MatchmakingService(queue, sessionRegistry, messagingTemplate, presenceService);
     }
 
     @Test
@@ -124,6 +128,17 @@ class MatchmakingServiceTest {
         avatars.add(session.whiteAvatarUrl());
         avatars.add(session.blackAvatarUrl());
         assertThat(avatars).contains("https://ejemplo.com/alice.png", (String) null);
+    }
+
+    @Test
+    void tickNotifiesFriendsOfBothPlayersThatTheyAreNowInAGame() {
+        queue.enqueue("alice-id", "alice", null, 1500, TimeControl.BLITZ);
+        queue.enqueue("bob-id", "bob", null, 1520, TimeControl.BLITZ);
+
+        service.tick();
+
+        verify(presenceService).notifyFriendsOfStatusChange("alice-id");
+        verify(presenceService).notifyFriendsOfStatusChange("bob-id");
     }
 
     @Test

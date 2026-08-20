@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.rating.GameResultRecorder.RatingChanges;
 import com.chessplatform.realtime.dto.GameOverMessage;
@@ -29,13 +30,16 @@ class GameEndNotifierTest {
     @Mock
     private GameResultRecorder gameResultRecorder;
 
+    @Mock
+    private PresenceService presenceService;
+
     private GameSessionRegistry sessionRegistry;
     private GameEndNotifier notifier;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
-        notifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder);
+        notifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService);
     }
 
     private static GameSession newSession() {
@@ -143,5 +147,16 @@ class GameEndNotifierTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/game/" + blitzSession.gameId()), payload.capture());
         assertThat(((GameOverMessage) payload.getValue()).timeControlPreset()).isEqualTo("BLITZ");
+    }
+
+    @Test
+    void endGameNotifiesFriendsOfBothPlayersThatTheyAreNoLongerInAGame() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        verify(presenceService).notifyFriendsOfStatusChange("white-player");
+        verify(presenceService).notifyFriendsOfStatusChange("black-player");
     }
 }

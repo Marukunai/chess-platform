@@ -6,6 +6,7 @@ import com.chessplatform.matchmaking.dto.MatchFoundMessage;
 import com.chessplatform.matchmaking.dto.MatchmakingJoinMessage;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.presence.PresenceService;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
 import com.chessplatform.realtime.dto.ErrorMessage;
@@ -34,13 +35,16 @@ public class RematchController {
     private final GameSessionRegistry sessionRegistry;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final PresenceService presenceService;
 
     public RematchController(RematchService rematchService, GameSessionRegistry sessionRegistry,
-                             UserRepository userRepository, SimpMessagingTemplate messagingTemplate) {
+                             UserRepository userRepository, SimpMessagingTemplate messagingTemplate,
+                             PresenceService presenceService) {
         this.rematchService = rematchService;
         this.sessionRegistry = sessionRegistry;
         this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
+        this.presenceService = presenceService;
     }
 
     @MessageMapping("/rematch/propose")
@@ -73,10 +77,18 @@ public class RematchController {
                 myColorInRematch, opponentColorInRematch, timeControl, preset
         ));
 
-        messagingTemplate.convertAndSend(
-                "/topic/user/%s".formatted(message.opponentUserId()),
-                new RematchOfferMessage(fromUserId, fromUsername, preset)
-        );
+        // La propuesta queda registrada igualmente aunque el destinatario tenga "no
+        // molestar" — solo se silencia el AVISO en vivo, no la propuesta en sí. Si la
+        // pantalla de fin de partida sigue abierta cuando quite "no molestar", seguiría
+        // sin enterarse hasta que vuelva a pasar por ahí, pero es una limitación
+        // aceptable: no hay (todavía) ningún sitio donde consultar ofertas pendientes
+        // aparte de este aviso en directo.
+        if (!presenceService.isDoNotDisturb(message.opponentUserId())) {
+            messagingTemplate.convertAndSend(
+                    "/topic/user/%s".formatted(message.opponentUserId()),
+                    new RematchOfferMessage(fromUserId, fromUsername, preset)
+            );
+        }
     }
 
     @MessageMapping("/rematch/respond")
@@ -96,10 +108,12 @@ public class RematchController {
 
         if (!message.accept()) {
             String toUsername = userRepository.findById(toUserId).map(User::getUsername).orElse(toUserId);
-            messagingTemplate.convertAndSend(
-                    "/topic/user/%s".formatted(pending.fromUserId()),
-                    new RematchDeclinedMessage(toUsername)
-            );
+            if (!presenceService.isDoNotDisturb(pending.fromUserId())) {
+                messagingTemplate.convertAndSend(
+                        "/topic/user/%s".formatted(pending.fromUserId()),
+                        new RematchDeclinedMessage(toUsername)
+                );
+            }
             return;
         }
 
@@ -114,12 +128,19 @@ public class RematchController {
         session.setAvatars(avatarUrlOf(whitePlayerId), avatarUrlOf(blackPlayerId));
         sessionRegistry.create(session);
 
+        // MatchFoundMessage nunca se silencia con "no molestar" a propósito — no es una
+        // notificación social que se pueda ignorar, es el aviso de que una partida ya
+        // ha empezado de verdad (y la revancha solo llega hasta aquí porque AMBOS ya
+        // habían aceptado explícitamente jugarla).
         messagingTemplate.convertAndSend(
                 "/topic/user/%s".formatted(whitePlayerId),
                 new MatchFoundMessage(session.gameId(), "white"));
         messagingTemplate.convertAndSend(
                 "/topic/user/%s".formatted(blackPlayerId),
                 new MatchFoundMessage(session.gameId(), "black"));
+
+        presenceService.notifyFriendsOfStatusChange(whitePlayerId);
+        presenceService.notifyFriendsOfStatusChange(blackPlayerId);
     }
 
     private String usernameOf(String userId) {

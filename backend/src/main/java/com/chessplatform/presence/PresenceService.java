@@ -8,7 +8,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Punto único para lo de presencia: calcular el estado de alguien y avisar a sus
+ * Punto único para todo lo de presencia: calcular el estado de alguien y avisar a sus
  * amigos cuando cambia. Ni PresenceConnectionListener ni PresenceController calculan
  * nada por su cuenta — los dos pasan por aquí, así el criterio de "qué estado le
  * corresponde a quién" vive en un solo sitio.
@@ -61,6 +61,28 @@ public class PresenceService {
     public void setDoNotDisturbAndNotifyFriends(String userId, boolean enabled) {
         presenceRegistry.setDoNotDisturb(userId, enabled);
         notifyFriends(userId);
+    }
+
+    /**
+     * Para cuando cambia algo que afecta a lo que calcula statusOf() SIN que el propio
+     * PresenceRegistry cambie — empezar o terminar una partida, concretamente. La
+     * conexión sigue igual (sigues online), pero "en partida" sí o no ha cambiado, y
+     * nadie más avisa de eso solo — hay que llamarlo explícitamente desde donde
+     * empieza/termina una partida (MatchmakingService, RematchController,
+     * GameEndNotifier).
+     */
+    public void notifyFriendsOfStatusChange(String userId) {
+        notifyFriends(userId);
+    }
+
+    /**
+     * Para que otros controladores (mensajes, solicitudes de amistad, revancha) puedan
+     * decidir si silenciar un aviso puntual — no confundir con statusOf(), que da el
+     * estado completo para PINTAR el punto; esto es solo la pregunta binaria que hace
+     * falta antes de mandar una notificación.
+     */
+    public boolean isDoNotDisturb(String userId) {
+        return presenceRegistry.isDoNotDisturb(userId);
     }
 
     private void notifyFriends(String userId) {
