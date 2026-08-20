@@ -1,6 +1,6 @@
 // Tablero interactivo: renderiza desde FEN (llega del servidor en cada
 // GameStateSyncMessage) y construye jugadas en notación algebraica para enviar por
-// WebSocket. Ya no hay posición fija — sale de lo que manda el backend.
+// WebSocket. Ya no hay posición fija — todo sale de lo que manda el backend.
 //
 // Modelo de interacción: clic-clic y arrastrar conviven. El arrastre se detecta con
 // Pointer Events (unifica ratón y toque en el mismo código, arrastrar con el dedo sale
@@ -53,11 +53,21 @@ let activeBoardElementId = 'board'; // qué tablero está activo — #board y #r
 let annotations = []; // flechas y resaltados dibujados por el usuario con el clic derecho — { type: 'arrow', from, to } | { type: 'mark', square }
 let rightDragState = null; // { fromAlgebraic } mientras se arrastra con el botón derecho para dibujar una flecha
 
-// displayRow 0 = fila de arriba del tablero (rank 8), displayRow 7 = fila de abajo (rank 1)
-// — así el tablero se ve con las blancas abajo, como es convención.
+// 'white' | 'black' — qué bando se pinta abajo, fijado en cada renderBoard() (ver su
+// parámetro orientation). Vive como variable de módulo, no como parámetro de cada
+// función suelta, porque pieceAtAlgebraic/svgCenterOf se llaman desde el arrastre y las
+// flechas mucho después de haber pintado — necesitan saber "cómo está orientado el
+// tablero AHORA MISMO", no recibirlo cada vez de quien las llama.
+let currentOrientation = 'white';
+
+// displayRow 0 = fila de arriba del tablero, displayRow 7 = fila de abajo — con
+// orientación 'white' eso es rank 8 arriba / rank 1 abajo (blancas abajo, como es
+// convención); con 'black' se invierte entero (filas Y columnas), para que quien juega
+// negras vea sus propias piezas abajo.
 function algebraicFromDisplay(displayRow, file) {
-    const fileChar = String.fromCharCode(97 + file); // 0 -> 'a', ..., 7 -> 'h'
-    const rankNumber = 8 - displayRow;
+    const rankNumber = currentOrientation === 'black' ? displayRow + 1 : 8 - displayRow;
+    const fileIndex = currentOrientation === 'black' ? 7 - file : file;
+    const fileChar = String.fromCharCode(97 + fileIndex);
     return `${fileChar}${rankNumber}`;
 }
 
@@ -79,11 +89,19 @@ function parseFen(fen) {
     });
 }
 
+/**
+ * Dado un nombre algebraico ("e4"), qué pieza hay ahí según el FEN ya parseado — a
+ * propósito INDEPENDIENTE de la orientación: currentPositionRows sigue siempre el orden
+ * fijo en el que vino el FEN (fila 0 = rango 8, columna 0 = 'a'), sin relación con cómo
+ * se esté mostrando el tablero ahora mismo. "¿Hay una pieza en e4?" tiene la misma
+ * respuesta lo mires desde donde lo mires — quien SÍ depende de la orientación es
+ * algebraicFromDisplay (qué casilla es cada celda de la rejilla), no esto.
+ */
 function pieceAtAlgebraic(algebraic) {
     const file = algebraic.charCodeAt(0) - 97;
     const rank = Number(algebraic[1]);
-    const displayRow = 8 - rank;
-    return currentPositionRows[displayRow]?.[file] || null;
+    const fenRow = 8 - rank;
+    return currentPositionRows[fenRow]?.[file] || null;
 }
 
 /**
@@ -109,11 +127,18 @@ function pieceAtAlgebraic(algebraic) {
  * casilla (aparece con un "pop"), con una versión más marcada si fue una captura (un
  * destello rojo detrás). Solo se usa en la partida en vivo, no en la reproducción del
  * historial — ver history.js, que llama a renderBoard() sin este argumento a propósito.
+ *
+ * orientation: 'white' | 'black' — qué bando se pinta abajo. Por defecto 'white' a
+ * propósito: la reproducción del historial (history.js) no pasa este argumento, así que
+ * siempre se ve con blancas abajo sin importar qué color jugaras en esa partida en
+ * concreto — es una simplificación consciente, no un descuido (evita que la orientación
+ * de una partida en vivo anterior "se filtre" a una reproducción sin relación).
  */
-function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor = null, lastMove = null) {
+function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor = null, lastMove = null, orientation = 'white') {
     currentLegalMovesUci = legalMovesUci || [];
     currentPositionRows = parseFen(fen);
     activeBoardElementId = boardElementId;
+    currentOrientation = orientation;
     const boardEl = document.getElementById(boardElementId);
     boardEl.innerHTML = '';
     selectedSquareEl = null;
@@ -129,7 +154,16 @@ function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor 
 
             const isLastMoveDestination = lastMove && algebraic === lastMove.to;
 
-            const piece = currentPositionRows[displayRow][file];
+            // pieceAtAlgebraic(algebraic), no currentPositionRows[displayRow][file] a
+            // pelo — displayRow/file son posición en la REJILLA (dependen de la
+            // orientación), mientras que currentPositionRows sigue siempre el orden fijo
+            // del FEN. Indexarlo directo con displayRow/file solo daba la pieza correcta
+            // por casualidad cuando la orientación era 'white' (ahí displayRow y la fila
+            // del FEN coinciden) — con negras, cada celda pintaba la pieza de la celda
+            // "opuesta" del FEN, aunque data-square (y por tanto los clics) ya apuntaban
+            // bien. Pasar por el nombre algebraico primero es lo que mantiene ambas
+            // cosas —qué se pinta y qué casilla es— sincronizadas entre sí siempre.
+            const piece = pieceAtAlgebraic(algebraic);
             if (piece) {
                 const pieceColor = piece[0] === 'w' ? 'white' : 'black';
                 const pieceEl = document.createElement('span');
@@ -150,19 +184,23 @@ function renderBoard(fen, legalMovesUci, boardElementId = 'board', checkedColor 
                 square.classList.add('square--capture-flash');
             }
 
-            // Coordenadas: rango (1-8) en la columna 'a', archivo (a-h) en la fila 1 —
-            // igual que lichess/chess.com, dentro de la propia casilla en vez de un
-            // marco aparte alrededor del tablero.
+            // Coordenadas: rango (1-8) en la columna 'a', archivo (a-h) en la fila 1, 
+            // dentro de la propia casilla en vez de un
+            // marco aparte alrededor del tablero. Se leen de `algebraic` (ya calculado
+            // arriba), no de displayRow/file en crudo — así salen bien sin importar la
+            // orientación: file===0/displayRow===7 siguen siendo "el borde izquierdo/
+            // inferior de la rejilla", pero el número o letra que se escribe ahí depende
+            // de qué casilla haya de verdad en ese sitio con la orientación actual.
             if (file === 0) {
                 const rankLabel = document.createElement('span');
                 rankLabel.className = 'square__coord square__coord--rank';
-                rankLabel.textContent = String(8 - displayRow);
+                rankLabel.textContent = algebraic[1];
                 square.appendChild(rankLabel);
             }
             if (displayRow === 7) {
                 const fileLabel = document.createElement('span');
                 fileLabel.className = 'square__coord square__coord--file';
-                fileLabel.textContent = String.fromCharCode(97 + file);
+                fileLabel.textContent = algebraic[0];
                 square.appendChild(fileLabel);
             }
 
@@ -188,7 +226,7 @@ function handleSquareClick(algebraic, squareEl) {
         return;
     }
 
-    clearAnnotations(); // cualquier clic izquierdo borra las flechas/marcas dibujadas, como en chess.com
+    clearAnnotations(); // cualquier clic izquierdo borra las flechas/marcas dibujadas
 
     if (!selectedAlgebraic) {
         if (!hasLegalMoveFrom(algebraic)) {
@@ -405,7 +443,7 @@ function endDragging() {
 /* ============================= Flechas y marcas (clic derecho) ============================= */
 
 /**
- * Igual que chess.com/lichess: arrastrar con el botón derecho de una casilla a otra
+ * arrastrar con el botón derecho de una casilla a otra
  * dibuja una flecha; clic derecho sin arrastrar en una sola casilla la resalta en rojo.
  * Repetir exactamente la misma flecha/marca la borra (alternar). Es puramente
  * cosmético — nunca se manda al servidor, solo vive en el navegador de quien la dibuja.
@@ -463,10 +501,11 @@ function clearAnnotations() {
 
 /** Centro de una casilla en el sistema de coordenadas 0-800 del <svg> (100 unidades por casilla). */
 function svgCenterOf(algebraic) {
-    const file = algebraic.charCodeAt(0) - 97;
+    const fileIndex = algebraic.charCodeAt(0) - 97;
     const rank = Number(algebraic[1]);
-    const displayRow = 8 - rank;
-    return { x: file * 100 + 50, y: displayRow * 100 + 50 };
+    const displayRow = currentOrientation === 'black' ? rank - 1 : 8 - rank;
+    const displayFile = currentOrientation === 'black' ? 7 - fileIndex : fileIndex;
+    return { x: displayFile * 100 + 50, y: displayRow * 100 + 50 };
 }
 
 function renderAnnotations() {
@@ -481,7 +520,7 @@ function renderAnnotations() {
     // que el resto del tablero (100 unidades = 1 casilla).
     svg.innerHTML = `<defs>
         <marker id="arrow-tip-${activeBoardElementId}" markerUnits="userSpaceOnUse"
-                markerWidth="40" markerHeight="30" refX="30" refY="15" orient="auto">
+                markerWidth="75" markerHeight="30" refX="17" refY="15" orient="auto">
             <path d="M0,2 L30,15 L0,28 Z" fill="${ARROW_COLOR}" />
         </marker>
     </defs>`;
@@ -520,7 +559,7 @@ function buildArrowLine(from, to) {
     line.setAttribute('x2', end.x);
     line.setAttribute('y2', end.y);
     line.setAttribute('stroke', ARROW_COLOR);
-    line.setAttribute('stroke-width', 11);
+    line.setAttribute('stroke-width', 9);
     line.setAttribute('stroke-linecap', 'round');
     line.setAttribute('opacity', 0.85);
     line.setAttribute('marker-end', `url(#arrow-tip-${activeBoardElementId})`);
