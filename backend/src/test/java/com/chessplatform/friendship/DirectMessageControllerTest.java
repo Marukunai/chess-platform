@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
 import com.chessplatform.friendship.dto.SendDirectMessageRequest;
@@ -107,8 +108,8 @@ class DirectMessageControllerTest {
         List<DirectMessageResponse> conversation = controller.conversation("bob-id", authenticationFor("alice-id"));
 
         assertThat(conversation).hasSize(2);
-        assertThat(conversation.getFirst().text()).isEqualTo("hola");
-        assertThat(conversation.getFirst().senderUserId()).isEqualTo("alice-id");
+        assertThat(conversation.get(0).text()).isEqualTo("hola");
+        assertThat(conversation.get(0).senderUserId()).isEqualTo("alice-id");
         assertThat(conversation.get(1).senderUserId()).isEqualTo("bob-id");
     }
 
@@ -208,5 +209,157 @@ class DirectMessageControllerTest {
         assertThat(response.text()).isEqualTo("hola bob");
         verify(directMessageRepository).save(any());
         verify(messagingTemplate, never()).convertAndSend(eq("/topic/user/bob-id"), any(Object.class));
+    }
+
+    @Test
+    void conversationMarksMessagesAddressedToMeAsRead() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage fromBobToAlice = new DirectMessage(bob, alice, "hola alice");
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(fromBobToAlice));
+
+        controller.conversation("bob-id", authenticationFor("alice-id"));
+
+        assertThat(fromBobToAlice.isRead()).isTrue();
+        verify(directMessageRepository).saveAll(List.of(fromBobToAlice));
+    }
+
+    @Test
+    void conversationDoesNotTouchMessagesIAlreadySentMyself() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage fromAliceToBob = new DirectMessage(alice, bob, "hola bob"); // mío, no de bob hacia mí
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(fromAliceToBob));
+
+        controller.conversation("bob-id", authenticationFor("alice-id"));
+
+        assertThat(fromAliceToBob.isRead()).isFalse(); // "leído" no tiene sentido para tus propios mensajes enviados
+        verify(directMessageRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void conversationDoesNotCallSaveAllWhenNothingIsUnread() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        DirectMessage alreadyRead = new DirectMessage(bob, alice, "hola");
+        alreadyRead.markAsRead();
+        when(friendshipRepository.findBetween("alice-id", "bob-id")).thenReturn(Optional.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(alreadyRead));
+
+        controller.conversation("bob-id", authenticationFor("alice-id"));
+
+        verify(directMessageRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void conversationsIncludesEveryFriendEvenWithoutAnyMessages() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of());
+        when(presenceService.statusOf("bob-id")).thenReturn("ONLINE");
+
+        List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
+
+        assertThat(conversations).hasSize(1);
+        assertThat(conversations.get(0).username()).isEqualTo("bob");
+        assertThat(conversations.get(0).lastMessageText()).isNull();
+        assertThat(conversations.get(0).unreadCount()).isZero();
+    }
+
+    @Test
+    void conversationsIncludesTheLastMessagePreviewAndUnreadCount() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        Friendship friendship = new Friendship(alice, bob);
+        friendship.accept();
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of(friendship));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of(
+                new DirectMessage(alice, bob, "hola bob"),
+                new DirectMessage(bob, alice, "qué tal"), // sin leer
+                new DirectMessage(bob, alice, "estás ahí?") // sin leer, la más reciente
+        ));
+        when(presenceService.statusOf("bob-id")).thenReturn("ONLINE");
+
+        List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
+
+        assertThat(conversations.get(0).lastMessageText()).isEqualTo("estás ahí?");
+        assertThat(conversations.get(0).unreadCount()).isEqualTo(2);
+    }
+
+    @Test
+    void conversationsSortsUnreadFirstRegardlessOfDate() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        User carol = new User("carol", "hash");
+        setId(carol, "carol-id");
+        Friendship withBob = new Friendship(alice, bob);
+        withBob.accept();
+        Friendship withCarol = new Friendship(alice, carol);
+        withCarol.accept();
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of(withBob, withCarol));
+        // bob: ya leído — carol: sin leer. La fecha de cada uno no importa para este
+        // test, lo único que se comprueba es que "sin leer" manda por encima de todo.
+        when(directMessageRepository.findConversation("alice-id", "bob-id"))
+                .thenReturn(List.of(readMessage(bob, alice, "ya leído")));
+        when(directMessageRepository.findConversation("alice-id", "carol-id"))
+                .thenReturn(List.of(new DirectMessage(carol, alice, "sin leer")));
+        when(presenceService.statusOf(any())).thenReturn("ONLINE");
+
+        List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
+
+        assertThat(conversations.get(0).username()).isEqualTo("carol"); // sin leer manda, aunque bob tenga mensaje también
+    }
+
+    @Test
+    void conversationsPutsFriendsWithoutAnyConversationLast() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        User carol = new User("carol", "hash");
+        setId(carol, "carol-id");
+        Friendship withBob = new Friendship(alice, bob); // nunca han hablado
+        withBob.accept();
+        Friendship withCarol = new Friendship(alice, carol);
+        withCarol.accept();
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of(withBob, withCarol));
+        when(directMessageRepository.findConversation("alice-id", "bob-id")).thenReturn(List.of());
+        when(directMessageRepository.findConversation("alice-id", "carol-id"))
+                .thenReturn(List.of(readMessage(carol, alice, "hola")));
+        when(presenceService.statusOf(any())).thenReturn("ONLINE");
+
+        List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
+
+        assertThat(conversations.get(0).username()).isEqualTo("carol");
+        assertThat(conversations.get(1).username()).isEqualTo("bob");
+    }
+
+    private static DirectMessage readMessage(User sender, User recipient, String text) {
+        DirectMessage message = new DirectMessage(sender, recipient, text);
+        message.markAsRead();
+        return message;
     }
 }

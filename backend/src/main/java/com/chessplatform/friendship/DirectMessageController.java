@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
 import com.chessplatform.friendship.dto.SendDirectMessageRequest;
@@ -17,10 +18,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,9 +30,14 @@ import java.util.Optional;
  * retransmisión), esto se guarda de verdad, por eso vive aparte en su propio
  * controlador en vez de reutilizar GameWebSocketController. Bajo /api/friends, como el
  * resto de lo de amistad — necesita identidad igual que todo lo demás ahí.
+ *
+ * Sin @RequestMapping a nivel de clase a propósito: /api/friends/conversations (no
+ * cuelga de ningún {friendId} en concreto) convive aquí con
+ * /api/friends/{friendId}/messages porque las dos cosas son "mensajería directa", la
+ * misma responsabilidad — separarlas en dos controladores solo porque una ruta tiene
+ * variable de plantilla y la otra no sería una división artificial.
  */
 @RestController
-@RequestMapping("/api/friends/{friendId}/messages")
 public class DirectMessageController {
 
     private static final int MAX_MESSAGE_LENGTH = 1000;
@@ -52,17 +58,73 @@ public class DirectMessageController {
         this.presenceService = presenceService;
     }
 
-    @GetMapping
+    /**
+     * Todos los amigos, cada uno con su última conversación si la hay — pensado para el
+     * desplegable general de chat: una sola llamada da tanto "con quién tengo
+     * conversaciones recientes" como "a quién más le puedo escribir aunque no le haya
+     * escrito nunca" (sale igual en la lista, solo que sin previsualización ni fecha).
+     * Sin mensajes propios, primero los que tienen algo sin leer, luego por fecha del
+     * último mensaje más reciente, y los que nunca han tenido conversación al final.
+     */
+    @GetMapping("/api/friends/conversations")
+    public List<ConversationSummaryResponse> conversations(Authentication authentication) {
+        String userId = authentication.getName();
+
+        return friendshipRepository.findAcceptedFriendships(userId).stream()
+                .map(f -> {
+                    User friend = f.theOtherUser(userId);
+                    List<DirectMessage> messages = directMessageRepository.findConversation(userId, friend.getId());
+                    DirectMessage last = messages.isEmpty() ? null : messages.getLast();
+                    long unreadCount = messages.stream()
+                            .filter(m -> !m.isRead() && m.getRecipient().getId().equals(userId))
+                            .count();
+
+                    return new ConversationSummaryResponse(
+                            friend.getId(), friend.getUsername(), friend.getAvatarUrl(),
+                            presenceService.statusOf(friend.getId()),
+                            last == null ? null : last.getText(),
+                            last == null ? null : last.getSentAt().toString(),
+                            (int) unreadCount
+                    );
+                })
+                .sorted(Comparator
+                        // Primero quien tiene algo sin leer, sea cual sea la fecha.
+                        .comparing((ConversationSummaryResponse c) -> c.unreadCount() > 0).reversed()
+                        // Luego quien tiene conversación (con o sin leer) antes que quien nunca ha hablado contigo.
+                        .thenComparing(c -> c.lastMessageAt() != null, Comparator.reverseOrder())
+                        // Y entre los que sí tienen conversación, el mensaje más reciente primero — comparar
+                        // el string ISO-8601 tal cual funciona porque ese formato es "ordenable
+                        // lexicográficamente" por diseño (año-mes-día-hora, de mayor a menor peso, con
+                        // ancho fijo), no hace falta volver a parsearlo a Instant solo para ordenar.
+                        .thenComparing(c -> c.lastMessageAt() == null ? "" : c.lastMessageAt(),
+                                Comparator.reverseOrder()))
+                .toList();
+    }
+
+    @GetMapping("/api/friends/{friendId}/messages")
     public List<DirectMessageResponse> conversation(@PathVariable String friendId, Authentication authentication) {
         String userId = authentication.getName();
         requireFriendship(userId, friendId);
 
-        return directMessageRepository.findConversation(userId, friendId).stream()
+        List<DirectMessage> messages = directMessageRepository.findConversation(userId, friendId);
+
+        // Pedir la conversación ES verla — de paso se marcan como leídos los mensajes
+        // que llegaron mientras tanto. Reutiliza la misma lista que ya se pidió, sin
+        // hacer falta ninguna consulta aparte para esto.
+        List<DirectMessage> newlyRead = messages.stream()
+                .filter(m -> !m.isRead() && m.getRecipient().getId().equals(userId))
+                .toList();
+        if (!newlyRead.isEmpty()) {
+            newlyRead.forEach(DirectMessage::markAsRead);
+            directMessageRepository.saveAll(newlyRead);
+        }
+
+        return messages.stream()
                 .map(m -> new DirectMessageResponse(m.getId(), m.getSender().getId(), m.getText(), m.getSentAt().toString()))
                 .toList();
     }
 
-    @PostMapping
+    @PostMapping("/api/friends/{friendId}/messages")
     public DirectMessageResponse send(@PathVariable String friendId, @RequestBody SendDirectMessageRequest request,
                                       Authentication authentication) {
         String userId = authentication.getName();
