@@ -8,6 +8,15 @@ let matchmakingSubscription = null;
 let userChannelSubscription = null;
 let isSearchingForMatch = false;
 
+// Nombre del rival silenciado en la partida ACTUAL — null si no hay nadie silenciado.
+// mutedInGameId guarda a qué partida pertenece ese silencio: enterGameScreen() se llama
+// tanto al emparejar de cero como al reconectar (F5) a una partida YA en curso, y en
+// ese segundo caso el silencio debe seguir en pie — solo se resetea cuando el gameId
+// que llega es distinto del que tenía el silencio guardado, es decir, cuando de verdad
+// es una partida nueva.
+let mutedInGameUsername = null;
+let mutedInGameId = null;
+
 // Lo justo de la última partida terminada para poder ofrecer la revancha sin depender
 // de una GameSession que ya no existe (se elimina del registro nada más terminar, ver
 // GameEndNotifier) — a quién retar, con qué modalidad, y qué color tenía yo (para que
@@ -150,7 +159,18 @@ function handleGameMessage(message) {
 }
 
 /** myUsername viene de ensureWhoAmIDisplayed() — decide si el mensaje es "mío" para colorear el nombre distinto. */
+/**
+ * chat.senderUsername === mutedInGameUsername -> ni se pinta. Silenciar es puramente
+ * del cliente y de esta partida concreta — no hay nada que avisar al servidor ni que
+ * guardar en ningún sitio: el rival de una partida emparejada al azar normalmente no
+ * vuelve a cruzarse contigo, así que no tiene sentido un "bloqueo" persistente como el
+ * que sí tendría sentido entre amigos. Los mensajes ya pintados ANTES de silenciar se
+ * quedan donde están — silenciar oculta lo que llega después, no reescribe lo ya visto.
+ */
 function appendChatMessage(chat) {
+    if (chat.senderUsername === mutedInGameUsername) {
+        return;
+    }
     const log = document.getElementById('chat-log');
     const entry = document.createElement('p');
     entry.className = `chat__message ${chat.senderUsername === myUsername ? 'chat__message--mine' : ''}`;
@@ -162,6 +182,44 @@ function appendChatMessage(chat) {
 
     log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
+}
+
+/** null mientras no se conozca el color propio o el nombre del rival todavía no haya llegado en ningún GameStateSyncMessage. */
+function getOpponentUsername() {
+    if (!myColor) {
+        return null;
+    }
+    const opponentNameId = myColor === 'white' ? 'player-name-black' : 'player-name-white';
+    return document.getElementById(opponentNameId).textContent || null;
+}
+
+function toggleMuteOpponent() {
+    const opponentUsername = getOpponentUsername();
+    if (!opponentUsername) {
+        return;
+    }
+    if (mutedInGameUsername === opponentUsername) {
+        mutedInGameUsername = null;
+        mutedInGameId = null;
+        showTransientNotice(`Ya no silencias a ${opponentUsername}.`);
+    } else {
+        mutedInGameUsername = opponentUsername;
+        mutedInGameId = currentGameId;
+        showTransientNotice(`Has silenciado a ${opponentUsername} en esta partida.`);
+    }
+    updateMuteButtonLabel();
+}
+
+function updateMuteButtonLabel() {
+    const btn = document.getElementById('mute-opponent-btn');
+    const opponentUsername = getOpponentUsername();
+    if (mutedInGameUsername) {
+        btn.textContent = `🔊 Dejar de silenciar a ${opponentUsername || 'el rival'}`;
+        btn.classList.add('chat__mute-btn--active');
+    } else {
+        btn.textContent = `🔇 Silenciar a ${opponentUsername || 'el rival'}`;
+        btn.classList.remove('chat__mute-btn--active');
+    }
 }
 
 function handleGameNoLongerExists() {
@@ -194,6 +252,7 @@ function handleStateSync(state) {
     currentBlackPlayerId = state.blackPlayerId;
     document.getElementById('player-name-white').textContent = state.whiteUsername || 'Blancas';
     document.getElementById('player-name-black').textContent = state.blackUsername || 'Negras';
+    updateMuteButtonLabel(); // depende del nombre del rival, que puede que se acabe de conocer justo ahora
     setClockAvatar('player-avatar-white', state.whiteAvatarUrl);
     setClockAvatar('player-avatar-black', state.blackAvatarUrl);
     document.getElementById('clock-row-white').classList.toggle('clock__row--active', state.turn === 'white');
@@ -640,11 +699,19 @@ function enterGameScreen(gameId, color) {
     storeActiveGame(gameId, color);
     showScreen('game-screen');
 
+    if (gameId !== mutedInGameId) {
+        // Partida distinta de aquella en la que se silenció a alguien (o nunca hubo
+        // ningún silencio) — de verdad es una partida nueva, toca resetear.
+        mutedInGameUsername = null;
+        mutedInGameId = null;
+    }
+
     hideGameOverModal();
     hideDrawOfferBanner();
     hideRematchOfferToast();
     document.getElementById('game-message').textContent = '';
     document.getElementById('chat-log').innerHTML = '';
+    updateMuteButtonLabel(); // refleja de inmediato si el silencio sobrevivió (reconexión) o se reseteó (partida nueva)
     setClockAvatar('player-avatar-white', null);
     setClockAvatar('player-avatar-black', null);
 
@@ -820,6 +887,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.stopPropagation();
         toggleEmojiPicker(event.currentTarget, document.getElementById('chat-input'));
     });
+
+    document.getElementById('mute-opponent-btn').addEventListener('click', toggleMuteOpponent);
 
     document.getElementById('rematch-btn').addEventListener('click', () => {
         if (!lastFinishedGame) {

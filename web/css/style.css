@@ -1999,3 +1999,24 @@ a {
 .emoji-picker-item:hover {
     background: var(--ink-raised);
 }
+
+/* ---- Silenciar al rival en el chat de partida ---- */
+
+.chat__mute-btn {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    color: var(--parchment-dim);
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.1rem 0;
+}
+
+.chat__mute-btn:hover {
+    color: var(--parchment);
+}
+
+.chat__mute-btn--active {
+    color: var(--garnet);
+}
