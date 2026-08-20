@@ -38,6 +38,12 @@ public class DirectMessage {
     @Column(nullable = false, updatable = false)
     private Instant sentAt = Instant.now();
 
+    // Solo importa desde el punto de vista del destinatario — quien envía un mensaje ya
+    // lo ha "leído" por definición, no hace falta trackearlo para el propio sender.
+    // false por defecto: recién creado, el destinatario todavía no lo ha visto.
+    @Column(nullable = false)
+    private boolean read = false;
+
     protected DirectMessage() {
         // JPA
     }
@@ -66,5 +72,13 @@ public class DirectMessage {
 
     public Instant getSentAt() {
         return sentAt;
+    }
+
+    public boolean isRead() {
+        return read;
+    }
+
+    public void markAsRead() {
+        this.read = true;
     }
 }
