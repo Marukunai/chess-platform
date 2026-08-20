@@ -43,32 +43,42 @@
         </header>
 
         <!-- Pantalla de login / registro -->
-        <section id="auth-screen" class="screen screen--centered">
+        <section id="auth-screen" class="screen screen--auth-layout">
             <div class="ambient-glow" aria-hidden="true"></div>
-            <div class="card card--auth">
-                <h2 class="card__title">Entrar</h2>
-                <form id="auth-form">
-                    <label class="field">
-                        <span class="field__label">Usuario</span>
-                        <input type="text" id="auth-username" required autocomplete="username">
-                    </label>
-                    <label class="field">
-                        <span class="field__label">Contraseña</span>
-                        <input type="password" id="auth-password" required autocomplete="current-password">
-                        <span class="field__hint">Mínimo 8 caracteres</span>
-                    </label>
-                    <div class="auth-buttons">
-                        <button type="submit" id="login-btn" class="btn btn--primary">Entrar</button>
-                        <button type="button" id="register-btn" class="btn btn--ghost">Crear cuenta</button>
-                    </div>
-                </form>
-                <p id="auth-error" class="error-text" role="alert"></p>
+            <div class="auth-layout">
+                <div class="auth-hero">
+                    <div class="auth-hero__glyph" aria-hidden="true">♞</div>
+                    <h1 class="auth-hero__title">Chess Platform</h1>
+                    <p class="auth-hero__tagline">
+                        Partidas en vivo, ranking Glicko-2, revancha, amigos y chat —
+                        tu propia sala de torneo, sin salir de casa.
+                    </p>
+                </div>
+                <div class="card card--auth">
+                    <h2 class="card__title">Entrar</h2>
+                    <form id="auth-form">
+                        <label class="field">
+                            <span class="field__label">Usuario</span>
+                            <input type="text" id="auth-username" required autocomplete="username">
+                        </label>
+                        <label class="field">
+                            <span class="field__label">Contraseña</span>
+                            <input type="password" id="auth-password" required autocomplete="current-password">
+                            <span class="field__hint">Mínimo 8 caracteres</span>
+                        </label>
+                        <div class="auth-buttons">
+                            <button type="submit" id="login-btn" class="btn btn--primary">Entrar</button>
+                            <button type="button" id="register-btn" class="btn btn--ghost">Crear cuenta</button>
+                        </div>
+                    </form>
+                    <p id="auth-error" class="error-text" role="alert"></p>
+                </div>
             </div>
         </section>
 
         <!-- Pantalla de lobby / matchmaking -->
         <section id="lobby-screen" class="screen screen--centered" hidden>
-            <div class="card card--lobby">
+            <div class="card card--lobby-wide">
                 <h2 class="card__title">Buscar partida</h2>
                 <label class="field">
                     <span class="field__label">Control de tiempo</span>
@@ -81,13 +91,28 @@
                 </label>
                 <button id="find-match-btn" class="btn btn--primary btn--block">Buscar partida</button>
                 <p id="matchmaking-status" class="status-text"></p>
-                <div class="lobby-links">
-                    <button id="profile-btn" class="btn btn--link">Mi perfil</button>
-                    <button id="friends-btn" class="btn btn--link">Amigos</button>
-                    <button id="leaderboard-btn" class="btn btn--link">Ranking</button>
-                    <button id="history-btn" class="btn btn--link">Historial</button>
-                    <button id="logout-btn" class="btn btn--link">Cerrar sesión</button>
+
+                <p class="lobby-section-label">Explorar</p>
+                <div class="lobby-nav-grid">
+                    <button id="profile-btn" class="lobby-nav-tile">
+                        <span class="lobby-nav-tile__icon">👤</span>
+                        <span class="lobby-nav-tile__label">Mi perfil</span>
+                    </button>
+                    <button id="friends-btn" class="lobby-nav-tile">
+                        <span class="lobby-nav-tile__icon">👥</span>
+                        <span class="lobby-nav-tile__label">Amigos</span>
+                    </button>
+                    <button id="leaderboard-btn" class="lobby-nav-tile">
+                        <span class="lobby-nav-tile__icon">🏆</span>
+                        <span class="lobby-nav-tile__label">Ranking</span>
+                    </button>
+                    <button id="history-btn" class="lobby-nav-tile">
+                        <span class="lobby-nav-tile__icon">📜</span>
+                        <span class="lobby-nav-tile__label">Historial</span>
+                    </button>
                 </div>
+
+                <button id="logout-btn" class="lobby-logout-link">Cerrar sesión</button>
             </div>
         </section>
 
