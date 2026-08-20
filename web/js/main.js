@@ -178,7 +178,7 @@ function appendChatMessage(chat) {
     const senderEl = document.createElement('strong');
     senderEl.textContent = `${chat.senderUsername}: `;
     entry.appendChild(senderEl);
-    entry.append(chat.text);
+    appendChatMessageBody(entry, chat.text);
 
     log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
@@ -912,6 +912,16 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleEmojiPicker(event.currentTarget, document.getElementById('chat-input'));
     });
 
+    document.getElementById('chat-image-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openImageUrlPopover(event.currentTarget, 'game');
+    });
+
+    document.getElementById('chat-gif-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openGifSearchPopover(event.currentTarget, 'game');
+    });
+
     document.getElementById('mute-opponent-btn').addEventListener('click', toggleMuteOpponent);
 
     document.getElementById('rematch-btn').addEventListener('click', () => {
@@ -1026,6 +1036,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const emojiPanel = document.getElementById('emoji-picker-panel');
         if (!emojiPanel.hidden && !emojiPanel.contains(event.target)) {
             closeEmojiPicker();
+        }
+        const imageUrlPopover = document.getElementById('image-url-popover');
+        if (!imageUrlPopover.hidden && !imageUrlPopover.contains(event.target)) {
+            closeImageUrlPopover();
+        }
+        const gifSearchPopover = document.getElementById('gif-search-popover');
+        if (!gifSearchPopover.hidden && !gifSearchPopover.contains(event.target)) {
+            closeGifSearchPopover();
         }
     });
 
@@ -1216,14 +1234,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!text || !currentDmFriendId) {
             return;
         }
-        try {
-            await sendDirectMessage(currentDmFriendId, text);
-            appendDirectMessageToLog(myUsername, text, false);
-            hideReadReceipt(); // mensaje recién mandado — nadie lo ha podido leer todavía
-            input.value = '';
-        } catch (error) {
-            showTransientNotice(error.message);
-        }
+        await sendDirectChatText(text); // en chat-media.js — mismo camino que usan las imágenes/GIFs para no duplicar la lógica de envío+pintado+recibo
+        input.value = '';
     });
 
     document.getElementById('dm-chat-close-btn').addEventListener('click', hideDirectMessageChat);
@@ -1231,5 +1243,28 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dm-chat-emoji-btn').addEventListener('click', (event) => {
         event.stopPropagation();
         toggleEmojiPicker(event.currentTarget, document.getElementById('dm-chat-input'));
+    });
+
+    document.getElementById('dm-chat-image-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openImageUrlPopover(event.currentTarget, 'dm');
+    });
+
+    document.getElementById('dm-chat-gif-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        openGifSearchPopover(event.currentTarget, 'dm');
+    });
+
+    document.getElementById('image-url-send-btn').addEventListener('click', sendImageUrlFromPopover);
+
+    document.getElementById('image-url-input').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            sendImageUrlFromPopover();
+        }
+    });
+
+    document.getElementById('gif-search-input').addEventListener('input', (event) => {
+        scheduleGifSearch(event.target.value);
     });
 });

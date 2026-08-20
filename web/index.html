@@ -393,6 +393,9 @@
                         <form id="chat-form" class="chat__form">
                             <button type="button" id="chat-emoji-btn" class="emoji-picker-btn"
                                 title="Emoticonos">😊</button>
+                            <button type="button" id="chat-image-btn" class="emoji-picker-btn"
+                                title="Imagen">🖼️</button>
+                            <button type="button" id="chat-gif-btn" class="emoji-picker-btn" title="GIF">GIF</button>
                             <input id="chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="500"
                                 autocomplete="off">
                             <button type="submit" class="btn btn--primary">Enviar</button>
@@ -466,6 +469,22 @@
              chat directo, se reposiciona junto al botón que lo abrió cada vez -->
         <div id="emoji-picker-panel" class="emoji-picker-panel" hidden></div>
 
+        <!-- Pegar una URL de imagen — comparte el mismo botón visual que el selector de
+             emoticonos, pero es un panel propio con un solo campo -->
+        <div id="image-url-popover" class="emoji-picker-panel image-url-popover" hidden>
+            <input type="text" id="image-url-input" placeholder="URL de la imagen..." autocomplete="off">
+            <button type="button" id="image-url-send-btn" class="btn btn--primary">Enviar</button>
+        </div>
+
+        <!-- Buscar un GIF — proxy hacia Giphy vía el backend, la clave de API nunca
+             llega al cliente (ver GifSearchController) -->
+        <div id="gif-search-popover" class="emoji-picker-panel gif-search-popover" hidden>
+            <input type="text" id="gif-search-input" placeholder="Buscar GIFs..." autocomplete="off">
+            <div id="gif-search-results" class="gif-search-results"></div>
+            <p class="gif-search-attribution">Búsqueda con <strong>GIPHY</strong></p>
+        </div>
+
+
         <!-- Vista rápida del perfil de otro jugador — al hacer clic en un nombre en
              partida o en una fila del ranking. Reutiliza los mismos estilos que la
              pantalla de perfil completa, en una tarjeta más pequeña. -->
@@ -511,6 +530,8 @@
                 <p id="dm-chat-read-receipt" class="dm-chat-read-receipt" hidden>✓ Leído</p>
                 <form id="dm-chat-form" class="chat__form">
                     <button type="button" id="dm-chat-emoji-btn" class="emoji-picker-btn" title="Emoticonos">😊</button>
+                    <button type="button" id="dm-chat-image-btn" class="emoji-picker-btn" title="Imagen">🖼️</button>
+                    <button type="button" id="dm-chat-gif-btn" class="emoji-picker-btn" title="GIF">GIF</button>
                     <input id="dm-chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="1000"
                         autocomplete="off">
                     <button type="submit" class="btn btn--primary">Enviar</button>
@@ -567,6 +588,7 @@
     <script src="js/board.js"></script>
     <script src="js/board-theme.js"></script>
     <script src="js/emoji-picker.js"></script>
+    <script src="js/chat-media.js"></script>
     <script src="js/history.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/friendship.js"></script>

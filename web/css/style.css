@@ -2029,3 +2029,84 @@ a {
 .chat__mute-btn--active {
     color: var(--garnet);
 }
+
+/* ---- Imágenes y GIFs en el chat ---- */
+
+.chat__image {
+    display: block;
+    max-width: 220px;
+    max-height: 220px;
+    border-radius: var(--radius-sm);
+    margin-top: 0.3rem;
+}
+
+.image-url-popover {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 260px;
+}
+
+.image-url-popover input {
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--felt-border);
+    background: var(--ink-raised);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+
+.image-url-popover input:focus {
+    border-color: var(--brass);
+}
+
+.gif-search-popover {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 300px;
+    max-height: 340px;
+}
+
+.gif-search-popover input {
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--felt-border);
+    background: var(--ink-raised);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+
+.gif-search-popover input:focus {
+    border-color: var(--brass);
+}
+
+.gif-search-results {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.4rem;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.gif-search-result {
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--felt-border);
+}
+
+.gif-search-result:hover {
+    border-color: var(--brass);
+}
+
+.gif-search-attribution {
+    margin: 0;
+    font-size: 0.65rem;
+    color: var(--parchment-dim);
+    text-align: right;
+}
