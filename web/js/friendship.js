@@ -330,6 +330,7 @@ async function openDirectMessageChat(friendId, friendUsername) {
 function hideDirectMessageChat() {
     currentDmFriendId = null;
     document.getElementById('dm-chat-modal').hidden = true;
+    closeEmojiPicker(); // por si estaba abierto apuntando al campo de este chat, que ya se oculta
 }
 
 function showReadReceipt() {

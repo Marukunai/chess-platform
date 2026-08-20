@@ -816,6 +816,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    document.getElementById('chat-emoji-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleEmojiPicker(event.currentTarget, document.getElementById('chat-input'));
+    });
+
     document.getElementById('rematch-btn').addEventListener('click', () => {
         if (!lastFinishedGame) {
             return;
@@ -902,6 +907,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatDropdown = document.getElementById('chat-dropdown');
         if (!chatDropdown.contains(event.target)) {
             closeChatDropdown();
+        }
+        const emojiPanel = document.getElementById('emoji-picker-panel');
+        if (!emojiPanel.hidden && !emojiPanel.contains(event.target)) {
+            closeEmojiPicker();
         }
     });
 
@@ -1103,4 +1112,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('dm-chat-close-btn').addEventListener('click', hideDirectMessageChat);
+
+    document.getElementById('dm-chat-emoji-btn').addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleEmojiPicker(event.currentTarget, document.getElementById('dm-chat-input'));
+    });
 });
