@@ -2,6 +2,14 @@ spring:
   application:
     name: chess-platform-backend
 
+  # Sin esto, cada arranque muestra "Using generated security password: ..." en el
+  # log — inofensivo pero ruidoso: el proyecto no usa el flujo de autenticación
+  # tradicional de Spring Security (UserDetailsService/AuthenticationManager) en
+  # ningún sitio, la autenticación real es JWT propio vía AuthController y
+  # JwtAuthenticationFilter (ver ADR-008 y ADR-016 en docs/architecture-decisions.md).
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
   datasource:
     url: jdbc:postgresql://localhost:5432/chess_platform
     username: chess_admin

@@ -337,6 +337,8 @@ function hideDirectMessageChat() {
     currentDmFriendId = null;
     document.getElementById('dm-chat-modal').hidden = true;
     closeEmojiPicker(); // por si estaba abierto apuntando al campo de este chat, que ya se oculta
+    closeImageUrlPopover();
+    closeGifSearchPopover();
 }
 
 function showReadReceipt() {
@@ -365,7 +367,7 @@ function appendDirectMessageToLog(senderLabel, text, isFromFriend) {
     const strong = document.createElement('strong');
     strong.textContent = `${senderLabel}: `;
     entry.appendChild(strong);
-    entry.append(text);
+    appendChatMessageBody(entry, text);
     log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
 }
