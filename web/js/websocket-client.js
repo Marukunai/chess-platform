@@ -137,6 +137,14 @@ function respondToRematch(accept) {
     stompClient.send('/app/rematch/respond', {}, JSON.stringify({ accept }));
 }
 
+function proposeChallenge(opponentUserId, timeControlPreset) {
+    stompClient.send('/app/challenge/propose', {}, JSON.stringify({ opponentUserId, timeControlPreset }));
+}
+
+function respondToChallenge(accept) {
+    stompClient.send('/app/challenge/respond', {}, JSON.stringify({ accept }));
+}
+
 function joinGame(gameId) {
     stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify({}));
 }

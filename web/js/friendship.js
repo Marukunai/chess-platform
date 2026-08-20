@@ -199,7 +199,13 @@ function renderFriendsList(friends) {
         row.appendChild(info);
 
         const action = document.createElement('div');
-        action.className = 'friend-row__action';
+        action.className = 'friend-row__action friend-row__action--split';
+        const challengeBtn = document.createElement('button');
+        challengeBtn.type = 'button';
+        challengeBtn.className = 'btn btn--ghost';
+        challengeBtn.textContent = 'Retar';
+        challengeBtn.addEventListener('click', () => openChallengeModal(friend.userId, friend.username));
+        action.appendChild(challengeBtn);
         const chatBtn = document.createElement('button');
         chatBtn.type = 'button';
         chatBtn.className = 'btn btn--ghost';
@@ -573,4 +579,23 @@ function toggleChatDropdown() {
     } else {
         closeChatDropdown();
     }
+}
+
+/* ============================= Retar a un amigo directamente ============================= */
+// Mismo patrón que la revancha (propuesta pendiente, aviso por /topic/user/{userId},
+// aceptar entra a la partida como un emparejamiento normal) pero iniciado desde la fila
+// de un amigo en vez de desde el modal de fin de partida — y sin partida anterior de la
+// que sacar los colores, así que aquí sí hace falta elegir control de tiempo primero.
+
+let challengeModalTargetUserId = null;
+
+function openChallengeModal(friendUserId, friendUsername) {
+    challengeModalTargetUserId = friendUserId;
+    document.getElementById('challenge-modal-title').textContent = `Retar a ${friendUsername}`;
+    document.getElementById('challenge-modal').hidden = false;
+}
+
+function closeChallengeModal() {
+    challengeModalTargetUserId = null;
+    document.getElementById('challenge-modal').hidden = true;
 }
