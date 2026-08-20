@@ -389,6 +389,8 @@
                     <div class="chat">
                         <div id="chat-log" class="chat__log"></div>
                         <form id="chat-form" class="chat__form">
+                            <button type="button" id="chat-emoji-btn" class="emoji-picker-btn"
+                                title="Emoticonos">😊</button>
                             <input id="chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="500"
                                 autocomplete="off">
                             <button type="submit" class="btn btn--primary">Enviar</button>
@@ -429,6 +431,10 @@
 
         <!-- Notificación breve y autoocultable, para avisos puntuales (p. ej. "X rechazó la revancha") -->
         <div id="transient-notice" class="transient-notice" hidden></div>
+
+        <!-- Panel del selector de emoticonos — compartido entre el chat de partida y el
+             chat directo, se reposiciona junto al botón que lo abrió cada vez -->
+        <div id="emoji-picker-panel" class="emoji-picker-panel" hidden></div>
 
         <!-- Vista rápida del perfil de otro jugador — al hacer clic en un nombre en
              partida o en una fila del ranking. Reutiliza los mismos estilos que la
@@ -474,6 +480,7 @@
                 <div id="dm-chat-log" class="chat__log dm-chat-log"></div>
                 <p id="dm-chat-read-receipt" class="dm-chat-read-receipt" hidden>✓ Leído</p>
                 <form id="dm-chat-form" class="chat__form">
+                    <button type="button" id="dm-chat-emoji-btn" class="emoji-picker-btn" title="Emoticonos">😊</button>
                     <input id="dm-chat-input" type="text" placeholder="Escribe un mensaje..." maxlength="1000"
                         autocomplete="off">
                     <button type="submit" class="btn btn--primary">Enviar</button>
@@ -529,6 +536,7 @@
     <script src="js/auth.js"></script>
     <script src="js/board.js"></script>
     <script src="js/board-theme.js"></script>
+    <script src="js/emoji-picker.js"></script>
     <script src="js/history.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/friendship.js"></script>
