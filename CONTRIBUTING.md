@@ -74,8 +74,9 @@ Reglas prácticas:
   describirlo, probablemente sean dos commits.
 - **Imperativo**: "añade", "corrige" — no "añadido", "corrigiendo".
 - El `scope` entre paréntesis referencia el módulo afectado (`engine`, `realtime`,
-  `matchmaking`, `rating`, `auth`, `persistence`, `web`, `android`). Te permite filtrar el
-  historial después con `git log --grep="engine"` o `git log -- backend/.../engine`.
+  `matchmaking`, `rating`, `rematch`, `presence`, `friendship`, `auth`, `persistence`,
+  `web`, `android`). Te permite filtrar el historial después con `git log --grep="engine"`
+  o `git log -- backend/.../engine`.
 - Evita commits tipo `fix`, `wip`, `cambios` a secas — no aportan nada al buscar en el
   historial dentro de 6 meses.
 - Commits pequeños y frecuentes > un commit gigante al final del día. Si algo no compila

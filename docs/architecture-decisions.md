@@ -208,4 +208,107 @@ igual que los otros dos sin configuración adicional.
 
 **Alcance actual:** solo lo usa la revancha (`RematchController`), pero está pensado
 como el sitio natural para cualquier futuro aviso que tenga que alcanzar a un usuario
-concreto sin importar la pantalla — no una pieza de un solo uso.
+concreto sin importar la pantalla — no una pieza de un solo uso. (Actualización: desde
+entonces también lo usan amistad, presencia y mensajería directa — ver ADR-019 y
+ADR-020 — confirmando que la previsión no iba desencaminada.)
+
+## ADR-016: `JwtAuthenticationFilter` para peticiones HTTP normales
+
+**Decisión:** un filtro (`OncePerRequestFilter`) valida el JWT en peticiones HTTP
+normales — distinto de `StompAuthChannelInterceptor` (ADR-008), que sigue validando
+solo el `CONNECT` de STOMP. El filtro puebla el `SecurityContext` si el token es
+válido, pero nunca rechaza la petición él solo: quien decide si una ruta necesita
+identidad es `SecurityConfig` (`.authenticated()` vs `.permitAll()`). Sin token, o con
+uno inválido, la petición sigue adelante sin autenticar, y si la ruta lo exigía, Spring
+Security la rechaza más adelante en la cadena con un 401 normal.
+
+Como consecuencia, `/api/games/**` y `/api/users/**` distinguen ahora GET (público, ver
+motivo original en ADR-011: cualquiera puede consultar partidas o perfiles) de
+POST/PUT/DELETE (requieren identidad).
+
+**Motivo:** hasta ahora no había ningún endpoint REST más allá de `/api/auth/**` que
+necesitara identidad — todo lo demás era de lectura pública, o pasaba por WebSocket
+(donde el `CONNECT` ya resuelve la identidad una vez por conexión). Editar el propio
+perfil fue el primer caso real que necesitaba saber "quién eres" en una petición HTTP
+normal, y ahí dejó de tener sentido seguir sin este filtro.
+
+## ADR-017: Borrado de cuenta — anonimización, no `DELETE` de la fila
+
+**Decisión:** borrar una cuenta no elimina la fila de `User` — la anonimiza
+(`User.anonymizeForDeletion()`): el nombre pasa a `usuario-eliminado-XXXXXXXX`, la
+contraseña se sustituye por un hash de una contraseña aleatoria que nadie conoce (login
+descartado sin necesitar un campo "activo" aparte), país y avatar se limpian, y queda
+excluida del ranking. La fila sigue existiendo.
+
+**Motivo:** las partidas de OTROS jugadores tienen una relación `@ManyToOne` hacia este
+`User`. Borrar la fila de verdad rompería su historial (violación de clave foránea) o,
+con cascada, se llevaría por delante sus partidas también — algo que ellos no pidieron.
+Con la fila anonimizada en su sitio, el historial de quien jugó contigo sigue intacto;
+simplemente te ve como "Usuario eliminado" en vez de tu nombre real. Es el mismo patrón
+que usan la mayoría de plataformas con historial compartido entre usuarios.
+
+## ADR-018: Historial de las últimas contraseñas, para evitar reutilización
+
+**Decisión:** `User` guarda los hashes de las 4 contraseñas anteriores a la actual
+(`passwordHistory`, `@ElementCollection`) — cambiar la contraseña comprueba que la
+nueva no coincida ni con la actual ni con ninguna de esas 4 (`matchesAnyRecentPassword`),
+es decir, ninguna de las últimas 5 en total.
+
+**Motivo:** sin esto, "cambiar" la contraseña por la misma que ya tenías pasaba la
+validación sin más — un hueco de seguridad real detectado durante pruebas manuales, no
+solo una mejora cosmética. Limitar a 5 (no guardar el historial entero) es a propósito:
+basta para el caso de uso (evitar el "cambio" trivial que no cambia nada) sin acumular
+hashes indefinidamente.
+
+## ADR-019: Presencia en memoria, con "no molestar" por encima de "en partida"
+
+**Decisión:** `PresenceRegistry` guarda quién está conectado ahora mismo enteramente en
+memoria (igual que `GameSessionRegistry`, ver ADR-004/ADR-010), no en base de datos. El
+estado que se muestra a los amigos (`PresenceService.statusOf()`) se calcula con esta
+prioridad, de mayor a menor: desconectado > no molestar > en partida > en línea. "No
+molestar", que el propio usuario activa, manda por encima de "en partida" (que se
+calcula solo a partir de `GameSessionRegistry`) — si alguien activó no molestar,
+respetarlo aunque esté jugando.
+
+Además, "no molestar" silencia los AVISOS en vivo (mensajes directos, solicitudes de
+amistad, ofertas de revancha) pero nunca la entrega real — un mensaje directo se guarda
+igual, y `MatchFoundMessage` (una partida ha empezado de verdad) nunca se silencia, por
+no ser una notificación social que se pueda ignorar sin más.
+
+**Motivo:** la presencia es un dato transitorio por naturaleza (deja de ser cierto en
+cuanto alguien cierra la pestaña) — guardarlo en base de datos añadiría escrituras
+constantes por algo que no necesita sobrevivir a un reinicio del servidor. El único
+efecto colateral aceptado (ver README, "Limitaciones conocidas") es que, igual que las
+partidas en curso, el estado de presencia tampoco sobrevive a que el backend se
+reinicie — se resuelve solo en cuanto cada cliente reconecta.
+
+## ADR-020: Dos mecanismos de chat distintos, a propósito
+
+**Decisión:** el chat de partida (`ChatMessage`/`ChatSendMessage`,
+`GameWebSocketController`) y la mensajería privada entre amigos (`DirectMessage`,
+`DirectMessageController`) son dos sistemas separados, sin código compartido entre
+ellos más allá de convenciones de estilo.
+
+**Motivo:** tienen semánticas opuestas. El chat de partida es puramente efímero — vive
+mientras dura la partida y desaparece con ella, igual que las flechas dibujadas en el
+tablero (nunca se guarda en base de datos). La mensajería privada es exactamente lo
+contrario: tiene que sobrevivir a que el destinatario esté desconectado, need
+historial completo, y necesita saber si se ha leído o no (`DirectMessage.read`, con
+confirmación de lectura en vivo al remitente). Forzar los dos casos por el mismo
+componente habría significado o bien persistir el chat de partida sin necesidad, o
+complicar la mensajería privada con la lógica de "solo mientras estás en la partida"
+que no le pega. Separarlos deja cada uno tan simple como el problema que resuelve.
+
+## ADR-021: Apariencia del tablero — solo en el cliente, nunca sincronizada
+
+**Decisión:** el tema de color del tablero y el estilo de las piezas se guardan
+enteramente en `localStorage` del navegador (`board-theme.js`) — el backend no sabe
+nada de esto, no hay ningún campo en `User` ni ningún endpoint.
+
+**Motivo:** es una preferencia puramente cosmética y personal — cómo ves TÚ el tablero
+no debería obligar a tu rival a verlo igual, ni falta que hace guardarlo en ningún
+sitio compartido. Guardarlo en el servidor habría significado tocar `User`, un
+endpoint nuevo, y sincronizar el dato entre dispositivos — coste real para una
+preferencia que ya funciona perfectamente bien viviendo solo en el navegador donde se
+eligió. Si en el futuro hiciera falta que la preferencia viajara entre dispositivos del
+mismo usuario, ahí sí compensaría moverlo al servidor — no antes.

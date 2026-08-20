@@ -26,19 +26,52 @@ ajedrez externo.
 - [ ] Cliente Android conectado a la misma partida en vivo
 - [x] Historial de partidas con reproducción movimiento a movimiento
 
+### Fase 1.5 — Social y personalización (añadida sobre la marcha, fuera del roadmap original)
+
+Lo que sigue no estaba en el plan inicial de Fase 1, pero fue saliendo de forma natural
+una vez la base (partidas en tiempo real + cuentas) ya estaba en pie:
+
+- [x] Reconexión automática (backoff creciente, sin límite de reintentos) — recupera la
+  partida activa tras F5 o un corte de red
+- [x] Revancha, con los colores intercambiados respecto a la partida anterior
+- [x] Chat de partida (efímero, solo retransmisión — no se guarda)
+- [x] Perfil editable (nombre de usuario, país, avatar por URL), cambio de contraseña
+  (con historial de las últimas 5 para evitar reutilización), borrado lógico de cuenta
+- [x] Sistema de amigos: buscar, solicitudes, lista con estado de presencia en vivo
+  (en línea / en partida / no molestar)
+- [x] Mensajería privada persistente entre amigos, con confirmación de lectura y un
+  desplegable general de chat (búsqueda, conversaciones recientes, no leídos)
+- [x] Vista rápida de perfil (clic en el rival durante la partida o en una fila del
+  ranking), rivales recientes y porcentaje de victorias en el perfil
+- [x] Apariencia del tablero personalizable (6 paletas de color, 2 estilos de pieza) —
+  cosmético y solo para quien lo cambia, nunca sincronizado con el rival
+- [x] Tablero orientado según tu color (piezas propias siempre abajo)
+
 ### Fase 2 — Ampliación (planificado)
 
 - [ ] Bots vía protocolo UCI (Stockfish) con distintos niveles de fuerza
 - [ ] Generador de puzzles a partir de partidas analizadas
 - [ ] Modo espectador en directo
 - [ ] Importación/exportación PGN
-- [ ] Perfiles públicos con estadísticas
 - [ ] Salas privadas / partidas por invitación
+- [ ] Ranking y rating separados por modalidad (bullet/blitz/rápidas/clásicas), en vez
+  de un único rating global
+- [ ] Sistema de logros
+- [ ] Retar a un amigo directamente a una partida (sin pasar por el emparejamiento
+  aleatorio)
+- [ ] Silenciar/bloquear a alguien en el chat de partida
+- [ ] Emoticonos, imágenes y GIFs en el chat
 
 ### Fuera de alcance por ahora
 
 Ajedrez por correspondencia, variantes (Chess960, Crazyhouse...), torneos organizados
 (posible Fase 3, reutilizando lo aprendido del sistema de torneos del póker).
+
+**Llamadas de voz/vídeo**, evaluado y descartado a propósito: implicaría montar
+infraestructura WebRTC entera (señalización, negociación punto a punto) que no aporta
+al núcleo de una plataforma de ajedrez lo suficiente como para justificar el esfuerzo.
+Los audios de voz en el chat quedan en el mismo saco por el problema de almacenamiento
+que comparten con las imágenes (ver Fase 2).
 
 ## Estructura del repositorio
 
@@ -49,9 +82,12 @@ chess-platform/
 ├── backend/            # Spring Boot — API, WebSocket, motor de reglas, rating, matchmaking
 │   └── src/main/java/com/chessplatform/
 │       ├── engine/         # Reglas de ajedrez — módulo puro, sin dependencias de Spring
-│       ├── realtime/        # Config STOMP, GameSession, registro de salas, DTOs de mensajes
+│       ├── realtime/        # Config STOMP, GameSession, registro de salas, chat de partida, DTOs de mensajes
 │       ├── matchmaking/     # Cola y emparejamiento por rating
 │       ├── rating/          # Glicko-2
+│       ├── rematch/         # Revancha (propuesta, colores intercambiados, aceptación)
+│       ├── presence/        # Estado en línea/en partida/no molestar, avisos a amigos
+│       ├── friendship/      # Amigos, solicitudes, mensajería privada persistente
 │       ├── auth/            # JWT, Spring Security
 │       └── persistence/     # Entidades JPA, repositorios
 ├── web/                # Cliente web (vanilla JS + CSS, sin framework pesado)
@@ -136,11 +172,12 @@ Android, sería razonable reconsiderar y extraerlo — no es el caso ahora.
 
 | Área | Qué es nuevo respecto al backend de póker | Por qué importa |
 |---|---|---|
-| **Motor de reglas desde cero** | El póker no requiere validar un grafo de estados tan complejo como jaque/mate/enroque/en passant/tablas | Diseño de dominio puro, testing exhaustivo de edge cases, máquina de estados de una partida |
+| **Motor de reglas desde cero** | El póker no requiere validar un grafo de estados tan complejo como jaque/mate/enroque/en passant | Diseño de dominio puro, testing exhaustivo de edge cases, máquina de estados de una partida |
 | **STOMP sobre WebSocket** | El póker usa WebSocket raw | Modelo pub/sub por *destinations*, más cercano a cómo se diseñan sistemas de mensajería en producción |
 | **Rating Glicko-2** | Nuevo por completo | Sistema de rating con incertidumbre (*rating deviation*) y volatilidad — más sofisticado que un Elo simple, el que usan Lichess y chess.com |
 | **Integración UCI con motor externo (Stockfish)** | El póker tenía bots con IA propia | Comunicarse con un proceso externo vía un protocolo de texto estándar, gestionar su ciclo de vida y traducir entre tu dominio y el suyo |
 | **Generación de contenido a partir de datos reales** | Nuevo por completo | Pipeline de análisis: partida jugada → evaluación posición a posición con el motor → detección de swing táctico → puzzle |
+| **Sistemas en tiempo real más allá de una partida** | El póker tiene mesas, no un grafo social | Presencia (quién está online/en partida), mensajería persistente con confirmación de lectura, notificaciones dirigidas a un usuario concreto sin importar en qué pantalla esté — un canal STOMP por-usuario (`/topic/user/{userId}`) además de los canales por-partida y por-cola |
 | **Cliente Android reutilizando Retrofit + WebSocket** | Ya lo tienes de tu app de anime | Consolidar el patrón contra un dominio distinto y con estado de partida en tiempo real más exigente (reloj, reconexión) |
 
 ## Flujo de trabajo Git
@@ -193,7 +230,9 @@ commit — Render vuelve a desplegar el *static site* solo al detectar el *push*
 
 El plan gratuito de Render "duerme" el backend a los 15 minutos de inactividad — la
 primera petición tras eso tarda 30-60 segundos en responder mientras despierta. Es
-normal, no un fallo — verlo así una vez no significa que algo se haya roto.
+normal, no un fallo — verlo así una vez no significa que algo se haya roto. Es también
+la razón práctica por la que una partida en curso puede perderse sin avisar — ver
+"Limitaciones conocidas" más abajo.
 
 ## Decisiones de arquitectura
 
@@ -203,14 +242,7 @@ de las decisiones clave tomadas al arrancar el proyecto y su justificación.
 ## Limitaciones conocidas
 
 Cosas que sé que faltan ahora mismo, documentadas a propósito en vez de dejarlas como
-sorpresa — cada una tiene su `TODO` correspondiente en el código:
-
-- **No existe `JwtAuthenticationFilter` para peticiones HTTP normales**: la identidad
-  solo se valida en el `CONNECT` de STOMP (ver ADR-008) y, obviamente, dentro de
-  `/api/auth/**` al hacer login. Como no hay todavía ningún otro endpoint REST que
-  necesite identidad (`/api/games/**` es público a propósito, ver ADR-011 en
-  `docs/architecture-decisions.md`), no ha hecho falta construirlo — es lo primero que
-  tocaría en cuanto aparezca uno.
+sorpresa:
 
 - **Una partida en curso no sobrevive a que el backend se reinicie**: `GameSession`
   vive solo en memoria (`GameSessionRegistry`) y no se guarda en la base de datos hasta
@@ -224,6 +256,15 @@ sorpresa — cada una tiene su `TODO` correspondiente en el código:
   esa memoria. Arreglarlo de verdad implicaría persistir el estado de cada partida de
   forma continua mientras está en curso, no solo al terminar — un cambio bastante más
   grande que la reconexión en sí, y que de momento se deja fuera a propósito.
+
+- **La reproducción de una partida siempre se ve con blancas abajo**, sin importar qué
+  color jugaras tú en esa partida en concreto — a diferencia de la partida en vivo, que
+  sí se orienta según tu color. Decisión consciente de alcance, no un descuido: evita
+  que la orientación de tu última partida en vivo "se filtre" a una reproducción sin
+  relación con ella.
+
+- **El rating es único, no por modalidad**: jugar bullet y clásicas afecta al mismo
+  número — ver Fase 2 en el roadmap más arriba.
 
 ## Licencia
 
