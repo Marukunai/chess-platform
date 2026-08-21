@@ -121,6 +121,10 @@
                         <span class="lobby-nav-tile__icon">📜</span>
                         <span class="lobby-nav-tile__label">Historial</span>
                     </button>
+                    <button id="achievements-btn" class="lobby-nav-tile lobby-nav-tile--wide">
+                        <span class="lobby-nav-tile__icon">🎖️</span>
+                        <span class="lobby-nav-tile__label">Logros</span>
+                    </button>
                 </div>
 
                 <button id="logout-btn" class="lobby-logout-link">Cerrar sesión</button>
@@ -284,6 +288,41 @@
                     </table>
                 </div>
                 <button id="leaderboard-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
+        <!-- Mis logros, o los de cualquier otro (llegando desde el ranking global) -->
+        <section id="achievements-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 id="achievements-title" class="card__title">Mis logros</h2>
+                <p id="achievements-summary" class="achievements-summary"></p>
+                <div class="achievements-overall-bar">
+                    <div id="achievements-overall-fill" class="achievements-overall-fill"></div>
+                </div>
+                <div id="achievements-list" class="achievements-list"></div>
+                <button id="achievements-leaderboard-btn" class="btn btn--ghost btn--block">Ranking global de
+                    logros</button>
+                <button id="achievements-back-btn" class="btn btn--ghost btn--block">Volver</button>
+            </div>
+        </section>
+
+        <!-- Ranking global de logros — quién tiene más desbloqueados -->
+        <section id="achievements-leaderboard-screen" class="screen screen--centered" hidden>
+            <div class="card card--wide">
+                <h2 class="card__title">Ranking de logros</h2>
+                <div class="scoresheet-wrap scoresheet-wrap--tall">
+                    <table class="scoresheet standings">
+                        <thead>
+                            <tr>
+                                <th class="scoresheet__num-col">#</th>
+                                <th>Jugador</th>
+                                <th>Logros</th>
+                            </tr>
+                        </thead>
+                        <tbody id="achievements-leaderboard-list"></tbody>
+                    </table>
+                </div>
+                <button id="achievements-leaderboard-back-btn" class="btn btn--ghost btn--block">Volver</button>
             </div>
         </section>
 
@@ -591,6 +630,7 @@
     <script src="js/chat-media.js"></script>
     <script src="js/history.js"></script>
     <script src="js/profile.js"></script>
+    <script src="js/achievements.js"></script>
     <script src="js/friendship.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>

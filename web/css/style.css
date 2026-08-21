@@ -2149,3 +2149,121 @@ a {
     color: var(--parchment-dim);
     text-align: right;
 }
+
+/* ---- Logros ---- */
+
+.lobby-nav-tile--wide {
+    grid-column: span 2;
+}
+
+.achievements-summary {
+    text-align: center;
+    color: var(--parchment-dim);
+    font-size: 0.85rem;
+    margin: -0.5rem 0 0.6rem;
+}
+
+.achievements-overall-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--ink-raised);
+    border: 1px solid var(--felt-border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.achievements-overall-fill {
+    height: 100%;
+    background: var(--brass);
+    border-radius: 999px;
+    transition: width 0.3s ease-out;
+}
+
+.achievements-list {
+    max-height: 480px;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+    padding-right: 0.3rem;
+}
+
+.achievements-category-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--brass-bright);
+    margin: 1.25rem 0 0.6rem;
+}
+
+.achievements-category-label:first-child {
+    margin-top: 0;
+}
+
+.achievement-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: var(--ink-raised);
+    border: 1px solid var(--felt-border);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 0.4rem;
+    opacity: 0.6;
+}
+
+.achievement-row--unlocked {
+    opacity: 1;
+    border-color: var(--brass);
+}
+
+.achievement-row__icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.achievement-row__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.achievement-row__name {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--parchment);
+}
+
+.achievement-row__description {
+    margin: 0.15rem 0 0.5rem;
+    font-size: 0.78rem;
+    color: var(--parchment-dim);
+}
+
+.achievement-row__progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--felt);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.achievement-row__progress-fill {
+    height: 100%;
+    background: var(--brass-bright);
+    border-radius: 999px;
+}
+
+.achievement-row--unlocked .achievement-row__progress-fill {
+    background: var(--verdigris);
+}
+
+.achievement-row__progress-label {
+    display: block;
+    text-align: right;
+    font-size: 0.68rem;
+    color: var(--parchment-dim);
+    margin-top: 0.25rem;
+    font-variant-numeric: tabular-nums;
+}
