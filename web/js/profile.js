@@ -57,12 +57,40 @@ async function deleteAccount(userId, password) {
     }
 }
 
-async function fetchLeaderboard() {
-    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/leaderboard`);
+async function fetchLeaderboard(mode) {
+    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/leaderboard?mode=${encodeURIComponent(mode)}`);
     if (!response.ok) {
         throw new Error(`Error ${response.status} al cargar el ranking`);
     }
     return response.json();
+}
+
+const GAME_MODE_LABELS = { BULLET: 'Bullet', BLITZ: 'Blitz', RAPID: 'Rápidas', CLASSICAL: 'Clásicas' };
+const GAME_MODE_ORDER = ['BULLET', 'BLITZ', 'RAPID', 'CLASSICAL'];
+
+/**
+ * Las 4 modalidades siempre en el mismo orden, cada una con su propio rating — usado
+ * tanto en la pantalla de perfil como en la vista rápida (showProfileQuickView, en
+ * main.js), así que vive aquí en vez de duplicarse en los dos sitios.
+ */
+function renderModeRatings(containerId, ratings) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    const byMode = Object.fromEntries((ratings || []).map(r => [r.mode, r]));
+
+    for (const mode of GAME_MODE_ORDER) {
+        const entry = byMode[mode];
+        const card = document.createElement('div');
+        card.className = 'mode-rating-card';
+        const value = document.createElement('span');
+        value.className = 'mode-rating-card__value';
+        value.textContent = entry ? entry.rating : '—';
+        const label = document.createElement('span');
+        label.className = 'mode-rating-card__label';
+        label.textContent = GAME_MODE_LABELS[mode];
+        card.append(value, label);
+        container.appendChild(card);
+    }
 }
 
 function renderProfile(profile) {
@@ -85,7 +113,7 @@ function renderProfile(profile) {
         countryEl.hidden = true;
     }
 
-    document.getElementById('profile-rating-value').textContent = profile.rating;
+    renderModeRatings('profile-ratings', profile.ratings);
     document.getElementById('profile-winrate').textContent = `${profile.winRatePercent}% de victorias`;
     document.getElementById('profile-games').textContent = profile.gamesPlayed;
     document.getElementById('profile-wins').textContent = profile.wins;
