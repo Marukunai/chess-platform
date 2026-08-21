@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.friendship.dto.FriendRequestAcceptedNotification;
 import com.chessplatform.friendship.dto.FriendRequestNotification;
 import com.chessplatform.friendship.dto.FriendRequestResponse;
@@ -48,11 +49,15 @@ class FriendshipControllerTest {
     @Mock
     private PresenceService presenceService;
 
+    @Mock
+    private AchievementUnlockService achievementUnlockService;
+
     private FriendshipController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new FriendshipController(userRepository, friendshipRepository, messagingTemplate, presenceService);
+        controller = new FriendshipController(userRepository, friendshipRepository, messagingTemplate, presenceService,
+                achievementUnlockService);
     }
 
     private static Authentication authenticationFor(String userId) {

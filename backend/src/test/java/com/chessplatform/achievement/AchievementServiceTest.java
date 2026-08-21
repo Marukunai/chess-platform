@@ -1,11 +1,13 @@
 package com.chessplatform.achievement;
 
+import com.chessplatform.persistence.entity.Friendship;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.DirectMessageRepository;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserAchievementUnlockRepository;
 import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.rating.GameMode;
@@ -42,12 +44,15 @@ class AchievementServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private UserAchievementUnlockRepository unlockRepository;
+
     private AchievementService service;
 
     @BeforeEach
     void setUp() {
         service = new AchievementService(gameRepository, friendshipRepository, directMessageRepository,
-                userRatingRepository, userRepository);
+                userRatingRepository, userRepository, unlockRepository);
     }
 
     private static void setId(User user, String id) {
@@ -224,8 +229,8 @@ class AchievementServiceTest {
 
         List<AchievementService.UserAchievementCount> ranked = service.leaderboard();
 
-        assertThat(ranked.get(0).user().getUsername()).isEqualTo("alice");
-        assertThat(ranked.get(0).unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
+        assertThat(ranked.getFirst().user().getUsername()).isEqualTo("alice");
+        assertThat(ranked.getFirst().unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
     }
 
     @Test
@@ -378,5 +383,108 @@ class AchievementServiceTest {
 
         assertThat(snapshot.directMessagesReceived()).isEqualTo(12);
         assertThat(snapshot.distinctConversationPartners()).isEqualTo(3);
+    }
+
+    @Test
+    void detailedProgressForIncludesWhenYouUnlockedAnAchievement() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        Instant unlockedInstant = Instant.parse("2026-01-15T00:00:00Z");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of());
+        when(directMessageRepository.countBySender_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countByRecipient_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
+        when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.of(alice));
+        when(userRepository.countByDeletedAtIsNull()).thenReturn(10L);
+        com.chessplatform.persistence.entity.UserAchievementUnlock unlock =
+                new com.chessplatform.persistence.entity.UserAchievementUnlock(alice, "primera-partida");
+        setUnlockedAt(unlock, unlockedInstant);
+        when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of(unlock));
+        when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(0L);
+        when(unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Optional.empty());
+
+        List<AchievementService.DetailedAchievementProgress> detailed = service.detailedProgressFor("alice-id");
+
+        AchievementService.DetailedAchievementProgress primeraPartida = detailed.stream()
+                .filter(p -> p.definition().id().equals("primera-partida"))
+                .findFirst().orElseThrow();
+        assertThat(primeraPartida.unlockedAt()).isEqualTo(unlockedInstant);
+
+        AchievementService.DetailedAchievementProgress otro = detailed.stream()
+                .filter(p -> !p.definition().id().equals("primera-partida"))
+                .findFirst().orElseThrow();
+        assertThat(otro.unlockedAt()).isNull();
+    }
+
+    @Test
+    void detailedProgressForComputesRarityAsAPercentageOfActiveUsers() {
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of());
+        when(directMessageRepository.countBySender_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countByRecipient_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
+        when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.empty());
+        when(userRepository.countByDeletedAtIsNull()).thenReturn(4L); // 1 de 4 == 25%
+        when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull("primera-partida")).thenReturn(1L);
+        when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.argThat(
+                id -> !"primera-partida".equals(id)))).thenReturn(0L);
+        when(unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Optional.empty());
+
+        List<AchievementService.DetailedAchievementProgress> detailed = service.detailedProgressFor("alice-id");
+
+        AchievementService.DetailedAchievementProgress primeraPartida = detailed.stream()
+                .filter(p -> p.definition().id().equals("primera-partida"))
+                .findFirst().orElseThrow();
+        assertThat(primeraPartida.rarityPercent()).isEqualTo(25.0);
+    }
+
+    @Test
+    void detailedProgressForIncludesWhoUnlockedItFirstAcrossAllUsers() {
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of());
+        when(directMessageRepository.countBySender_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countByRecipient_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
+        when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.empty());
+        when(userRepository.countByDeletedAtIsNull()).thenReturn(10L);
+        when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(0L);
+        com.chessplatform.persistence.entity.UserAchievementUnlock bobsUnlock =
+                new com.chessplatform.persistence.entity.UserAchievementUnlock(bob, "primera-partida");
+        when(unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc("primera-partida"))
+                .thenReturn(java.util.Optional.of(bobsUnlock));
+        when(unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc(org.mockito.ArgumentMatchers.argThat(
+                id -> !"primera-partida".equals(id)))).thenReturn(java.util.Optional.empty());
+
+        List<AchievementService.DetailedAchievementProgress> detailed = service.detailedProgressFor("alice-id");
+
+        AchievementService.DetailedAchievementProgress primeraPartida = detailed.stream()
+                .filter(p -> p.definition().id().equals("primera-partida"))
+                .findFirst().orElseThrow();
+        assertThat(primeraPartida.firstUnlockedByUsername()).isEqualTo("bob");
+    }
+
+    private static void setUnlockedAt(com.chessplatform.persistence.entity.UserAchievementUnlock unlock, Instant instant) {
+        try {
+            Field field = com.chessplatform.persistence.entity.UserAchievementUnlock.class.getDeclaredField("unlockedAt");
+            field.setAccessible(true);
+            field.set(unlock, instant);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

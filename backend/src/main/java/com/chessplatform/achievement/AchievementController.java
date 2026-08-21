@@ -27,10 +27,12 @@ public class AchievementController {
 
     @GetMapping("/{userId}")
     public List<AchievementProgressResponse> forUser(@PathVariable String userId) {
-        return achievementService.progressFor(userId).stream()
+        return achievementService.detailedProgressFor(userId).stream()
                 .map(p -> new AchievementProgressResponse(
                         p.definition().id(), p.definition().name(), p.definition().description(),
-                        p.definition().category().name(), p.currentProgress(), p.definition().target(), p.unlocked()))
+                        p.definition().category().name(), p.currentProgress(), p.definition().target(), p.unlocked(),
+                        p.unlockedAt() != null ? p.unlockedAt().toString() : null,
+                        p.rarityPercent(), p.firstUnlockedByUsername()))
                 .toList();
     }
 

@@ -1,5 +1,6 @@
 package com.chessplatform.persistence.controller;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.persistence.dto.ChangePasswordRequest;
 import com.chessplatform.persistence.dto.DeleteAccountRequest;
 import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
@@ -51,6 +52,7 @@ public class UserController {
     private final UserRatingRepository userRatingRepository;
     private final GameRepository gameRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AchievementUnlockService achievementUnlockService;
 
     // Mutable y con valor por defecto en vez de un segundo constructor — con dos
     // constructores, Spring no sabe cuál autoconectar (ninguno lleva @Autowired) y
@@ -60,11 +62,13 @@ public class UserController {
     private Clock clock = Clock.systemUTC();
 
     public UserController(UserRepository userRepository, UserRatingRepository userRatingRepository,
-                          GameRepository gameRepository, PasswordEncoder passwordEncoder) {
+                          GameRepository gameRepository, PasswordEncoder passwordEncoder,
+                          AchievementUnlockService achievementUnlockService) {
         this.userRepository = userRepository;
         this.userRatingRepository = userRatingRepository;
         this.gameRepository = gameRepository;
         this.passwordEncoder = passwordEncoder;
+        this.achievementUnlockService = achievementUnlockService;
     }
 
     void setClock(Clock clock) {
@@ -120,6 +124,10 @@ public class UserController {
 
         user.updateProfile(newUsername, blankToNull(request.country()), blankToNull(request.avatarUrl()));
         userRepository.save(user);
+
+        // Los logros de perfil ("Imagen personal", "De dónde vienes") miran justo lo
+        // que se acaba de cambiar aquí.
+        achievementUnlockService.checkAndNotify(userId);
 
         return toProfileResponse(user);
     }

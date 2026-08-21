@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
@@ -53,12 +54,15 @@ class DirectMessageControllerTest {
     @Mock
     private PresenceService presenceService;
 
+    @Mock
+    private AchievementUnlockService achievementUnlockService;
+
     private DirectMessageController controller;
 
     @BeforeEach
     void setUp() {
         controller = new DirectMessageController(userRepository, friendshipRepository, directMessageRepository,
-                messagingTemplate, presenceService);
+                messagingTemplate, presenceService, achievementUnlockService);
     }
 
     private static Authentication authenticationFor(String userId) {
@@ -109,8 +113,8 @@ class DirectMessageControllerTest {
         List<DirectMessageResponse> conversation = controller.conversation("bob-id", authenticationFor("alice-id"));
 
         assertThat(conversation).hasSize(2);
-        assertThat(conversation.get(0).text()).isEqualTo("hola");
-        assertThat(conversation.get(0).senderUserId()).isEqualTo("alice-id");
+        assertThat(conversation.getFirst().text()).isEqualTo("hola");
+        assertThat(conversation.getFirst().senderUserId()).isEqualTo("alice-id");
         assertThat(conversation.get(1).senderUserId()).isEqualTo("bob-id");
     }
 
@@ -129,7 +133,7 @@ class DirectMessageControllerTest {
 
         List<DirectMessageResponse> conversation = controller.conversation("bob-id", authenticationFor("alice-id"));
 
-        assertThat(conversation.get(0).read()).isTrue();
+        assertThat(conversation.getFirst().read()).isTrue();
         assertThat(conversation.get(1).read()).isFalse();
     }
 
@@ -300,9 +304,9 @@ class DirectMessageControllerTest {
         List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
 
         assertThat(conversations).hasSize(1);
-        assertThat(conversations.get(0).username()).isEqualTo("bob");
-        assertThat(conversations.get(0).lastMessageText()).isNull();
-        assertThat(conversations.get(0).unreadCount()).isZero();
+        assertThat(conversations.getFirst().username()).isEqualTo("bob");
+        assertThat(conversations.getFirst().lastMessageText()).isNull();
+        assertThat(conversations.getFirst().unreadCount()).isZero();
     }
 
     @Test
@@ -323,8 +327,8 @@ class DirectMessageControllerTest {
 
         List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
 
-        assertThat(conversations.get(0).lastMessageText()).isEqualTo("estás ahí?");
-        assertThat(conversations.get(0).unreadCount()).isEqualTo(2);
+        assertThat(conversations.getFirst().lastMessageText()).isEqualTo("estás ahí?");
+        assertThat(conversations.getFirst().unreadCount()).isEqualTo(2);
     }
 
     @Test
@@ -350,7 +354,7 @@ class DirectMessageControllerTest {
 
         List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
 
-        assertThat(conversations.get(0).username()).isEqualTo("carol"); // sin leer manda, aunque bob tenga mensaje también
+        assertThat(conversations.getFirst().username()).isEqualTo("carol"); // sin leer manda, aunque bob tenga mensaje también
     }
 
     @Test
@@ -373,7 +377,7 @@ class DirectMessageControllerTest {
 
         List<ConversationSummaryResponse> conversations = controller.conversations(authenticationFor("alice-id"));
 
-        assertThat(conversations.get(0).username()).isEqualTo("carol");
+        assertThat(conversations.getFirst().username()).isEqualTo("carol");
         assertThat(conversations.get(1).username()).isEqualTo("bob");
     }
 

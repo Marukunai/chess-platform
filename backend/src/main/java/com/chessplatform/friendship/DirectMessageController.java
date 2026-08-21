@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.friendship.dto.ConversationSummaryResponse;
 import com.chessplatform.friendship.dto.DirectMessageNotification;
 import com.chessplatform.friendship.dto.DirectMessageResponse;
@@ -48,15 +49,18 @@ public class DirectMessageController {
     private final DirectMessageRepository directMessageRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final PresenceService presenceService;
+    private final AchievementUnlockService achievementUnlockService;
 
     public DirectMessageController(UserRepository userRepository, FriendshipRepository friendshipRepository,
                                    DirectMessageRepository directMessageRepository,
-                                   SimpMessagingTemplate messagingTemplate, PresenceService presenceService) {
+                                   SimpMessagingTemplate messagingTemplate, PresenceService presenceService,
+                                   AchievementUnlockService achievementUnlockService) {
         this.userRepository = userRepository;
         this.friendshipRepository = friendshipRepository;
         this.directMessageRepository = directMessageRepository;
         this.messagingTemplate = messagingTemplate;
         this.presenceService = presenceService;
+        this.achievementUnlockService = achievementUnlockService;
     }
 
     /**
@@ -181,6 +185,11 @@ public class DirectMessageController {
                     "/topic/user/%s".formatted(friendId),
                     new DirectMessageNotification(saved.getId(), userId, sender.getUsername(), text, saved.getSentAt().toString()));
         }
+
+        // Los logros de mensajería miran tanto a quien manda ("Charlatán") como a quien
+        // recibe ("Popular") — comprobar los dos, no solo el remitente.
+        achievementUnlockService.checkAndNotify(userId);
+        achievementUnlockService.checkAndNotify(friendId);
 
         return new DirectMessageResponse(saved.getId(), userId, text, saved.getSentAt().toString(), saved.isRead());
     }

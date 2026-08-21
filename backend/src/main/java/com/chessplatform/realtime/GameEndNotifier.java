@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
@@ -28,13 +29,16 @@ public class GameEndNotifier {
     private final SimpMessagingTemplate messagingTemplate;
     private final GameResultRecorder gameResultRecorder;
     private final PresenceService presenceService;
+    private final AchievementUnlockService achievementUnlockService;
 
     public GameEndNotifier(GameSessionRegistry sessionRegistry, SimpMessagingTemplate messagingTemplate,
-                           GameResultRecorder gameResultRecorder, PresenceService presenceService) {
+                           GameResultRecorder gameResultRecorder, PresenceService presenceService,
+                           AchievementUnlockService achievementUnlockService) {
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
         this.gameResultRecorder = gameResultRecorder;
         this.presenceService = presenceService;
+        this.achievementUnlockService = achievementUnlockService;
     }
 
     /**
@@ -73,5 +77,12 @@ public class GameEndNotifier {
         // que avisar a los amigos justo después de que deje de haberla.
         presenceService.notifyFriendsOfStatusChange(session.whitePlayerId());
         presenceService.notifyFriendsOfStatusChange(session.blackPlayerId());
+
+        // Al final de todo — con la partida ya guardada, el rating actualizado y todo
+        // lo demás resuelto, es el momento correcto para comprobar si esto acaba de
+        // desbloquear algún logro nuevo (partidas jugadas, victorias, jaque mate,
+        // rating, modalidad...) para cada uno de los dos jugadores.
+        achievementUnlockService.checkAndNotify(session.whitePlayerId());
+        achievementUnlockService.checkAndNotify(session.blackPlayerId());
     }
 }

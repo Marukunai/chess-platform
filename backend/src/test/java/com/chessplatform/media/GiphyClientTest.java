@@ -70,8 +70,8 @@ class GiphyClientTest {
 
         mockServer.verify();
         assertThat(results).hasSize(2);
-        assertThat(results.get(0).previewUrl()).isEqualTo("https://media.giphy.com/abc123/200.gif");
-        assertThat(results.get(0).fullUrl()).isEqualTo("https://media.giphy.com/abc123/giphy.gif");
+        assertThat(results.getFirst().previewUrl()).isEqualTo("https://media.giphy.com/abc123/200.gif");
+        assertThat(results.getFirst().fullUrl()).isEqualTo("https://media.giphy.com/abc123/giphy.gif");
     }
 
     @Test

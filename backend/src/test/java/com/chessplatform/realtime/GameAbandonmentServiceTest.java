@@ -62,13 +62,17 @@ class GameAbandonmentServiceTest {
     @Mock
     private com.chessplatform.presence.PresenceService presenceService;
 
+    @Mock
+    private com.chessplatform.achievement.AchievementUnlockService achievementUnlockService;
+
     private GameSessionRegistry sessionRegistry;
     private GameAbandonmentService abandonmentService;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
-        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService);
+        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder,
+                presenceService, achievementUnlockService);
         abandonmentService = new GameAbandonmentService(sessionRegistry, gameEndNotifier);
     }
 
