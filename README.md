@@ -46,6 +46,18 @@ una vez la base (partidas en tiempo real + cuentas) ya estaba en pie:
 - [x] Apariencia del tablero personalizable (6 paletas de color, 2 estilos de pieza) —
   cosmético y solo para quien lo cambia, nunca sincronizado con el rival
 - [x] Tablero orientado según tu color (piezas propias siempre abajo)
+- [x] Lobby y pantalla de login rediseñados, con accesos grandes por icono
+- [x] Emoticonos, imágenes por URL y búsqueda de GIFs (proxy propio, la clave de API
+  nunca llega al cliente) en el chat de partida y el chat directo
+- [x] Silenciar a un rival en el chat de partida — puramente del cliente, no persiste
+  entre partidas
+- [x] Retar a un amigo directamente a una partida, sin pasar por el emparejamiento
+  aleatorio
+- [x] Rating separado por modalidad (bullet/blitz/rápidas/clásicas) — cada una con su
+  propio ranking, en vez de un único rating global
+- [x] Sistema de logros: 38 para empezar, con progreso en vivo, confirmación de lectura
+  con fecha de cuándo se desbloqueó cada uno, quién fue la primera persona en
+  conseguirlo, qué porcentaje de jugadores lo tiene, y aviso en directo al desbloquear
 
 ### Fase 2 — Ampliación (planificado)
 
@@ -54,13 +66,6 @@ una vez la base (partidas en tiempo real + cuentas) ya estaba en pie:
 - [ ] Modo espectador en directo
 - [ ] Importación/exportación PGN
 - [ ] Salas privadas / partidas por invitación
-- [ ] Ranking y rating separados por modalidad (bullet/blitz/rápidas/clásicas), en vez
-  de un único rating global
-- [ ] Sistema de logros
-- [ ] Retar a un amigo directamente a una partida (sin pasar por el emparejamiento
-  aleatorio)
-- [ ] Silenciar/bloquear a alguien en el chat de partida
-- [ ] Emoticonos, imágenes y GIFs en el chat
 
 ### Fuera de alcance por ahora
 
@@ -71,7 +76,7 @@ Ajedrez por correspondencia, variantes (Chess960, Crazyhouse...), torneos organi
 infraestructura WebRTC entera (señalización, negociación punto a punto) que no aporta
 al núcleo de una plataforma de ajedrez lo suficiente como para justificar el esfuerzo.
 Los audios de voz en el chat quedan en el mismo saco por el problema de almacenamiento
-que comparten con las imágenes (ver Fase 2).
+que comparten con las imágenes.
 
 ## Estructura del repositorio
 
@@ -84,7 +89,10 @@ chess-platform/
 │       ├── engine/         # Reglas de ajedrez — módulo puro, sin dependencias de Spring
 │       ├── realtime/        # Config STOMP, GameSession, registro de salas, chat de partida, DTOs de mensajes
 │       ├── matchmaking/     # Cola y emparejamiento por rating
-│       ├── rating/          # Glicko-2
+│       ├── rating/          # Glicko-2, ratings separados por modalidad, catálogo de logros
+│       ├── achievement/     # Progreso de logros, calculado al vuelo salvo la fecha de desbloqueo
+│       ├── challenge/       # Retar a un amigo directamente, sin pasar por el emparejamiento
+│       ├── media/           # Proxy de búsqueda de GIFs (Giphy) — la clave de API nunca llega al cliente
 │       ├── rematch/         # Revancha (propuesta, colores intercambiados, aceptación)
 │       ├── presence/        # Estado en línea/en partida/no molestar, avisos a amigos
 │       ├── friendship/      # Amigos, solicitudes, mensajería privada persistente
@@ -148,6 +156,7 @@ chess-platform/
 | `SERVER_PORT` | Puerto donde escucha el backend |
 | `JWT_SECRET`, `JWT_EXPIRATION_MS` | Firma y expiración de los tokens JWT |
 | `STOCKFISH_PATH` | Ruta al binario de Stockfish (se usa a partir de Fase 2) |
+| `GIPHY_API_KEY` | Clave gratuita de [developers.giphy.com](https://developers.giphy.com) para el buscador de GIFs del chat — sin ella, el buscador simplemente no da resultados, nada más depende de esto |
 
 Ver `.env.example` para la plantilla completa. **`.env` nunca se sube al repositorio** —
 detalles en [`CONTRIBUTING.md`](./CONTRIBUTING.md).
@@ -178,6 +187,8 @@ Android, sería razonable reconsiderar y extraerlo — no es el caso ahora.
 | **Integración UCI con motor externo (Stockfish)** | El póker tenía bots con IA propia | Comunicarse con un proceso externo vía un protocolo de texto estándar, gestionar su ciclo de vida y traducir entre tu dominio y el suyo |
 | **Generación de contenido a partir de datos reales** | Nuevo por completo | Pipeline de análisis: partida jugada → evaluación posición a posición con el motor → detección de swing táctico → puzzle |
 | **Sistemas en tiempo real más allá de una partida** | El póker tiene mesas, no un grafo social | Presencia (quién está online/en partida), mensajería persistente con confirmación de lectura, notificaciones dirigidas a un usuario concreto sin importar en qué pantalla esté — un canal STOMP por-usuario (`/topic/user/{userId}`) además de los canales por-partida y por-cola |
+| **Integrar una API externa de terceros (Giphy)** | Nuevo por completo | Proxy en el propio backend para que la clave de API nunca llegue al cliente, degradar con elegancia si el servicio externo falla, y respetar la cuota con *debounce* en el cliente |
+| **Sistema de logros sin tabla de "logros" propia** | Nuevo por completo | Catálogo fijo en código, progreso calculado al vuelo a partir de datos que ya existen — y, para lo poco que sí hay que persistir (cuándo se desbloqueó cada uno, para poder avisar en el momento y saber quién fue el primero), enganchar la detección justo en los eventos relevantes en vez de en cada lectura |
 | **Cliente Android reutilizando Retrofit + WebSocket** | Ya lo tienes de tu app de anime | Consolidar el patrón contra un dominio distinto y con estado de partida en tiempo real más exigente (reloj, reconexión) |
 
 ## Flujo de trabajo Git
@@ -263,8 +274,16 @@ sorpresa:
   que la orientación de tu última partida en vivo "se filtre" a una reproducción sin
   relación con ella.
 
-- **El rating es único, no por modalidad**: jugar bullet y clásicas afecta al mismo
-  número — ver Fase 2 en el roadmap más arriba.
+- **El ranking global de logros recalcula el progreso de cada usuario activo en cada
+  petición**: no hay ningún contador cacheado — ver el javadoc de `AchievementService`.
+  Aceptable a la escala de un proyecto personal, pero el primer sitio a optimizar
+  (cachear o persistir el recuento) si esto llegara a tener miles de usuarios
+  concurrentes de verdad.
+
+- **Los audios/vídeos que se comparten en el chat son enlaces, no archivos subidos**:
+  igual que el avatar del perfil, pegar la URL de una imagen o GIF ya alojado en otro
+  sitio — no hay almacenamiento de ficheros propio en la plataforma, ni falta que hace
+  para lo que aporta.
 
 ## Licencia
 

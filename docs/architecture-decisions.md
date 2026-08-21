@@ -312,3 +312,101 @@ endpoint nuevo, y sincronizar el dato entre dispositivos — coste real para una
 preferencia que ya funciona perfectamente bien viviendo solo en el navegador donde se
 eligió. Si en el futuro hiciera falta que la preferencia viajara entre dispositivos del
 mismo usuario, ahí sí compensaría moverlo al servidor — no antes.
+
+## ADR-022: Rating separado por modalidad — una fila por (usuario, modalidad), no un campo único en `User`
+
+**Decisión:** el rating Glicko-2 dejó de vivir en `User` — ahora cada combinación
+(usuario, modalidad) tiene su propia fila en `UserRating` (`rating`, `ratingDeviation`,
+`volatility`), con **creación perezosa**: un usuario recién registrado no tiene ninguna
+fila hasta que de verdad se le graba el resultado de una partida jugada en esa
+modalidad (`GameResultRecorder`) — nunca se crean las cuatro de golpe al registrarse.
+Consultar el rating sin que eso exista todavía (`UserRatingService.findOrDefault()`,
+usado por matchmaking y por el perfil) devuelve los valores por defecto sin persistir
+nada — la fila solo se guarda de verdad cuando GameResultRecorder actualiza un rating
+tras una partida real.
+
+**Motivo:** jugar mucho bullet no debería inflar tu rating de clásicas, ni al revés —
+son habilidades relacionadas pero no idénticas, y mezclarlas en un único número (como
+hacía el diseño original) escondía esa diferencia. La creación perezosa evita dos
+problemas: alguien que nunca ha jugado bullet no aparece en su ranking (no tendría
+sentido que sí apareciera con un rating por defecto que nunca demostró tener), y
+`MatchmakingController` no necesita persistir nada solo por entrar a la cola —
+`findOrDefault()` sin guardar sirve de sobra para saber con qué rating buscar rival, y
+si al final ni siquiera llega a jugar, no queda ninguna fila huérfana en la base de
+datos por el intento.
+
+## ADR-023: Logros calculados al vuelo, con persistencia mínima solo para lo irreconstruible
+
+**Decisión:** el catálogo de logros (`AchievementCatalog`, actualmente 38) vive fijo en
+código, no en una tabla — cada uno es una condición sobre una "foto" de estadísticas del
+usuario (`UserStatsSnapshot`) calculada en el momento a partir de datos que ya existen
+(partidas, amigos, mensajes, rating). Nada de esto se guarda... **excepto una cosa**:
+`UserAchievementUnlock` sí persiste la fecha exacta en que cada usuario desbloqueó cada
+logro, porque eso concreto no se puede reconstruir después del hecho si no se captura en
+el momento en que pasa.
+
+Esa captura ocurre en `AchievementUnlockService.checkAndNotify()`, enganchado
+explícitamente en los cuatro sitios donde algo relevante puede cambiar el progreso de
+alguien: fin de partida (`GameEndNotifier`), aceptar una amistad
+(`FriendshipController`), mandar un mensaje directo (`DirectMessageController`) y editar
+el perfil (`UserController`) — a propósito NUNCA en un sitio de lectura (ver el perfil,
+el ranking), porque detectar el desbloqueo "cuando alguien mira" en vez de "cuando pasa
+de verdad" habría hecho inútiles tanto el aviso en directo (llegaría tarde, o nunca) como
+"quién fue el primero" (la fecha sería de cuando se comprobó, no de cuando se consiguió).
+
+**Motivo:** el criterio general de derivar en vez de persistir (mismo que ya usa
+`UserController.toProfileResponse()` para victorias/derrotas) se mantiene para todo lo
+que SÍ se puede recalcular sin pérdida de información — pero "cuándo" es, por
+naturaleza, un dato que solo existe una vez, en el instante en que ocurre. Guardar TODO
+el sistema de logros habría sido más simple de entender pero mucho más caro de
+mantener sincronizado; guardar SOLO la fecha, enganchada justo donde hace falta, da lo
+mejor de los dos mundos.
+
+**Coste asumido a propósito:** tanto el ranking global de logros como la rareza de cada
+logro (qué % de cuentas activas lo tiene) recalculan sobre todos los usuarios activos en
+cada petición — ver "Limitaciones conocidas" en el README.
+
+## ADR-024: Proxy propio para la búsqueda de GIFs, nunca la clave de API en el cliente
+
+**Decisión:** `GifSearchController`/`GiphyClient` son el único sitio que habla con la
+API de Giphy — el cliente web solo llama a `/api/gifs/search`, nunca a Giphy
+directamente, y requiere identidad (cae en el `.anyRequest().authenticated()` por
+defecto). Sin clave configurada (`GIPHY_API_KEY` vacía), el buscador devuelve una lista
+vacía en vez de fallar.
+
+**Motivo:** cualquier clave de API puesta en código JavaScript servido al navegador es,
+en la práctica, pública — cualquiera podría leerla del código fuente y agotar la cuota,
+o usarla para sus propios fines. Exigir identidad además de esto protege esa misma
+cuota de abuso anónimo, ya que consultar este endpoint consume un recurso externo con
+límite, a diferencia del resto de lecturas públicas de la plataforma (partidas,
+perfiles, rankings) que no dependen de ningún servicio de terceros.
+
+## ADR-025: Retar a un amigo — colores sorteados, no intercambiados como en la revancha
+
+**Decisión:** `ChallengeController` reutiliza casi todo el patrón de `RematchController`
+(oferta pendiente en memoria, aviso por `/topic/user/{userId}`, aceptar crea la
+partida) pero con una diferencia: los colores se sortean al aceptar, igual que en el
+emparejamiento normal — no se intercambian respecto a nada, porque no hay ninguna
+partida anterior de la que partir.
+
+**Motivo:** la revancha intercambia colores a propósito (quien perdió con negras juega
+con blancas la siguiente) porque existe un contexto previo que lo justifica. Un reto
+directo no tiene ese contexto — es la primera partida entre estas dos personas en ese
+momento, así que no hay ninguna razón para que uno de los dos "deba" un color en
+concreto. Sortear, como en el emparejamiento aleatorio, es lo justo por defecto.
+
+## ADR-026: Imágenes y GIFs en el chat — la URL es el mensaje, sin cambiar el protocolo
+
+**Decisión:** ni `ChatMessage` (chat de partida) ni `DirectMessage` (mensajería
+directa) ganaron ningún campo nuevo para soportar imágenes o GIFs. El cliente detecta
+si el texto completo de un mensaje es, él solo, una URL reconocible como imagen
+(`isChatImageUrl()` en `chat-media.js`) y lo pinta como `<img>` en vez de texto plano.
+Elegir un GIF del buscador de Giphy simplemente inserta su URL como si se hubiera
+pegado a mano.
+
+**Motivo:** añadir un campo `imageUrl`/`type` a los dos sistemas de mensajería (que ya
+eran deliberadamente distintos entre sí, ver ADR-020) habría significado tocar el
+protocolo de mensajes STOMP, la entidad `DirectMessage` persistida, y las cuatro rutas
+de renderizado — para una función que, en esencia, es "algunos mensajes de texto
+resultan ser un enlace a una imagen". Detectarlo en el cliente, solo al pintar, consigue
+lo mismo con cero cambios de protocolo y cero migración de base de datos.
