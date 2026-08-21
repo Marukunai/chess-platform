@@ -20,14 +20,19 @@ import java.util.List;
  * has jugado ninguna partida (no null: es un dato agregado normal, no algo que falte
  * calcular). Las tablas cuentan como partida jugada pero no como victoria, igual que en
  * cualquier plataforma de ajedrez real.
+ *
+ * ratings: siempre las cuatro modalidades, en este orden — para quien nunca ha jugado
+ * alguna en concreto, sale con los valores Glicko-2 por defecto (1500/350) SIN que eso
+ * cree ninguna fila en base de datos solo por haberla consultado (ver
+ * UserController.ratingsFor(), que no pasa por UserRatingService.findOrDefault() a
+ * propósito para esto).
  */
 public record UserProfileResponse(
         String userId,
         String username,
         String country,
         String avatarUrl,
-        int rating,
-        int ratingDeviation,
+        List<ModeRatingResponse> ratings,
         int gamesPlayed,
         int wins,
         int losses,
@@ -37,5 +42,8 @@ public record UserProfileResponse(
         List<RecentOpponent> recentOpponents
 ) {
     public record RecentOpponent(String userId, String username) {
+    }
+
+    public record ModeRatingResponse(String mode, int rating, int ratingDeviation) {
     }
 }

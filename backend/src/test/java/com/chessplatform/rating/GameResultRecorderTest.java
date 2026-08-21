@@ -4,7 +4,9 @@ import com.chessplatform.engine.Move;
 import com.chessplatform.engine.Square;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.realtime.GameSession;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +24,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,46 +36,79 @@ class GameResultRecorderTest {
     private UserRepository userRepository;
 
     @Mock
+    private UserRatingRepository userRatingRepository;
+
+    @Mock
     private GameRepository gameRepository;
 
     private GameResultRecorder recorder;
 
     @BeforeEach
     void setUp() {
-        // GlickoRatingService real (no mock): es puro/barato de calcular, y usar el de
-        // verdad da más confianza de que el cableado completo funciona, no solo que se
-        // llamó a algo.
-        recorder = new GameResultRecorder(userRepository, gameRepository, new GlickoRatingService());
+        // UserRatingService real (no mock) sobre un UserRatingRepository sí mockeado —
+        // es un envoltorio fino de verdad ("búscalo, si no existe créalo con los valores
+        // por defecto"), así que usar el de verdad da más confianza de que el cableado
+        // completo funciona, igual que ya se hacía con GlickoRatingService.
+        UserRatingService userRatingService = new UserRatingService(userRatingRepository);
+        recorder = new GameResultRecorder(userRepository, userRatingRepository, userRatingService,
+                gameRepository, new GlickoRatingService());
     }
 
     private static GameSession newSession() {
+        // 5 min + 3 s == TimeControl.BLITZ — así que en todos estos tests la modalidad
+        // afectada es siempre GameMode.BLITZ.
         return new GameSession("white-id", "black-id", Duration.ofMinutes(5), Duration.ofSeconds(3));
+    }
+
+    private static void setId(User user, String id) {
+        try {
+            Field field = User.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(user, id);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Sin fila todavía para (usuario, modalidad) — UserRatingService.findOrDefault() devuelve una nueva sin guardar, con los valores por defecto de Glicko-2; el propio GameResultRecorder es quien la guarda después de actualizarla. */
+    private void givenNoExistingRatingFor(String userId) {
+        when(userRatingRepository.findByUser_IdAndMode(eq(userId), eq(GameMode.BLITZ))).thenReturn(Optional.empty());
+        when(userRatingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void recordUpdatesBothPlayersRatingsWhenWhiteWins() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         recorder.record(newSession(), "1-0", "checkmate");
 
-        ArgumentCaptor<User> savedUsers = ArgumentCaptor.forClass(User.class);
-        verify(userRepository, times(2)).save(savedUsers.capture());
+        ArgumentCaptor<UserRating> savedRatings = ArgumentCaptor.forClass(UserRating.class);
+        verify(userRatingRepository, org.mockito.Mockito.times(2)).save(savedRatings.capture());
 
-        List<User> saved = savedUsers.getAllValues();
-        assertThat(saved).contains(white, black);
-        assertThat(white.getRating()).isGreaterThan(1500.0); // ganó, sube
-        assertThat(black.getRating()).isLessThan(1500.0); // perdió, baja
+        List<UserRating> saved = savedRatings.getAllValues();
+        UserRating whiteRating = saved.stream().filter(r -> r.getUser() == white).findFirst().orElseThrow();
+        UserRating blackRating = saved.stream().filter(r -> r.getUser() == black).findFirst().orElseThrow();
+        assertThat(whiteRating.getRating()).isGreaterThan(1500.0); // ganó, sube
+        assertThat(blackRating.getRating()).isLessThan(1500.0); // perdió, baja
     }
 
     @Test
     void recordSavesAGameWithTheCorrectResultAndPlayers() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         recorder.record(newSession(), "0-1", "checkmate");
 
@@ -92,29 +128,40 @@ class GameResultRecorderTest {
         Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0", "checkmate");
 
         assertThat(result).isEmpty();
-        verify(userRepository, never()).save(any());
+        verify(userRatingRepository, never()).save(any());
         verify(gameRepository, never()).save(any());
     }
 
     @Test
     void recordLeavesBothRatingsUnchangedOnADrawBetweenEquallyRatedPlayers() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         recorder.record(newSession(), "1/2-1/2", "agreement");
 
-        assertThat(white.getRating()).isCloseTo(1500.0, within(0.001));
-        assertThat(black.getRating()).isCloseTo(1500.0, within(0.001));
+        ArgumentCaptor<UserRating> savedRatings = ArgumentCaptor.forClass(UserRating.class);
+        verify(userRatingRepository, org.mockito.Mockito.times(2)).save(savedRatings.capture());
+        for (UserRating rating : savedRatings.getAllValues()) {
+            assertThat(rating.getRating()).isCloseTo(1500.0, within(0.001));
+        }
     }
 
     @Test
     void recordSavesTheMoveListFromTheSessionsBoard() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         GameSession session = newSession();
         session.applyMove(new Move(Square.of(4, 1), Square.of(4, 3))); // e2-e4
@@ -130,27 +177,31 @@ class GameResultRecorderTest {
     @Test
     void recordReturnsTheRatingChangesItApplied() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         Optional<GameResultRecorder.RatingChanges> result = recorder.record(newSession(), "1-0", "checkmate");
 
         assertThat(result).isPresent();
         assertThat(result.get().whiteChange()).isGreaterThan(0); // ganó, cambio positivo
         assertThat(result.get().blackChange()).isLessThan(0); // perdió, cambio negativo
-        // El cambio de cada uno coincide con la diferencia real entre su rating final y
-        // el inicial (1500 para los dos, ninguno había jugado antes).
-        assertThat(result.get().whiteChange()).isCloseTo(white.getRating() - 1500.0, within(0.001));
-        assertThat(result.get().blackChange()).isCloseTo(black.getRating() - 1500.0, within(0.001));
     }
 
     @Test
     void recordSavesTheRatingChangesOnTheGameItself() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         recorder.record(newSession(), "1-0", "checkmate");
 
@@ -163,14 +214,56 @@ class GameResultRecorderTest {
     @Test
     void recordSavesTheReasonOnTheGameItself() {
         User white = new User("white-user", "hash");
+        setId(white, "white-id");
         User black = new User("black-user", "hash");
+        setId(black, "black-id");
         when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
         when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
 
         recorder.record(newSession(), "0-1", "resignation");
 
         ArgumentCaptor<Game> savedGame = ArgumentCaptor.forClass(Game.class);
         verify(gameRepository).save(savedGame.capture());
         assertThat(savedGame.getValue().getReason()).isEqualTo("resignation");
+    }
+
+    @Test
+    void recordUpdatesTheRatingForTheModeThatWasActuallyPlayedNotAnotherOne() {
+        User white = new User("white-user", "hash");
+        setId(white, "white-id");
+        User black = new User("black-user", "hash");
+        setId(black, "black-id");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
+
+        recorder.record(newSession(), "1-0", "checkmate"); // newSession() == BLITZ
+
+        ArgumentCaptor<UserRating> savedRatings = ArgumentCaptor.forClass(UserRating.class);
+        verify(userRatingRepository, org.mockito.Mockito.times(2)).save(savedRatings.capture());
+        assertThat(savedRatings.getAllValues()).allMatch(rating -> rating.getMode() == GameMode.BLITZ);
+    }
+
+    @Test
+    void recordDoesNotTouchTheOtherModesRatingForTheSamePlayers() {
+        User white = new User("white-user", "hash");
+        setId(white, "white-id");
+        User black = new User("black-user", "hash");
+        setId(black, "black-id");
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(white));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(black));
+        givenNoExistingRatingFor("white-id");
+        givenNoExistingRatingFor("black-id");
+
+        recorder.record(newSession(), "1-0", "checkmate");
+
+        // findByUser_IdAndMode solo se consulta para BLITZ, nunca para las otras tres —
+        // no hay ningún motivo para que jugar un blitz toque nada de bullet/rápidas/clásicas.
+        verify(userRatingRepository, never()).findByUser_IdAndMode(any(), eq(GameMode.BULLET));
+        verify(userRatingRepository, never()).findByUser_IdAndMode(any(), eq(GameMode.RAPID));
+        verify(userRatingRepository, never()).findByUser_IdAndMode(any(), eq(GameMode.CLASSICAL));
     }
 }

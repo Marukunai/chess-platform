@@ -20,6 +20,10 @@ import java.util.List;
 @Table(name = "users")
 public class User {
 
+    // El rating Glicko-2 NO vive aquí a propósito — desde que el ranking se separó por
+    // modalidad (bullet/blitz/rápidas/clásicas), cada combinación (usuario, modalidad)
+    // tiene su propia fila en UserRating, con creación perezosa la primera vez que hace
+    // falta. Ver UserRatingService y el ADR correspondiente.
     // + la contraseña actual = 5 en total al comprobar reutilización, ver
     // matchesAnyRecentPassword() — "las últimas 5 usadas" cuenta la que tienes puesta
     // ahora mismo como una de esas cinco, no aparte.
@@ -54,15 +58,6 @@ public class User {
 
     @Column
     private String avatarUrl;
-
-    @Column(nullable = false)
-    private double rating = 1500.0;
-
-    @Column(nullable = false)
-    private double ratingDeviation = 350.0;
-
-    @Column(nullable = false)
-    private double volatility = 0.06;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -105,31 +100,8 @@ public class User {
         return passwordHash;
     }
 
-    public double getRating() {
-        return rating;
-    }
-
-    public double getRatingDeviation() {
-        return ratingDeviation;
-    }
-
-    public double getVolatility() {
-        return volatility;
-    }
-
     public boolean isDeleted() {
         return deletedAt != null;
-    }
-
-    /**
-     * Aplica el resultado de GlickoRatingService tras una partida. Método de dominio en
-     * vez de setters sueltos — deja claro que los tres valores se actualizan siempre
-     * juntos (son el resultado de un mismo cálculo Glicko-2), nunca por separado.
-     */
-    public void applyRatingUpdate(double rating, double ratingDeviation, double volatility) {
-        this.rating = rating;
-        this.ratingDeviation = ratingDeviation;
-        this.volatility = volatility;
     }
 
     /**

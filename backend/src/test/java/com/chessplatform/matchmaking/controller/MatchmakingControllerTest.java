@@ -4,7 +4,10 @@ import com.chessplatform.matchmaking.MatchmakingQueue;
 import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.matchmaking.dto.MatchmakingJoinMessage;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.rating.GameMode;
+import com.chessplatform.rating.UserRatingService;
 import com.chessplatform.realtime.dto.ErrorMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,13 +41,16 @@ class MatchmakingControllerTest {
     private UserRepository userRepository;
 
     @Mock
+    private UserRatingService userRatingService;
+
+    @Mock
     private SimpMessagingTemplate messagingTemplate;
 
     private MatchmakingController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new MatchmakingController(queue, userRepository, messagingTemplate);
+        controller = new MatchmakingController(queue, userRepository, userRatingService, messagingTemplate);
     }
 
     private static Principal principalFor(String userId) {
@@ -53,8 +59,10 @@ class MatchmakingControllerTest {
 
     @Test
     void joinEnqueuesPlayerWithRatingFromRepository() {
-        User user = new User("maru", "hash"); // rating por defecto: 1500.0
+        User user = new User("maru", "hash");
         when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        // rating por defecto: 1500.0 — el propio constructor de UserRating ya lo pone así
+        when(userRatingService.findOrDefault(user, GameMode.BLITZ)).thenReturn(new UserRating(user, GameMode.BLITZ));
 
         controller.join(new MatchmakingJoinMessage("BLITZ"), principalFor("user-1"));
 
@@ -66,10 +74,24 @@ class MatchmakingControllerTest {
         User user = new User("maru", "hash");
         user.updateProfile("maru", "España", "https://ejemplo.com/avatar.png");
         when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRatingService.findOrDefault(user, GameMode.BLITZ)).thenReturn(new UserRating(user, GameMode.BLITZ));
 
         controller.join(new MatchmakingJoinMessage("BLITZ"), principalFor("user-1"));
 
         verify(queue).enqueue("user-1", "maru", "https://ejemplo.com/avatar.png", 1500, TimeControl.BLITZ);
+    }
+
+    @Test
+    void joinUsesTheRatingForTheRequestedModeNotAnotherOne() {
+        User user = new User("maru", "hash");
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        UserRating rapidRating = new UserRating(user, GameMode.RAPID);
+        rapidRating.applyRatingUpdate(1800.0, 200.0, 0.05);
+        when(userRatingService.findOrDefault(user, GameMode.RAPID)).thenReturn(rapidRating);
+
+        controller.join(new MatchmakingJoinMessage("RAPID"), principalFor("user-1"));
+
+        verify(queue).enqueue("user-1", "maru", null, 1800, TimeControl.RAPID);
     }
 
     @Test
@@ -80,6 +102,7 @@ class MatchmakingControllerTest {
 
         // Sin usuario en la base de datos, el nombre de usuario también cae al id del
         // principal — igual que ya hacía el rating con su valor Glicko-2 por defecto.
+        // userRatingService ni se consulta en este caso (ver MatchmakingController.join()).
         verify(queue).enqueue("user-1", "user-1", null, 1500, TimeControl.RAPID);
     }
 

@@ -7,8 +7,11 @@ import com.chessplatform.persistence.dto.UpdateProfileRequest;
 import com.chessplatform.persistence.dto.UserProfileResponse;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.rating.GameMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +33,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,6 +44,9 @@ class UserControllerTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserRatingRepository userRatingRepository;
 
     @Mock
     private GameRepository gameRepository;
@@ -54,7 +62,7 @@ class UserControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new UserController(userRepository, gameRepository, passwordEncoder);
+        controller = new UserController(userRepository, userRatingRepository, gameRepository, passwordEncoder);
         controller.setClock(fixedClock);
     }
 
@@ -89,19 +97,54 @@ class UserControllerTest {
     @Test
     void leaderboardRanksPlayersInOrderStartingAtOne() {
         User alice = new User("alice", "hash");
-        alice.applyRatingUpdate(1800, 120, 0.06);
+        UserRating aliceRating = new UserRating(alice, GameMode.BLITZ);
+        aliceRating.applyRatingUpdate(1800, 120, 0.06);
         User bob = new User("bob", "hash");
-        bob.applyRatingUpdate(1600, 120, 0.06);
-        when(userRepository.findTop50ByDeletedAtIsNullOrderByRatingDesc()).thenReturn(List.of(alice, bob));
+        UserRating bobRating = new UserRating(bob, GameMode.BLITZ);
+        bobRating.applyRatingUpdate(1600, 120, 0.06);
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ))
+                .thenReturn(List.of(aliceRating, bobRating));
 
-        List<LeaderboardEntryResponse> leaderboard = controller.leaderboard();
+        List<LeaderboardEntryResponse> leaderboard = controller.leaderboard("BLITZ");
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
-        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
-        assertThat(leaderboard.getFirst().rating()).isEqualTo(1800);
+        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
+        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
+        assertThat(leaderboard.get(0).rating()).isEqualTo(1800);
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
+    }
+
+    @Test
+    void leaderboardDefaultsToBlitzWhenNoModeIsGiven() {
+        // El propio @RequestParam(defaultValue = "BLITZ") solo actúa cuando Spring MVC
+        // resuelve una petición HTTP real — llamando al método Java directamente (como
+        // en cualquiera de estos tests) ese valor por defecto no se aplica solo, así que
+        // aquí se comprueba pasándolo explícito en vez de omitirlo.
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ))
+                .thenReturn(List.of());
+
+        controller.leaderboard("BLITZ");
+
+        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ);
+    }
+
+    @Test
+    void leaderboardRejectsAnUnknownMode() {
+        assertThatThrownBy(() -> controller.leaderboard("ULTRA-INVENTADO"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void leaderboardIsCaseInsensitiveForTheModeParameter() {
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.RAPID))
+                .thenReturn(List.of());
+
+        controller.leaderboard("rapid");
+
+        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.RAPID);
     }
 
     @Test
@@ -115,7 +158,6 @@ class UserControllerTest {
     @Test
     void profileComputesRecordFromSavedGamesRegardlessOfColorPlayed() {
         User viewer = new User("alice", "hash");
-        viewer.applyRatingUpdate(1550, 140, 0.06);
         setId(viewer, "alice-id");
         User opponent = new User("bob", "hash");
         setId(opponent, "bob-id");
@@ -134,8 +176,68 @@ class UserControllerTest {
         assertThat(profile.wins()).isEqualTo(1);
         assertThat(profile.losses()).isEqualTo(1);
         assertThat(profile.draws()).isEqualTo(1);
-        assertThat(profile.rating()).isEqualTo(1550);
         assertThat(profile.username()).isEqualTo("alice");
+    }
+
+    @Test
+    void profileShowsAllFourModesWithDefaultRatingWhenNoneHaveBeenPlayed() {
+        User freshUser = new User("carol", "hash");
+        setId(freshUser, "carol-id");
+        when(userRepository.findById("carol-id")).thenReturn(Optional.of(freshUser));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("carol-id", "carol-id"))
+                .thenReturn(List.of());
+
+        UserProfileResponse profile = controller.profile("carol-id");
+
+        assertThat(profile.ratings()).hasSize(4);
+        assertThat(profile.ratings()).extracting(UserProfileResponse.ModeRatingResponse::mode)
+                .containsExactlyInAnyOrder("BULLET", "BLITZ", "RAPID", "CLASSICAL");
+        assertThat(profile.ratings()).allSatisfy(r -> {
+            assertThat(r.rating()).isEqualTo(1500);
+            assertThat(r.ratingDeviation()).isEqualTo(350);
+        });
+    }
+
+    @Test
+    void profileShowsTheActualRatingForAModeThatHasBeenPlayed() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(alice));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        // Sin esto, Mockito en modo estricto se queja: hay un stub para BLITZ pero
+        // ratingsFor() consulta las CUATRO modalidades, y las otras tres (sin stub
+        // propio) no coinciden con ninguno de los ya registrados para este método.
+        when(userRatingRepository.findByUser_IdAndMode(eq("alice-id"), any(GameMode.class))).thenReturn(Optional.empty());
+        UserRating blitzRating = new UserRating(alice, GameMode.BLITZ);
+        blitzRating.applyRatingUpdate(1700, 90, 0.055);
+        when(userRatingRepository.findByUser_IdAndMode("alice-id", GameMode.BLITZ)).thenReturn(Optional.of(blitzRating));
+
+        UserProfileResponse profile = controller.profile("alice-id");
+
+        UserProfileResponse.ModeRatingResponse blitz = profile.ratings().stream()
+                .filter(r -> r.mode().equals("BLITZ"))
+                .findFirst().orElseThrow();
+        assertThat(blitz.rating()).isEqualTo(1700);
+        assertThat(blitz.ratingDeviation()).isEqualTo(90);
+        // Las otras tres modalidades, sin fila propia todavía, siguen en el valor por defecto.
+        assertThat(profile.ratings()).filteredOn(r -> !r.mode().equals("BLITZ"))
+                .allMatch(r -> r.rating() == 1500);
+    }
+
+    @Test
+    void profileDoesNotCreateAnyRatingRowJustByBeingViewed() {
+        User carol = new User("carol", "hash");
+        setId(carol, "carol-id");
+        when(userRepository.findById("carol-id")).thenReturn(Optional.of(carol));
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("carol-id", "carol-id"))
+                .thenReturn(List.of());
+
+        controller.profile("carol-id");
+
+        // Consultar un perfil es de lectura pública y no debería tener efectos
+        // secundarios en base de datos — ver el javadoc de UserController.ratingsFor().
+        verify(userRatingRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

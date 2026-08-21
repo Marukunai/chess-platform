@@ -7,8 +7,12 @@ import com.chessplatform.persistence.dto.UpdateProfileRequest;
 import com.chessplatform.persistence.dto.UserProfileResponse;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.rating.GameMode;
+import com.chessplatform.rating.GlickoRatingService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,12 +22,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -41,6 +48,7 @@ public class UserController {
     private static final int MIN_PASSWORD_LENGTH = 8; // misma regla que en el registro, ver AuthController
 
     private final UserRepository userRepository;
+    private final UserRatingRepository userRatingRepository;
     private final GameRepository gameRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -51,9 +59,10 @@ public class UserController {
     // toca un test para no depender del instante exacto en el que corre de verdad.
     private Clock clock = Clock.systemUTC();
 
-    public UserController(UserRepository userRepository, GameRepository gameRepository,
-                          PasswordEncoder passwordEncoder) {
+    public UserController(UserRepository userRepository, UserRatingRepository userRatingRepository,
+                          GameRepository gameRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.userRatingRepository = userRatingRepository;
         this.gameRepository = gameRepository;
         this.passwordEncoder = passwordEncoder;
     }
@@ -62,14 +71,22 @@ public class UserController {
         this.clock = clock;
     }
 
+    /** mode por defecto BLITZ, la misma modalidad que ya viene preseleccionada en el desplegable de "Buscar partida". */
     @GetMapping("/leaderboard")
-    public List<LeaderboardEntryResponse> leaderboard() {
-        List<User> topPlayers = userRepository.findTop50ByDeletedAtIsNullOrderByRatingDesc();
-        return IntStream.range(0, topPlayers.size())
+    public List<LeaderboardEntryResponse> leaderboard(@RequestParam(defaultValue = "BLITZ") String mode) {
+        GameMode gameMode;
+        try {
+            gameMode = GameMode.valueOf(mode.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Modalidad desconocida: " + mode);
+        }
+
+        List<UserRating> topRatings = userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(gameMode);
+        return IntStream.range(0, topRatings.size())
                 .mapToObj(i -> {
-                    User user = topPlayers.get(i);
-                    return new LeaderboardEntryResponse(i + 1, user.getId(), user.getUsername(),
-                            (int) Math.round(user.getRating()));
+                    UserRating rating = topRatings.get(i);
+                    return new LeaderboardEntryResponse(i + 1, rating.getUser().getId(), rating.getUser().getUsername(),
+                            (int) Math.round(rating.getRating()));
                 })
                 .toList();
     }
@@ -174,6 +191,25 @@ public class UserController {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
 
+    /**
+     * Las cuatro modalidades siempre, en el mismo orden — sin pasar por
+     * UserRatingService.findOrDefault(): consultar un perfil no debería crear ninguna
+     * fila en base de datos, solo devolver los valores por defecto de Glicko-2 para la
+     * modalidad que todavía no tenga una fila de verdad.
+     */
+    private List<UserProfileResponse.ModeRatingResponse> ratingsFor(String userId) {
+        return Arrays.stream(GameMode.values())
+                .map(mode -> {
+                    Optional<UserRating> existing = userRatingRepository.findByUser_IdAndMode(userId, mode);
+                    int rating = existing.map(r -> (int) Math.round(r.getRating()))
+                            .orElse((int) GlickoRatingService.DEFAULT_RATING);
+                    int ratingDeviation = existing.map(r -> (int) Math.round(r.getRatingDeviation()))
+                            .orElse((int) GlickoRatingService.DEFAULT_RATING_DEVIATION);
+                    return new UserProfileResponse.ModeRatingResponse(mode.name(), rating, ratingDeviation);
+                })
+                .toList();
+    }
+
     private UserProfileResponse toProfileResponse(User user) {
         List<Game> games = gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc(user.getId(), user.getId());
 
@@ -220,8 +256,7 @@ public class UserController {
                 user.getUsername(),
                 user.getCountry(),
                 user.getAvatarUrl(),
-                (int) Math.round(user.getRating()),
-                (int) Math.round(user.getRatingDeviation()),
+                ratingsFor(user.getId()),
                 games.size(),
                 wins,
                 losses,

@@ -9,10 +9,6 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
 
-    // DeletedAtIsNull en vez de un findTop50ByOrderByRatingDesc() sin más — una cuenta
-    // borrada (ver User.anonymizeForDeletion) no debe aparecer en el ranking.
-    List<User> findTop50ByDeletedAtIsNullOrderByRatingDesc();
-
     // Para el buscador de amigos — ContainingIgnoreCase es "LIKE %texto%" sin
     // distinguir mayúsculas, y DeletedAtIsNull excluye cuentas borradas por el mismo
     // motivo que en el ranking: no tiene sentido poder encontrar ni añadir a alguien
