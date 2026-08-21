@@ -1202,6 +1202,29 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('lobby-screen');
     });
 
+    document.getElementById('achievements-btn').addEventListener('click', async () => {
+        const userId = getUserIdFromToken(getStoredToken());
+        await openAchievementsScreen(userId, null); // null -> "Mis logros", no "Logros de X"
+    });
+
+    document.getElementById('achievements-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
+    document.getElementById('achievements-leaderboard-btn').addEventListener('click', async () => {
+        const userId = getUserIdFromToken(getStoredToken());
+        try {
+            renderAchievementsLeaderboard(await fetchAchievementsLeaderboard(), userId);
+            showScreen('achievements-leaderboard-screen');
+        } catch (error) {
+            showTransientNotice(error.message);
+        }
+    });
+
+    document.getElementById('achievements-leaderboard-back-btn').addEventListener('click', () => {
+        showScreen('lobby-screen');
+    });
+
     document.getElementById('friends-btn').addEventListener('click', async () => {
         document.getElementById('friend-search-input').value = '';
         document.getElementById('friend-search-results').innerHTML = '';

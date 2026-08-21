@@ -41,12 +41,15 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/ws/**", "/health", "/error").permitAll()
-                        // Solo LECTURA es pública en /api/games/** y /api/users/** — revisar
-                        // partidas o perfiles (propios o ajenos) es normal en cualquier
-                        // plataforma de ajedrez real. Escribir (editar tu propio perfil) sí
-                        // necesita identidad de verdad, por eso JwtAuthenticationFilter ya
-                        // hacía falta — ver su javadoc y el de más abajo.
-                        .requestMatchers(HttpMethod.GET, "/api/games/**", "/api/users/**").permitAll()
+                        // Solo LECTURA es pública en /api/games/**, /api/users/** y
+                        // /api/achievements/** — revisar partidas, perfiles o el
+                        // progreso de logros (propios o ajenos) es normal en cualquier
+                        // plataforma de ajedrez real, igual que el ranking de rating o
+                        // el ranking global de logros. Escribir (editar tu propio
+                        // perfil) sí necesita identidad de verdad, por eso
+                        // JwtAuthenticationFilter ya hacía falta — ver su javadoc y el
+                        // de más abajo.
+                        .requestMatchers(HttpMethod.GET, "/api/games/**", "/api/users/**", "/api/achievements/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
