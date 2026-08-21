@@ -1,9 +1,12 @@
 package com.chessplatform.rating;
 
 import com.chessplatform.engine.Move;
+import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.rating.GlickoRatingService.Outcome;
 import com.chessplatform.rating.GlickoRatingService.RatingResult;
@@ -15,9 +18,10 @@ import java.util.stream.Collectors;
 
 /**
  * Lo que pasa "de fondo" cuando una partida termina: actualizar el rating Glicko-2 de
- * ambos jugadores y guardar la partida en el historial. Separado de GameEndNotifier
- * (que solo avisa por WebSocket y limpia el registro en memoria) porque es una
- * responsabilidad distinta — persistencia y rating, no transporte.
+ * ambos jugadores EN LA MODALIDAD QUE SE HA JUGADO y guardar la partida en el
+ * historial. Separado de GameEndNotifier (que solo avisa por WebSocket y limpia el
+ * registro en memoria) porque es una responsabilidad distinta — persistencia y rating,
+ * no transporte.
  *
  * Si alguno de los dos jugadores no existe en la base de datos (no debería pasar en una
  * partida real, ya que ambos tuvieron que autenticarse para poder jugar), no se guarda
@@ -27,17 +31,22 @@ import java.util.stream.Collectors;
 @Component
 public class GameResultRecorder {
 
-    /** Cuánto cambió el rating de cada jugador con esta partida en concreto. */
+    /** Cuánto cambió el rating de cada jugador con esta partida en concreto, en la modalidad jugada. */
     public record RatingChanges(double whiteChange, double blackChange) {
     }
 
     private final UserRepository userRepository;
+    private final UserRatingRepository userRatingRepository;
+    private final UserRatingService userRatingService;
     private final GameRepository gameRepository;
     private final GlickoRatingService ratingService;
 
-    public GameResultRecorder(UserRepository userRepository, GameRepository gameRepository,
+    public GameResultRecorder(UserRepository userRepository, UserRatingRepository userRatingRepository,
+                              UserRatingService userRatingService, GameRepository gameRepository,
                               GlickoRatingService ratingService) {
         this.userRepository = userRepository;
+        this.userRatingRepository = userRatingRepository;
+        this.userRatingService = userRatingService;
         this.gameRepository = gameRepository;
         this.ratingService = ratingService;
     }
@@ -57,19 +66,37 @@ public class GameResultRecorder {
         User white = maybeWhite.get();
         User black = maybeBlack.get();
 
-        RatingResult whiteBefore = new RatingResult(white.getRating(), white.getRatingDeviation(), white.getVolatility());
-        RatingResult blackBefore = new RatingResult(black.getRating(), black.getRatingDeviation(), black.getVolatility());
+        // Cualquier partida real llega aquí con un control de tiempo que coincide con
+        // una de las cuatro modalidades conocidas — matchmaking, revancha y reto pasan
+        // los tres por TimeControl.presetNameFor() antes de crear la GameSession. Si
+        // por lo que sea no coincidiera (no debería pasar nunca en la práctica), se
+        // guarda la partida igualmente pero sin tocar ningún rating, en vez de reventar
+        // el fin de partida entero por esto.
+        Optional<GameMode> maybeMode = TimeControl.presetNameFor(session.initialTime(), session.increment())
+                .map(GameMode::valueOf);
 
-        RatingResult whiteAfter = ratingService.updateRating(whiteBefore, blackBefore, outcomeForWhite(result));
-        RatingResult blackAfter = ratingService.updateRating(blackBefore, whiteBefore, outcomeForBlack(result));
+        double whiteChange = 0;
+        double blackChange = 0;
 
-        white.applyRatingUpdate(whiteAfter.rating(), whiteAfter.ratingDeviation(), whiteAfter.volatility());
-        black.applyRatingUpdate(blackAfter.rating(), blackAfter.ratingDeviation(), blackAfter.volatility());
-        userRepository.save(white);
-        userRepository.save(black);
+        if (maybeMode.isPresent()) {
+            GameMode mode = maybeMode.get();
+            UserRating whiteRating = userRatingService.findOrDefault(white, mode);
+            UserRating blackRating = userRatingService.findOrDefault(black, mode);
 
-        double whiteChange = whiteAfter.rating() - whiteBefore.rating();
-        double blackChange = blackAfter.rating() - blackBefore.rating();
+            RatingResult whiteBefore = new RatingResult(whiteRating.getRating(), whiteRating.getRatingDeviation(), whiteRating.getVolatility());
+            RatingResult blackBefore = new RatingResult(blackRating.getRating(), blackRating.getRatingDeviation(), blackRating.getVolatility());
+
+            RatingResult whiteAfter = ratingService.updateRating(whiteBefore, blackBefore, outcomeForWhite(result));
+            RatingResult blackAfter = ratingService.updateRating(blackBefore, whiteBefore, outcomeForBlack(result));
+
+            whiteRating.applyRatingUpdate(whiteAfter.rating(), whiteAfter.ratingDeviation(), whiteAfter.volatility());
+            blackRating.applyRatingUpdate(blackAfter.rating(), blackAfter.ratingDeviation(), blackAfter.volatility());
+            userRatingRepository.save(whiteRating);
+            userRatingRepository.save(blackRating);
+
+            whiteChange = whiteAfter.rating() - whiteBefore.rating();
+            blackChange = blackAfter.rating() - blackBefore.rating();
+        }
 
         String timeControlLabel = "%d+%d".formatted(session.initialTime().toMinutes(), session.increment().getSeconds());
         Game game = new Game(white, black, timeControlLabel);

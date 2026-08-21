@@ -5,7 +5,9 @@ import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.matchmaking.dto.MatchmakingJoinMessage;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.rating.GameMode;
 import com.chessplatform.rating.GlickoRatingService;
+import com.chessplatform.rating.UserRatingService;
 import com.chessplatform.realtime.dto.ErrorMessage;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -23,12 +25,14 @@ public class MatchmakingController {
 
     private final MatchmakingQueue queue;
     private final UserRepository userRepository;
+    private final UserRatingService userRatingService;
     private final SimpMessagingTemplate messagingTemplate;
 
     public MatchmakingController(MatchmakingQueue queue, UserRepository userRepository,
-                                 SimpMessagingTemplate messagingTemplate) {
+                                 UserRatingService userRatingService, SimpMessagingTemplate messagingTemplate) {
         this.queue = queue;
         this.userRepository = userRepository;
+        this.userRatingService = userRatingService;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -51,8 +55,13 @@ public class MatchmakingController {
 
         // El rating sale del usuario ya autenticado, nunca de lo que mande el cliente
         // sobre sí mismo — mismo principio que ya aplicamos en GameWebSocketController.
+        // Y del rating EN ESTA MODALIDAD concreta, no de un rating único — toTimeControl()
+        // solo puede devolver uno de los cuatro presets conocidos, así que
+        // GameMode.valueOf() sobre su nombre nunca falla aquí.
         var user = userRepository.findById(principal.getName());
-        int rating = user.map(u -> (int) Math.round(u.getRating())).orElse((int) GlickoRatingService.DEFAULT_RATING);
+        GameMode mode = GameMode.valueOf(TimeControl.presetNameFor(timeControl.initialTime(), timeControl.increment()).orElseThrow());
+        int rating = user.map(u -> (int) Math.round(userRatingService.findOrDefault(u, mode).getRating()))
+                .orElse((int) GlickoRatingService.DEFAULT_RATING);
         String username = user.map(User::getUsername).orElse(principal.getName());
         String avatarUrl = user.map(User::getAvatarUrl).orElse(null);
 
