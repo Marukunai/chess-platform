@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.realtime.dto.GameOverMessage;
@@ -63,13 +64,17 @@ class GameTimeoutServiceTest {
     @Mock
     private PresenceService presenceService;
 
+    @Mock
+    private AchievementUnlockService achievementUnlockService;
+
     private GameSessionRegistry sessionRegistry;
     private GameTimeoutService timeoutService;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
-        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService);
+        GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder,
+                presenceService, achievementUnlockService);
         timeoutService = new GameTimeoutService(sessionRegistry, gameEndNotifier);
     }
 

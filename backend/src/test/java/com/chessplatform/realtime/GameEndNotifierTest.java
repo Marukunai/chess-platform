@@ -1,5 +1,6 @@
 package com.chessplatform.realtime;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.rating.GameResultRecorder.RatingChanges;
@@ -33,13 +34,17 @@ class GameEndNotifierTest {
     @Mock
     private PresenceService presenceService;
 
+    @Mock
+    private AchievementUnlockService achievementUnlockService;
+
     private GameSessionRegistry sessionRegistry;
     private GameEndNotifier notifier;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
-        notifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService);
+        notifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService,
+                achievementUnlockService);
     }
 
     private static GameSession newSession() {
@@ -158,5 +163,16 @@ class GameEndNotifierTest {
 
         verify(presenceService).notifyFriendsOfStatusChange("white-player");
         verify(presenceService).notifyFriendsOfStatusChange("black-player");
+    }
+
+    @Test
+    void endGameChecksAchievementsForBothPlayers() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        verify(achievementUnlockService).checkAndNotify("white-player");
+        verify(achievementUnlockService).checkAndNotify("black-player");
     }
 }

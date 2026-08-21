@@ -1,5 +1,6 @@
 package com.chessplatform.friendship;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.friendship.dto.FriendRequestAcceptedNotification;
 import com.chessplatform.friendship.dto.FriendRequestNotification;
 import com.chessplatform.friendship.dto.FriendRequestResponse;
@@ -44,13 +45,16 @@ public class FriendshipController {
     private final FriendshipRepository friendshipRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final PresenceService presenceService;
+    private final AchievementUnlockService achievementUnlockService;
 
     public FriendshipController(UserRepository userRepository, FriendshipRepository friendshipRepository,
-                                SimpMessagingTemplate messagingTemplate, PresenceService presenceService) {
+                                SimpMessagingTemplate messagingTemplate, PresenceService presenceService,
+                                AchievementUnlockService achievementUnlockService) {
         this.userRepository = userRepository;
         this.friendshipRepository = friendshipRepository;
         this.messagingTemplate = messagingTemplate;
         this.presenceService = presenceService;
+        this.achievementUnlockService = achievementUnlockService;
     }
 
     @GetMapping("/search")
@@ -131,6 +135,10 @@ public class FriendshipController {
                         new FriendRequestAcceptedNotification(
                                 friendship.getAddressee().getId(), friendship.getAddressee().getUsername()));
             }
+            // Los dos lados ganan un amigo con esto — comprobar logros para los dos,
+            // no solo para quien aceptó.
+            achievementUnlockService.checkAndNotify(requesterId);
+            achievementUnlockService.checkAndNotify(friendship.getAddressee().getId());
         } else {
             friendshipRepository.delete(friendship);
         }

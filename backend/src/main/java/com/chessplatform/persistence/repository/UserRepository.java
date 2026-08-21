@@ -20,4 +20,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     // aparte que consultar directamente (ver el ADR sobre por qué los logros se calculan
     // al vuelo en vez de guardarse).
     List<User> findByDeletedAtIsNull();
+
+    // Para la rareza de cada logro (AchievementService.detailedProgressFor) — cuántos
+    // hay en total sobre los que calcular el porcentaje. Un COUNT en vez de cargar la
+    // lista entera de findByDeletedAtIsNull() solo para contarla.
+    long countByDeletedAtIsNull();
 }

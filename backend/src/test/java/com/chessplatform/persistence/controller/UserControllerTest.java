@@ -1,5 +1,6 @@
 package com.chessplatform.persistence.controller;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.persistence.dto.ChangePasswordRequest;
 import com.chessplatform.persistence.dto.DeleteAccountRequest;
 import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
@@ -51,6 +52,9 @@ class UserControllerTest {
     @Mock
     private GameRepository gameRepository;
 
+    @Mock
+    private AchievementUnlockService achievementUnlockService;
+
     // Real de verdad, no mockeado — es un algoritmo puro y rápido, y así los tests de
     // contraseña comprueban el comportamiento real (que "abc" no haga match con el hash
     // de "xyz"), no una suposición de lo que haría un mock.
@@ -62,7 +66,8 @@ class UserControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new UserController(userRepository, userRatingRepository, gameRepository, passwordEncoder);
+        controller = new UserController(userRepository, userRatingRepository, gameRepository, passwordEncoder,
+                achievementUnlockService);
         controller.setClock(fixedClock);
     }
 
@@ -108,9 +113,9 @@ class UserControllerTest {
         List<LeaderboardEntryResponse> leaderboard = controller.leaderboard("BLITZ");
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
-        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
-        assertThat(leaderboard.get(0).rating()).isEqualTo(1800);
+        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
+        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
+        assertThat(leaderboard.getFirst().rating()).isEqualTo(1800);
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
     }

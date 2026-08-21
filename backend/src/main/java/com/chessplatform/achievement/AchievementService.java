@@ -2,10 +2,12 @@ package com.chessplatform.achievement;
 
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
+import com.chessplatform.persistence.entity.UserAchievementUnlock;
 import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.DirectMessageRepository;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.GameRepository;
+import com.chessplatform.persistence.repository.UserAchievementUnlockRepository;
 import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.rating.GameMode;
@@ -17,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,6 +46,7 @@ public class AchievementService {
     private final DirectMessageRepository directMessageRepository;
     private final UserRatingRepository userRatingRepository;
     private final UserRepository userRepository;
+    private final UserAchievementUnlockRepository unlockRepository;
 
     // Mutable con valor por defecto, no un segundo constructor — dos constructores sin
     // @Autowired hacen que Spring no sepa cuál usar y falla al arrancar con "No default
@@ -53,12 +57,13 @@ public class AchievementService {
 
     public AchievementService(GameRepository gameRepository, FriendshipRepository friendshipRepository,
                               DirectMessageRepository directMessageRepository, UserRatingRepository userRatingRepository,
-                              UserRepository userRepository) {
+                              UserRepository userRepository, UserAchievementUnlockRepository unlockRepository) {
         this.gameRepository = gameRepository;
         this.friendshipRepository = friendshipRepository;
         this.directMessageRepository = directMessageRepository;
         this.userRatingRepository = userRatingRepository;
         this.userRepository = userRepository;
+        this.unlockRepository = unlockRepository;
     }
 
     void setClock(Clock clock) {
@@ -131,7 +136,7 @@ public class AchievementService {
         return (int) AchievementCatalog.ALL.stream().filter(def -> def.isUnlockedFor(snapshot)).count();
     }
 
-    /** Para el ranking global — cada usuario activo con cuántos de los 20 logros tiene desbloqueados, de más a menos. */
+    /** Para el ranking global — cada usuario activo con cuántos logros tiene desbloqueados, de más a menos. */
     public List<UserAchievementCount> leaderboard() {
         return userRepository.findByDeletedAtIsNull().stream()
                 .map(user -> new UserAchievementCount(user, unlockedCountFor(user.getId())))
@@ -139,8 +144,53 @@ public class AchievementService {
                 .toList();
     }
 
+    /**
+     * Como progressFor(), pero con tres datos más por logro: cuándo lo desbloqueaste TÚ
+     * (null si no lo tienes), qué porcentaje de cuentas activas lo tiene (rareza), y
+     * quién fue la primera persona en todo el sistema en conseguirlo — estos tres viven
+     * en UserAchievementUnlock (sí persistida, a diferencia del resto de logros, ver su
+     * javadoc) porque no se pueden calcular al vuelo sin conocer el momento exacto en
+     * que pasó cada desbloqueo.
+     *
+     * Coste asumido a propósito: hasta dos consultas más POR CADA logro del catálogo
+     * (rareza + primero) — igual de aceptable a esta escala que el resto de cálculos al
+     * vuelo del servicio, ver el javadoc de la clase.
+     */
+    public List<DetailedAchievementProgress> detailedProgressFor(String userId) {
+        UserStatsSnapshot snapshot = computeSnapshot(userId);
+        Map<String, Instant> unlockedAtByAchievementId = unlockRepository.findByUser_Id(userId).stream()
+                .collect(Collectors.toMap(UserAchievementUnlock::getAchievementId, UserAchievementUnlock::getUnlockedAt));
+        long totalActiveUsers = userRepository.countByDeletedAtIsNull();
+
+        return AchievementCatalog.ALL.stream()
+                .map(def -> {
+                    long unlockedByCount = unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(def.id());
+                    double rarityPercent = totalActiveUsers > 0
+                            ? Math.round(unlockedByCount * 1000.0 / totalActiveUsers) / 10.0
+                            : 0.0;
+                    String firstUnlockedByUsername = unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc(def.id())
+                            .map(u -> u.getUser().getUsername())
+                            .orElse(null);
+                    return new DetailedAchievementProgress(def, snapshot,
+                            unlockedAtByAchievementId.get(def.id()), rarityPercent, firstUnlockedByUsername);
+                })
+                .toList();
+    }
+
     /** Envoltorio de un AchievementDefinition ya evaluado contra una foto concreta — evita recalcular progressFor()/isUnlockedFor() dos veces cada uno al construir la respuesta. */
     public record AchievementProgress(AchievementDefinition definition, UserStatsSnapshot snapshot) {
+        public int currentProgress() {
+            return definition.progressFor(snapshot);
+        }
+
+        public boolean unlocked() {
+            return definition.isUnlockedFor(snapshot);
+        }
+    }
+
+    /** Como AchievementProgress, con los tres datos extra de detailedProgressFor() — ver su javadoc. */
+    public record DetailedAchievementProgress(AchievementDefinition definition, UserStatsSnapshot snapshot,
+                                              Instant unlockedAt, double rarityPercent, String firstUnlockedByUsername) {
         public int currentProgress() {
             return definition.progressFor(snapshot);
         }
