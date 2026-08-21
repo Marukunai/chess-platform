@@ -340,7 +340,7 @@ function renderProfileQuickView(profile) {
         countryEl.hidden = true;
     }
 
-    document.getElementById('quickview-rating').textContent = profile.rating;
+    renderModeRatings('quickview-ratings', profile.ratings);
     document.getElementById('quickview-winrate').textContent = `${profile.winRatePercent}% de victorias`;
     document.getElementById('quickview-games').textContent = profile.gamesPlayed;
     document.getElementById('quickview-wins').textContent = profile.wins;
@@ -802,6 +802,24 @@ function openBoardSettings() {
     showScreen('board-settings-screen');
 }
 
+/**
+ * Pide el ranking de UNA modalidad y lo pinta, marcando su pestaña como activa — se
+ * llama tanto al entrar por primera vez (siempre BLITZ, la misma que ya viene
+ * preseleccionada en "Buscar partida") como al cambiar de pestaña sin salir de la
+ * pantalla.
+ */
+async function openLeaderboard(mode) {
+    document.querySelectorAll('.leaderboard-mode-tab').forEach(tab => {
+        tab.classList.toggle('leaderboard-mode-tab--active', tab.dataset.mode === mode);
+    });
+    try {
+        const userId = getUserIdFromToken(getStoredToken());
+        renderLeaderboard(await fetchLeaderboard(mode), userId);
+    } catch (error) {
+        showTransientNotice(error.message);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Antes que nada — así el primer tablero que se pinte ya sale con el tema guardado,
     // no con el de fábrica un instante antes de "saltar" al correcto.
@@ -1172,13 +1190,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('leaderboard-btn').addEventListener('click', async () => {
-        const userId = getUserIdFromToken(getStoredToken());
-        try {
-            renderLeaderboard(await fetchLeaderboard(), userId);
-            showScreen('leaderboard-screen');
-        } catch (error) {
-            alert(error.message);
-        }
+        await openLeaderboard('BLITZ'); // misma modalidad que ya viene preseleccionada en "Buscar partida"
+        showScreen('leaderboard-screen');
+    });
+
+    document.querySelectorAll('.leaderboard-mode-tab').forEach(tab => {
+        tab.addEventListener('click', () => openLeaderboard(tab.dataset.mode));
     });
 
     document.getElementById('leaderboard-back-btn').addEventListener('click', () => {

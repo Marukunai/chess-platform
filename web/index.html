@@ -134,10 +134,7 @@
                 <img id="profile-avatar" class="profile-avatar" hidden alt="">
                 <p id="profile-username" class="profile-username"></p>
                 <p id="profile-country" class="profile-country" hidden></p>
-                <div class="profile-rating">
-                    <span id="profile-rating-value" class="profile-rating__value">—</span>
-                    <span class="profile-rating__label">rating</span>
-                </div>
+                <div id="profile-ratings" class="mode-rating-grid"></div>
                 <p id="profile-winrate" class="profile-winrate"></p>
                 <div class="stat-grid">
                     <div class="stat-grid__item">
@@ -268,6 +265,12 @@
         <section id="leaderboard-screen" class="screen screen--centered" hidden>
             <div class="card card--wide">
                 <h2 class="card__title">Ranking</h2>
+                <div id="leaderboard-mode-tabs" class="leaderboard-mode-tabs">
+                    <button type="button" class="leaderboard-mode-tab" data-mode="BULLET">Bullet</button>
+                    <button type="button" class="leaderboard-mode-tab" data-mode="BLITZ">Blitz</button>
+                    <button type="button" class="leaderboard-mode-tab" data-mode="RAPID">Rápidas</button>
+                    <button type="button" class="leaderboard-mode-tab" data-mode="CLASSICAL">Clásicas</button>
+                </div>
                 <div class="scoresheet-wrap scoresheet-wrap--tall">
                     <table class="scoresheet standings">
                         <thead>
@@ -494,10 +497,7 @@
                 <img id="quickview-avatar" class="profile-avatar" hidden alt="">
                 <h2 id="quickview-username" class="modal-card__title"></h2>
                 <p id="quickview-country" class="profile-country" hidden></p>
-                <div class="profile-rating">
-                    <span id="quickview-rating" class="profile-rating__value">—</span>
-                    <span class="profile-rating__label">rating</span>
-                </div>
+                <div id="quickview-ratings" class="mode-rating-grid"></div>
                 <p id="quickview-winrate" class="profile-winrate"></p>
                 <div class="stat-grid">
                     <div class="stat-grid__item">
