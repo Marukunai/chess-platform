@@ -507,6 +507,13 @@
         <!-- Notificación breve y autoocultable, para avisos puntuales (p. ej. "X rechazó la revancha") -->
         <div id="transient-notice" class="transient-notice" hidden></div>
 
+        <!-- Pop-ups al desbloquear logros — un contenedor donde se van insertando y
+             apilando avisos independientes, cada uno con su propio temporizador. Si se
+             desbloquea más de uno a la vez (p. ej. tu primera partida Y tu primera
+             victoria en el mismo momento), cada uno se ve el suyo, uno debajo del otro,
+             en vez de que el segundo tape al primero antes de que te dé tiempo a leerlo. -->
+        <div id="achievement-unlocked-toast-container" class="achievement-unlocked-toast-container"></div>
+
         <!-- Panel del selector de emoticonos — compartido entre el chat de partida y el
              chat directo, se reposiciona junto al botón que lo abrió cada vez -->
         <div id="emoji-picker-panel" class="emoji-picker-panel" hidden></div>

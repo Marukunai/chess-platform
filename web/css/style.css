@@ -2267,3 +2267,74 @@ a {
     margin-top: 0.25rem;
     font-variant-numeric: tabular-nums;
 }
+
+/* ---- Pop-ups de logro desbloqueado ---- */
+
+.achievement-unlocked-toast-container {
+    position: fixed;
+    top: calc(5.5rem + 13rem);
+    right: 1.5rem;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: min(320px, calc(100vw - 3rem));
+}
+
+.achievement-unlocked-toast {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--felt);
+    border: 1px solid var(--brass-bright);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 1rem 1.25rem;
+    animation: modal-zoom-in 0.3s ease-out;
+}
+
+.achievement-unlocked-toast__icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.achievement-unlocked-toast__label {
+    margin: 0;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--brass-bright);
+}
+
+.achievement-unlocked-toast__name {
+    margin: 0.15rem 0 0;
+    font-weight: 600;
+    color: var(--parchment);
+    font-size: 0.9rem;
+}
+
+.achievement-unlocked-toast__description {
+    margin: 0.1rem 0 0;
+    font-size: 0.75rem;
+    color: var(--parchment-dim);
+}
+
+/* ---- Metadatos de cada logro (fecha, rareza, quién fue el primero) ---- */
+
+.achievement-row__meta {
+    margin: 0.4rem 0 0;
+    font-size: 0.66rem;
+    color: var(--parchment-dim);
+}
+
+/* ---- Casi conseguido — 80%+ de progreso, todavía sin desbloquear ---- */
+
+.achievement-row--almost {
+    opacity: 0.85;
+    border-color: var(--brass-bright);
+}
+
+.achievement-row--almost .achievement-row__progress-fill {
+    background: var(--brass-bright);
+}

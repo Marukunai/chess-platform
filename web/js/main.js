@@ -411,8 +411,8 @@ function hideGameOverModal() {
 
 /**
  * Los mensajes por /topic/user/{userId} (canal persistente, ver websocket-client.js) —
- * hoy los usan revancha, retos directos, amistad, presencia y chat directo, así que
- * hace falta distinguir ONCE formas. Cuatro grupos comparten campos entre sí:
+ * hoy los usan revancha, retos directos, amistad, presencia, chat directo y logros, así
+ * que hace falta distinguir DOCE formas. Cuatro grupos comparten campos entre sí:
  *   - RematchOfferMessage / ChallengeOfferMessage / FriendRequestNotification /
  *     DirectMessageNotification comparten fromUserId+fromUsername (el primero y el
  *     segundo tienen además timeControlPreset, el tercero nada más, el cuarto
@@ -421,7 +421,8 @@ function hideGameOverModal() {
  *   - RematchDeclinedMessage / ChallengeDeclinedMessage / FriendRequestAcceptedNotification
  *     comparten byUsername (el segundo tiene además 'challenge', el tercero byUserId)
  *     — mismo motivo, los más específicos primero.
- * MessagesReadNotification (readByUserId) no comparte campo con nada más, va aparte.
+ * MessagesReadNotification (readByUserId) y AchievementUnlockedMessage (achievementId)
+ * no comparten campo con nada más, van aparte.
  */
 function handleUserChannelMessage(message) {
     try {
@@ -451,6 +452,8 @@ function handleUserChannelMessage(message) {
         } else if ('fromUserId' in message) {
             showTransientNotice(`${message.fromUsername} te ha enviado una solicitud de amistad.`);
             refreshFriendsScreenIfVisible();
+        } else if ('achievementId' in message) {
+            showAchievementUnlockedToast(message);
         } else if ('code' in message) {
             showTransientNotice(message.message);
             resetRematchButton();
@@ -509,6 +512,47 @@ function showTransientNotice(text) {
     transientNoticeTimeout = setTimeout(() => {
         el.hidden = true;
     }, 4000);
+}
+
+/**
+ * Llega justo en el momento en que se detecta el desbloqueo (ver AchievementUnlockService
+ * en el backend), no cuando entras a mirar la pantalla de logros — por eso puede
+ * aparecer en cualquier pantalla, igual que el resto de avisos por este canal.
+ *
+ * Construye un aviso NUEVO cada vez en vez de reutilizar un único elemento fijo — si
+ * varios logros se desbloquean casi a la vez (p. ej. tu primera partida Y tu primera
+ * victoria en el mismo game-end), cada uno necesita su propio hueco y su propio
+ * temporizador, o el segundo sobrescribiría al primero antes de que te diera tiempo a
+ * leerlo. Cada aviso se quita solo a sí mismo cuando le toca, sin afectar a los demás.
+ */
+function showAchievementUnlockedToast(achievement) {
+    const container = document.getElementById('achievement-unlocked-toast-container');
+
+    const toast = document.createElement('div');
+    toast.className = 'achievement-unlocked-toast';
+
+    const icon = document.createElement('span');
+    icon.className = 'achievement-unlocked-toast__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '🏆';
+    toast.appendChild(icon);
+
+    const text = document.createElement('div');
+    text.className = 'achievement-unlocked-toast__text';
+    const label = document.createElement('p');
+    label.className = 'achievement-unlocked-toast__label';
+    label.textContent = '¡Logro desbloqueado!';
+    const name = document.createElement('p');
+    name.className = 'achievement-unlocked-toast__name';
+    name.textContent = achievement.name;
+    const description = document.createElement('p');
+    description.className = 'achievement-unlocked-toast__description';
+    description.textContent = achievement.description;
+    text.append(label, name, description);
+    toast.appendChild(text);
+
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000); // un poco más que el aviso breve normal — es una celebración, merece quedarse un momento más
 }
 
 /**
