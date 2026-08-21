@@ -14,4 +14,10 @@ public interface UserRepository extends JpaRepository<User, String> {
     // motivo que en el ranking: no tiene sentido poder encontrar ni añadir a alguien
     // que ya no existe de verdad.
     List<User> findTop20ByUsernameContainingIgnoreCaseAndDeletedAtIsNull(String usernameFragment);
+
+    // Para el ranking global de logros (AchievementService) — hay que calcular el
+    // progreso de cada usuario activo para poder ordenarlos, no hay ningún contador
+    // aparte que consultar directamente (ver el ADR sobre por qué los logros se calculan
+    // al vuelo en vez de guardarse).
+    List<User> findByDeletedAtIsNull();
 }
