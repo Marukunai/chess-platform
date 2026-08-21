@@ -100,6 +100,11 @@ public class User {
         return passwordHash;
     }
 
+    /** Para los logros de antigüedad de cuenta (AchievementService) — nadie más lo necesitaba hasta ahora. */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }
