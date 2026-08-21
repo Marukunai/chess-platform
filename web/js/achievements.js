@@ -71,8 +71,18 @@ function renderAchievements(achievements) {
 }
 
 function buildAchievementRow(achievement) {
+    const progressPercent = achievement.target > 0
+        ? Math.min(100, Math.round((achievement.currentProgress / achievement.target) * 100))
+        : 0;
+    // "Casi conseguido" — al 80% o más pero todavía sin desbloquear, para dar la
+    // sensación de "estás a punto" sin necesitar tocar el backend para esto: es puro
+    // cálculo a partir de datos que ya llegan.
+    const almostThere = !achievement.unlocked && progressPercent >= 80;
+
     const row = document.createElement('div');
-    row.className = `achievement-row ${achievement.unlocked ? 'achievement-row--unlocked' : ''}`;
+    row.className = ['achievement-row',
+        achievement.unlocked ? 'achievement-row--unlocked' : '',
+        almostThere ? 'achievement-row--almost' : ''].filter(Boolean).join(' ');
 
     const icon = document.createElement('span');
     icon.className = 'achievement-row__icon';
@@ -92,9 +102,6 @@ function buildAchievementRow(achievement) {
     description.textContent = achievement.description;
     info.appendChild(description);
 
-    const progressPercent = achievement.target > 0
-        ? Math.min(100, Math.round((achievement.currentProgress / achievement.target) * 100))
-        : 0;
     const progressBar = document.createElement('div');
     progressBar.className = 'achievement-row__progress-bar';
     const progressFill = document.createElement('div');
@@ -108,8 +115,36 @@ function buildAchievementRow(achievement) {
     progressLabel.textContent = `${achievement.currentProgress}/${achievement.target}`;
     info.appendChild(progressLabel);
 
+    info.appendChild(buildAchievementMeta(achievement));
+
     row.appendChild(info);
     return row;
+}
+
+/**
+ * La línea pequeña bajo la barra de progreso: cuándo lo conseguiste (si lo tienes), qué
+ * porcentaje de jugadores lo tiene, y quién fue el primero en toda la plataforma —
+ * unidos con "·" y solo los que de verdad aplican (un logro que nadie tiene todavía no
+ * lleva "Primero:", por ejemplo).
+ */
+function buildAchievementMeta(achievement) {
+    const meta = document.createElement('p');
+    meta.className = 'achievement-row__meta';
+
+    const parts = [];
+    if (achievement.unlocked && achievement.unlockedAt) {
+        parts.push(`Conseguido el ${formatAchievementDate(achievement.unlockedAt)}`);
+    }
+    parts.push(`${achievement.rarityPercent}% lo tiene`);
+    if (achievement.firstUnlockedByUsername) {
+        parts.push(`Primero: ${achievement.firstUnlockedByUsername}`);
+    }
+    meta.textContent = parts.join(' · ');
+    return meta;
+}
+
+function formatAchievementDate(isoString) {
+    return new Date(isoString).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** Cada fila abre los logros de esa persona — mismo patrón que ya usa el ranking de rating con showProfileQuickView, solo que aquí navega a pantalla completa en vez de un modal (una lista de hasta 38 logros con descripción y barra de progreso pide más sitio del que da un modal compacto). */
