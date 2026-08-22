@@ -8,6 +8,7 @@ import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
 import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.puzzle.PuzzleGenerationService;
 import com.chessplatform.realtime.GameSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class GameResultRecorderTest {
     @Mock
     private GameRepository gameRepository;
 
+    @Mock
+    private PuzzleGenerationService puzzleGenerationService;
+
     private GameResultRecorder recorder;
 
     @BeforeEach
@@ -51,7 +55,7 @@ class GameResultRecorderTest {
         // completo funciona, igual que ya se hacía con GlickoRatingService.
         UserRatingService userRatingService = new UserRatingService(userRatingRepository);
         recorder = new GameResultRecorder(userRepository, userRatingRepository, userRatingService,
-                gameRepository, new GlickoRatingService());
+                gameRepository, new GlickoRatingService(), puzzleGenerationService);
     }
 
     private static GameSession newSession() {

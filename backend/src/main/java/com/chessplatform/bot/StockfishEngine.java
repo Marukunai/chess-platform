@@ -66,6 +66,41 @@ public class StockfishEngine implements AutoCloseable {
         return UciResponseParser.extractBestMove(bestMoveLine);
     }
 
+    /**
+     * Como bestMove(), pero además captura la evaluación de la posición — necesario
+     * para detectar "swings" tácticos al analizar una partida ya jugada (ver
+     * puzzle/PuzzleGenerationService). La puntuación viene en las líneas "info" que el
+     * motor manda mientras piensa, ANTES de la línea final "bestmove" — por eso hace
+     * falta observar cada línea que se lee de camino, no solo la que cumple la
+     * condición de parada.
+     */
+    public EngineEvaluation evaluate(String fen, int moveTimeMs) throws IOException {
+        sendCommand("position fen " + fen);
+        sendCommand("go movetime " + moveTimeMs);
+
+        MutableScore latestScore = new MutableScore();
+        String bestMoveLine = waitFor(UciResponseParser.IS_BEST_MOVE_LINE, line -> {
+            UciResponseParser.ScoreInfo score = UciResponseParser.parseScore(line);
+            if (score == null) {
+                return;
+            }
+            // Un motor manda varias líneas "info" según profundiza la búsqueda — la
+            // última que se vea antes de "bestmove" es la más fiable, así que cada
+            // línea nueva con score sobrescribe a la anterior sin más.
+            latestScore.centipawns = score.centipawns();
+            latestScore.mateIn = score.mateIn();
+        });
+
+        String bestMove = UciResponseParser.extractBestMove(bestMoveLine);
+        return new EngineEvaluation(bestMove, latestScore.centipawns, latestScore.mateIn);
+    }
+
+    /** Contenedor mutable para acumular la última puntuación vista dentro de la lambda observadora de waitFor() — más simple que un array de dos huecos, y no hace falta que sea un record (no es inmutable a propósito). */
+    private static final class MutableScore {
+        Integer centipawns;
+        Integer mateIn;
+    }
+
     private void sendCommand(String command) throws IOException {
         writer.write(command);
         writer.newLine();
@@ -81,6 +116,11 @@ public class StockfishEngine implements AutoCloseable {
      * la espera activa cada 20ms es un compromiso razonable aquí.
      */
     private String waitFor(Predicate<String> condition) throws IOException {
+        return waitFor(condition, null);
+    }
+
+    /** Como waitFor(condition), pero además pasa CADA línea leída (incluidas las que no cumplen la condición) al observador — usado por evaluate() para capturar las líneas "info" de puntuación de camino a la línea "bestmove" final. */
+    private String waitFor(Predicate<String> condition, java.util.function.Consumer<String> lineObserver) throws IOException {
         long deadline = System.currentTimeMillis() + READ_TIMEOUT_MILLIS;
         while (System.currentTimeMillis() < deadline) {
             if (!reader.ready()) {
@@ -93,6 +133,9 @@ public class StockfishEngine implements AutoCloseable {
                 continue;
             }
             String line = reader.readLine();
+            if (lineObserver != null) {
+                lineObserver.accept(line);
+            }
             if (condition.test(line)) {
                 return line;
             }

@@ -8,6 +8,7 @@ import com.chessplatform.persistence.entity.UserRating;
 import com.chessplatform.persistence.repository.GameRepository;
 import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
+import com.chessplatform.puzzle.PuzzleGenerationService;
 import com.chessplatform.rating.GlickoRatingService.Outcome;
 import com.chessplatform.rating.GlickoRatingService.RatingResult;
 import com.chessplatform.realtime.GameSession;
@@ -46,15 +47,17 @@ public class GameResultRecorder {
     private final UserRatingService userRatingService;
     private final GameRepository gameRepository;
     private final GlickoRatingService ratingService;
+    private final PuzzleGenerationService puzzleGenerationService;
 
     public GameResultRecorder(UserRepository userRepository, UserRatingRepository userRatingRepository,
                               UserRatingService userRatingService, GameRepository gameRepository,
-                              GlickoRatingService ratingService) {
+                              GlickoRatingService ratingService, PuzzleGenerationService puzzleGenerationService) {
         this.userRepository = userRepository;
         this.userRatingRepository = userRatingRepository;
         this.userRatingService = userRatingService;
         this.gameRepository = gameRepository;
         this.ratingService = ratingService;
+        this.puzzleGenerationService = puzzleGenerationService;
     }
 
     /**
@@ -115,6 +118,12 @@ public class GameResultRecorder {
                 .collect(Collectors.joining(" ")));
         game.setRatingChanges(whiteChange, blackChange);
         gameRepository.save(game);
+
+        // Al final de todo, con la partida ya guardada y su id ya asignado (UUID
+        // generado en memoria, no hay que esperar a nada más) — @Async hace que esta
+        // llamada vuelva al instante, el análisis de verdad corre en segundo plano, ver
+        // el javadoc de PuzzleGenerationService.
+        puzzleGenerationService.generateFromGame(game);
 
         return Optional.of(new RatingChanges(whiteChange, blackChange));
     }
