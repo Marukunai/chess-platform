@@ -48,12 +48,18 @@ class AchievementServiceTest {
     @Mock
     private UserAchievementUnlockRepository unlockRepository;
 
+    @Mock
+    private com.chessplatform.persistence.repository.UserPuzzleAttemptRepository puzzleAttemptRepository;
+
+    @Mock
+    private com.chessplatform.persistence.repository.UserPuzzleRatingRepository puzzleRatingRepository;
+
     private AchievementService service;
 
     @BeforeEach
     void setUp() {
         service = new AchievementService(gameRepository, friendshipRepository, directMessageRepository,
-                userRatingRepository, userRepository, unlockRepository);
+                userRatingRepository, userRepository, unlockRepository, puzzleAttemptRepository, puzzleRatingRepository);
     }
 
     private static void setId(User user, String id) {
@@ -633,5 +639,45 @@ class AchievementServiceTest {
 
         assertThat(snapshot.hardBotClassicalWins()).isEqualTo(1);
         assertThat(snapshot.hardBotBlitzWins()).isZero();
+    }
+
+    @Test
+    void computeSnapshotCountsOnlySolvedPuzzleAttempts() {
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        givenNoSocialOrRatingData("alice-id");
+        when(puzzleAttemptRepository.countByUser_IdAndSolvedTrue("alice-id")).thenReturn(7L);
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.puzzlesSolved()).isEqualTo(7);
+    }
+
+    @Test
+    void computeSnapshotDefaultsPuzzleRatingTo1500WhenTheUserNeverSolvedOne() {
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.puzzleRating()).isEqualTo(1500);
+    }
+
+    @Test
+    void computeSnapshotUsesTheActualPuzzleRatingWhenItExists() {
+        User user = new User("alice", "hash");
+        setId(user, "alice-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        givenNoSocialOrRatingData("alice-id");
+        com.chessplatform.persistence.entity.UserPuzzleRating puzzleRating =
+                new com.chessplatform.persistence.entity.UserPuzzleRating(user);
+        puzzleRating.applyRatingUpdate(1875, 120, 0.05);
+        when(puzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(java.util.Optional.of(puzzleRating));
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.puzzleRating()).isEqualTo(1875);
     }
 }

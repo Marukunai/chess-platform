@@ -9,6 +9,9 @@ import java.util.List;
 
 public interface PuzzleRepository extends JpaRepository<Puzzle, String> {
 
+    /** Para saber si PuzzleSeeder ya sembró alguna vez — los puzzles sembrados a mano son los únicos con sourceGameId null. */
+    boolean existsBySourceGameIdIsNull();
+
     /**
      * Los puzzles que este usuario todavía NO ha intentado, ordenados por cercanía a
      * su rating actual — el primero de la lista es el candidato ideal (el más

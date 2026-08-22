@@ -10,6 +10,8 @@ import com.chessplatform.persistence.repository.DirectMessageRepository;
 import com.chessplatform.persistence.repository.FriendshipRepository;
 import com.chessplatform.persistence.repository.GameRepository;
 import com.chessplatform.persistence.repository.UserAchievementUnlockRepository;
+import com.chessplatform.persistence.repository.UserPuzzleAttemptRepository;
+import com.chessplatform.persistence.repository.UserPuzzleRatingRepository;
 import com.chessplatform.persistence.repository.UserRatingRepository;
 import com.chessplatform.persistence.repository.UserRepository;
 import com.chessplatform.rating.GameMode;
@@ -59,6 +61,8 @@ public class AchievementService {
     private final UserRatingRepository userRatingRepository;
     private final UserRepository userRepository;
     private final UserAchievementUnlockRepository unlockRepository;
+    private final UserPuzzleAttemptRepository puzzleAttemptRepository;
+    private final UserPuzzleRatingRepository puzzleRatingRepository;
 
     // Mutable con valor por defecto, no un segundo constructor — dos constructores sin
     // @Autowired hacen que Spring no sepa cuál usar y falla al arrancar con "No default
@@ -69,13 +73,17 @@ public class AchievementService {
 
     public AchievementService(GameRepository gameRepository, FriendshipRepository friendshipRepository,
                               DirectMessageRepository directMessageRepository, UserRatingRepository userRatingRepository,
-                              UserRepository userRepository, UserAchievementUnlockRepository unlockRepository) {
+                              UserRepository userRepository, UserAchievementUnlockRepository unlockRepository,
+                              UserPuzzleAttemptRepository puzzleAttemptRepository,
+                              UserPuzzleRatingRepository puzzleRatingRepository) {
         this.gameRepository = gameRepository;
         this.friendshipRepository = friendshipRepository;
         this.directMessageRepository = directMessageRepository;
         this.userRatingRepository = userRatingRepository;
         this.userRepository = userRepository;
         this.unlockRepository = unlockRepository;
+        this.puzzleAttemptRepository = puzzleAttemptRepository;
+        this.puzzleRatingRepository = puzzleRatingRepository;
     }
 
     void setClock(Clock clock) {
@@ -165,10 +173,16 @@ public class AchievementService {
         int accountAgeDays = user.map(u -> (int) Duration.between(u.getCreatedAt(), Instant.now(clock)).toDays())
                 .orElse(0);
 
+        long puzzlesSolved = puzzleAttemptRepository.countByUser_IdAndSolvedTrue(userId);
+        int puzzleRating = puzzleRatingRepository.findByUser_Id(userId)
+                .map(r -> (int) Math.round(r.getRating()))
+                .orElse((int) GlickoRatingService.DEFAULT_RATING);
+
         return new UserStatsSnapshot(gamesPlayed, gamesWon, gamesLost, gamesDrawn, stalemateDraws, checkmateWins,
                 friendsCount, (int) directMessagesSent, (int) directMessagesReceived, (int) distinctConversationPartners,
                 highestRating, modesPlayed, hasAvatarSet, hasCountrySet, accountAgeDays,
-                easyBotWins, mediumBotWins, hardBotWins, hardBotBlitzWins, hardBotClassicalWins);
+                easyBotWins, mediumBotWins, hardBotWins, hardBotBlitzWins, hardBotClassicalWins,
+                (int) puzzlesSolved, puzzleRating);
     }
 
     public List<AchievementProgress> progressFor(String userId) {

@@ -869,9 +869,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // no con el de fábrica un instante antes de "saltar" al correcto.
     applyStoredBoardPreferences();
 
-    // El tablero necesita saber a quién avisar cuando el jugador elige una jugada.
+    // El tablero necesita saber a quién avisar cuando el jugador elige una jugada —
+    // currentPuzzleId tiene prioridad porque, mientras se resuelve un puzzle,
+    // currentGameId puede seguir apuntando a una partida en curso en otra pestaña de
+    // la sesión (reconexión) sin que eso deba interferir.
     onMoveAttempt = (move) => {
-        if (currentGameId) {
+        if (currentPuzzleId) {
+            handlePuzzleMoveAttempt(move);
+        } else if (currentGameId) {
             sendMove(currentGameId, move);
         }
     };
@@ -1270,6 +1275,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('achievements-btn').addEventListener('click', async () => {
         const userId = getUserIdFromToken(getStoredToken());
         await openAchievementsScreen(userId, null); // null -> "Mis logros", no "Logros de X"
+    });
+
+    document.getElementById('puzzles-btn').addEventListener('click', () => {
+        openPuzzleScreen();
+    });
+
+    document.getElementById('puzzle-next-btn').addEventListener('click', () => {
+        loadNextPuzzle();
+    });
+
+    document.getElementById('puzzle-back-btn').addEventListener('click', () => {
+        currentPuzzleId = null;
+        showScreen('lobby-screen');
     });
 
     document.getElementById('achievements-back-btn').addEventListener('click', () => {

@@ -53,9 +53,14 @@ class PuzzleGenerationServiceTest {
     }
 
     private static Game gameWithMoves(String moveList) {
+        return gameWithMoves(moveList, "resignation"); // motivo neutro por defecto para los tests que no les importa
+    }
+
+    private static Game gameWithMoves(String moveList, String reason) {
         Game game = new Game(new User("white", "hash"), new User("black", "hash"), "5+3");
         setId(game, "game-id");
         game.setResult("1-0");
+        game.setReason(reason);
         game.setMoveList(moveList);
         return game;
     }
@@ -143,21 +148,25 @@ class PuzzleGenerationServiceTest {
     void generateFromGameKeepsOnlyTheBiggestSwingWhenThereAreSeveralCandidates() throws IOException {
         PuzzleGenerationService service = newService("/usr/games/stockfish");
         when(engineFactory.create(anyString())).thenReturn(engine);
-
-        // Ajustamos las evaluaciones para simular errores reales del jugador en turno:
+        // Cuatro posiciones (inicial + 3 jugadas). Con drop_k = eval(k-1) + eval(k) (la
+        // conversión de perspectiva se cancela algebraicamente en la resta de
+        // toComparableScore/-toComparableScore, ver el código): drop_1 = 0+350=350
+        // (primer candidato, supera el umbral), drop_2 = 350-300=50 (no supera),
+        // drop_3 = -300+1150=850 (el más grande de los dos, este es el que debería
+        // quedarse).
         when(engine.evaluate(anyString(), anyInt())).thenReturn(
-                new EngineEvaluation(null, 0, null),    // 0: Posición inicial
-                new EngineEvaluation(null, 400, null),  // 1: Tras e2e4 (eval rival es +400 -> drop de 400 para blancas, supera 300)
-                new EngineEvaluation(null, -200, null), // 2: Tras e7e5 (recupera ventaja)
-                new EngineEvaluation(null, 700, null),  // 3: Tras g1f3 (eval rival es +700 -> drop mayor de 900 para blancas)
-                new EngineEvaluation("g1f3", -600, null) // 4: Solución tras confirmar el swing de la pos 3
+                new EngineEvaluation(null, 0, null),      // posición inicial
+                new EngineEvaluation(null, 350, null),    // tras jugada 1 — drop de 350, primer candidato
+                new EngineEvaluation(null, -300, null),   // tras jugada 2 — drop de 50, no supera el umbral
+                new EngineEvaluation(null, 1150, null),   // tras jugada 3 — drop de 850, el más grande
+                new EngineEvaluation("d8h4", 1150, null)  // solución de esa posición
         );
 
         service.generateFromGame(gameWithMoves("e2e4 e7e5 g1f3"));
 
         ArgumentCaptor<Puzzle> saved = ArgumentCaptor.forClass(Puzzle.class);
         verify(puzzleRepository).save(saved.capture());
-        assertThat(saved.getValue().getSolutionUci()).isEqualTo("g1f3");
+        assertThat(saved.getValue().getSolutionUci()).isEqualTo("d8h4");
     }
 
     @Test
@@ -188,5 +197,49 @@ class PuzzleGenerationServiceTest {
         // generateFromGame() debería cerrarlo siempre, incluso sin haber encontrado
         // ningún puzzle.
         verify(engine).close();
+    }
+
+    @Test
+    void generateFromGameDoesNotTreatTheFinalCheckmatePositionAsACandidate() throws IOException {
+        // El bug real: la jugada de mate siempre es el "swing" más grande de toda la
+        // partida (pasar de cualquier evaluación a mate es el salto más alto posible),
+        // así que sin esta exclusión, esta posición SIEMPRE ganaría como candidata —
+        // pero al no tener ninguna jugada legal, no hay ninguna solución que dar, y el
+        // puzzle se descartaría entero aunque hubiera habido un error resoluble antes.
+        PuzzleGenerationService service = newService("/usr/games/stockfish");
+        when(engineFactory.create(anyString())).thenReturn(engine);
+        when(engine.evaluate(anyString(), anyInt())).thenReturn(
+                new EngineEvaluation(null, 0, null),   // posición inicial
+                new EngineEvaluation(null, -10, null)  // tras jugada 1 — nada especial; nunca debería llegar a evaluarse la jugada 2 (el mate)
+        );
+
+        service.generateFromGame(gameWithMoves("e2e4 e7e5", "checkmate"));
+
+        // Solo dos llamadas al motor (posición inicial + tras la jugada 1) — la
+        // posición de mate (tras la jugada 2) nunca debería ni evaluarse, porque ya se
+        // sabe de antemano (por game.getReason()) que no puede ser un candidato válido.
+        verify(engine, org.mockito.Mockito.times(2)).evaluate(anyString(), anyInt());
+        verify(puzzleRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void generateFromGameStillFindsAnEarlierBlunderWhenTheGameEndedInCheckmate() throws IOException {
+        PuzzleGenerationService service = newService("/usr/games/stockfish");
+        when(engineFactory.create(anyString())).thenReturn(engine);
+        when(engine.evaluate(anyString(), anyInt())).thenReturn(
+                new EngineEvaluation(null, 0, null),     // posición inicial
+                new EngineEvaluation(null, -20, null),   // tras 1. e2e4 — normal
+                new EngineEvaluation(null, 500, null),   // tras 1... e7e5 — AQUÍ está el error de verdad
+                new EngineEvaluation("d1h5", 500, null)  // solución de esa posición (la re-evaluación de después)
+        );
+
+        // Tres jugadas — la partida "termina en mate" en la tercera, pero el error de
+        // verdad está en la segunda. Solo dos posiciones (1 y 2) deberían evaluarse en
+        // el bucle principal — la tercera (mate) queda excluida de entrada.
+        service.generateFromGame(gameWithMoves("e2e4 e7e5 g1f3", "checkmate"));
+
+        ArgumentCaptor<Puzzle> saved = ArgumentCaptor.forClass(Puzzle.class);
+        verify(puzzleRepository).save(saved.capture());
+        assertThat(saved.getValue().getSolutionUci()).isEqualTo("d1h5");
     }
 }
