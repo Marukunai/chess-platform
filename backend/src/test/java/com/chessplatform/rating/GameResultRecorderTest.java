@@ -266,4 +266,54 @@ class GameResultRecorderTest {
         verify(userRatingRepository, never()).findByUser_IdAndMode(any(), eq(GameMode.RAPID));
         verify(userRatingRepository, never()).findByUser_IdAndMode(any(), eq(GameMode.CLASSICAL));
     }
+
+    @Test
+    void recordDoesNotTouchAnyRatingWhenTheOpponentIsABot() {
+        User human = new User("alguien", "hash");
+        setId(human, "white-id");
+        User bot = new User("Stockfish (Fácil)", "hash");
+        setId(bot, "black-id");
+        bot.markAsBot();
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(human));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(bot));
+
+        recorder.record(newSession(), "1-0", "checkmate");
+
+        verify(userRatingRepository, never()).findByUser_IdAndMode(any(), any());
+        verify(userRatingRepository, never()).save(any());
+    }
+
+    @Test
+    void recordStillSavesTheGameWhenTheOpponentIsABot() {
+        User human = new User("alguien", "hash");
+        setId(human, "white-id");
+        User bot = new User("Stockfish (Fácil)", "hash");
+        setId(bot, "black-id");
+        bot.markAsBot();
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(human));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(bot));
+
+        // Aunque sea contra un bot, la partida se guarda igual — quien juega contra el
+        // bot puede reproducirla después, como cualquier otra partida de su historial.
+        recorder.record(newSession(), "1-0", "checkmate");
+
+        verify(gameRepository).save(any());
+    }
+
+    @Test
+    void recordReturnsZeroRatingChangesForAGameAgainstABot() {
+        User human = new User("alguien", "hash");
+        setId(human, "white-id");
+        User bot = new User("Stockfish (Fácil)", "hash");
+        setId(bot, "black-id");
+        bot.markAsBot();
+        when(userRepository.findById("white-id")).thenReturn(Optional.of(human));
+        when(userRepository.findById("black-id")).thenReturn(Optional.of(bot));
+
+        var result = recorder.record(newSession(), "1-0", "checkmate");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().whiteChange()).isZero();
+        assertThat(result.get().blackChange()).isZero();
+    }
 }

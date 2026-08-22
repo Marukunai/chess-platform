@@ -155,7 +155,7 @@ chess-platform/
 | `SPRING_PROFILES_ACTIVE` | Perfil de Spring activo (`docker` por defecto) |
 | `SERVER_PORT` | Puerto donde escucha el backend |
 | `JWT_SECRET`, `JWT_EXPIRATION_MS` | Firma y expiración de los tokens JWT |
-| `STOCKFISH_PATH` | Ruta al binario de Stockfish (se usa a partir de Fase 2) |
+| `STOCKFISH_PATH` | Ruta al binario de Stockfish para las partidas contra bot — `/usr/bin/stockfish` por defecto, coincide con dónde lo instala `apk` en la imagen del backend |
 | `GIPHY_API_KEY` | Clave gratuita de [developers.giphy.com](https://developers.giphy.com) para el buscador de GIFs del chat — sin ella, el buscador simplemente no da resultados, nada más depende de esto |
 
 Ver `.env.example` para la plantilla completa. **`.env` nunca se sube al repositorio** —

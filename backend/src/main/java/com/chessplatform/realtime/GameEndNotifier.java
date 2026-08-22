@@ -1,6 +1,9 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.achievement.AchievementUnlockService;
+import com.chessplatform.bot.BotGameInfo;
+import com.chessplatform.bot.BotGameRegistry;
+import com.chessplatform.engine.Color;
 import com.chessplatform.matchmaking.TimeControl;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
@@ -19,6 +22,13 @@ import java.util.Optional;
  * GameWebSocketController (jaque mate, ahogado, rendición) y desde GameTimeoutService
  * (bandera caída), para que las cuatro formas de terminar una partida pasen siempre por
  * la misma lógica.
+ *
+ * Partidas contra un bot: también cierra el proceso de Stockfish asociado (ver
+ * BotGameRegistry.remove()) — si esto no se hiciera aquí, el proceso se quedaría
+ * huérfano corriendo indefinidamente cada vez que alguien termina una partida contra el
+ * bot. Y ni la presencia ni los logros se comprueban para el lado del bot: no tiene
+ * amigos a los que avisar, ni tiene sentido evaluarle el catálogo de logros a una cuenta
+ * que no es una persona.
  */
 @Component
 public class GameEndNotifier {
@@ -30,15 +40,17 @@ public class GameEndNotifier {
     private final GameResultRecorder gameResultRecorder;
     private final PresenceService presenceService;
     private final AchievementUnlockService achievementUnlockService;
+    private final BotGameRegistry botGameRegistry;
 
     public GameEndNotifier(GameSessionRegistry sessionRegistry, SimpMessagingTemplate messagingTemplate,
                            GameResultRecorder gameResultRecorder, PresenceService presenceService,
-                           AchievementUnlockService achievementUnlockService) {
+                           AchievementUnlockService achievementUnlockService, BotGameRegistry botGameRegistry) {
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
         this.gameResultRecorder = gameResultRecorder;
         this.presenceService = presenceService;
         this.achievementUnlockService = achievementUnlockService;
+        this.botGameRegistry = botGameRegistry;
     }
 
     /**
@@ -72,17 +84,35 @@ public class GameEndNotifier {
         );
         sessionRegistry.remove(session.gameId());
 
+        // Hay que consultar el registro de bots ANTES de limpiarlo (remove() olvida la
+        // entrada) — así se sabe, si esto era una partida contra bot, cuál de los dos
+        // lados es el bot antes de que esa información desaparezca junto con el proceso.
+        Optional<BotGameInfo> maybeBotInfo = botGameRegistry.find(session.gameId());
+        botGameRegistry.remove(session.gameId()); // cierra el proceso de Stockfish si lo había; no hace nada si no
+
+        String botPlayerId = maybeBotInfo
+                .map(info -> info.botColor() == Color.WHITE ? session.whitePlayerId() : session.blackPlayerId())
+                .orElse(null); // partida normal entre humanos — ningún playerId real coincidirá nunca con null
+
         // Después de quitarla del registro, no antes — statusOf() decide "en partida"
         // mirando si sigue habiendo una sesión activa para este jugador, así que hay
         // que avisar a los amigos justo después de que deje de haberla.
-        presenceService.notifyFriendsOfStatusChange(session.whitePlayerId());
-        presenceService.notifyFriendsOfStatusChange(session.blackPlayerId());
+        if (!session.whitePlayerId().equals(botPlayerId)) {
+            presenceService.notifyFriendsOfStatusChange(session.whitePlayerId());
+        }
+        if (!session.blackPlayerId().equals(botPlayerId)) {
+            presenceService.notifyFriendsOfStatusChange(session.blackPlayerId());
+        }
 
         // Al final de todo — con la partida ya guardada, el rating actualizado y todo
         // lo demás resuelto, es el momento correcto para comprobar si esto acaba de
         // desbloquear algún logro nuevo (partidas jugadas, victorias, jaque mate,
-        // rating, modalidad...) para cada uno de los dos jugadores.
-        achievementUnlockService.checkAndNotify(session.whitePlayerId());
-        achievementUnlockService.checkAndNotify(session.blackPlayerId());
+        // rating, modalidad...) para cada uno de los dos jugadores, salvo el que sea el bot.
+        if (!session.whitePlayerId().equals(botPlayerId)) {
+            achievementUnlockService.checkAndNotify(session.whitePlayerId());
+        }
+        if (!session.blackPlayerId().equals(botPlayerId)) {
+            achievementUnlockService.checkAndNotify(session.blackPlayerId());
+        }
     }
 }
