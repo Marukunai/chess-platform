@@ -1,11 +1,13 @@
 package com.chessplatform.realtime.controller;
 
+import com.chessplatform.bot.BotMoveService;
 import com.chessplatform.engine.Color;
 import com.chessplatform.engine.Move;
 import com.chessplatform.engine.Square;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
+import com.chessplatform.realtime.GameStateBroadcaster;
 import com.chessplatform.realtime.dto.ChatMessage;
 import com.chessplatform.realtime.dto.ChatSendMessage;
 import com.chessplatform.realtime.dto.DrawOfferMessage;
@@ -57,11 +59,22 @@ class GameWebSocketControllerTest {
     @Mock
     private GameEndNotifier gameEndNotifier;
 
+    @Mock
+    private BotMoveService botMoveService;
+
     private GameWebSocketController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new GameWebSocketController(sessionRegistry, messagingTemplate, gameEndNotifier);
+        // GameStateBroadcaster REAL (no mock) sobre los mismos messagingTemplate y
+        // gameEndNotifier ya mockeados aquí abajo — así todos los tests que ya
+        // comprobaban el contenido exacto de lo que se difunde (o que gameEndNotifier
+        // se llama con tal resultado) siguen funcionando sin cambiar ni una aserción;
+        // solo botMoveService se mockea de verdad, porque la mayoría de estos tests no
+        // les importa en absoluto el comportamiento del bot.
+        GameStateBroadcaster gameStateBroadcaster = new GameStateBroadcaster(messagingTemplate, gameEndNotifier);
+        controller = new GameWebSocketController(sessionRegistry, messagingTemplate, gameEndNotifier,
+                gameStateBroadcaster, botMoveService);
     }
 
     private static GameSession newSession() {
@@ -104,6 +117,20 @@ class GameWebSocketControllerTest {
     }
 
     @Test
+    void handleMoveAsksBotMoveServiceToCheckWhetherTheBotShouldMoveNext() {
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleMove(session.gameId(), new MoveMessage(session.gameId(), "e2", "e4", null),
+                principalFor("white-player"));
+
+        // Se llama SIEMPRE tras una jugada legal, sea o no contra un bot — es
+        // botMoveService quien decide internamente si hay algo que hacer (ver su propio
+        // test), el controlador no necesita saberlo de antemano.
+        verify(botMoveService).maybeTriggerBotMove(session);
+    }
+
+    @Test
     void handleJoinIncludesPlayerIdsUsernamesAndAvatarsInTheState() {
         GameSession session = newSession();
         session.setUsernames("alice", "bob");
@@ -121,6 +148,18 @@ class GameWebSocketControllerTest {
         assertThat(stateSync.blackPlayerId()).isEqualTo("black-player");
         assertThat(stateSync.blackUsername()).isEqualTo("bob");
         assertThat(stateSync.blackAvatarUrl()).isNull();
+    }
+
+    @Test
+    void handleJoinDoesNotAskBotMoveServiceToDoAnything() {
+        // Unirse a una partida no es una jugada — si hubiera un bot esperando su turno,
+        // ya se le habría pedido su jugada cuando el humano movió la suya, no aquí.
+        GameSession session = newSession();
+        when(sessionRegistry.find(session.gameId())).thenReturn(Optional.of(session));
+
+        controller.handleJoin(session.gameId());
+
+        verify(botMoveService, never()).maybeTriggerBotMove(any());
     }
 
     @Test

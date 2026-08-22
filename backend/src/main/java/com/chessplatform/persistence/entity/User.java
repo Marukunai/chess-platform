@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
+import lombok.Getter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -29,13 +30,16 @@ public class User {
     // ahora mismo como una de esas cinco, no aparte.
     private static final int PASSWORD_HISTORY_SIZE = 4;
 
+    @Getter
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
+    @Getter
     @Column(nullable = false, unique = true)
     private String username;
 
+    @Getter
     @Column(nullable = false)
     private String passwordHash;
 
@@ -53,14 +57,31 @@ public class User {
     // ganas de poner una imagen. avatarUrl es solo un enlace a una imagen ya alojada en
     // otro sitio (imgur, gravatar, lo que sea) — no subimos ni guardamos ningún archivo
     // nosotros, evita meter almacenamiento de ficheros para esto.
+    @Getter
     @Column
     private String country;
 
+    @Getter
     @Column
     private String avatarUrl;
 
+    /**
+     * -- GETTER --
+     * Para los logros de antigüedad de cuenta (AchievementService) — nadie más lo necesitaba hasta ahora.
+     */
+    @Getter
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    // false para cualquier cuenta creada por AuthController.register() de verdad — solo
+    // las tres filas que crea BotAccountSeeder al arrancar (una por BotDifficulty) lo
+    // llevan a true. Reutiliza TODA la infraestructura ya existente para "un jugador"
+    // (avatar, nombre, aparecer en Game.whitePlayer/blackPlayer sin tocar esa entidad
+    // en absoluto) en vez de inventar un concepto de "oponente" aparte solo para bots —
+    // ver ADR correspondiente. Sin contraseña utilizable (igual que una cuenta borrada,
+    // ver anonymizeForDeletion): nadie puede iniciar sesión como un bot.
+    @Column(nullable = false)
+    private boolean bot = false;
 
     // null = cuenta activa. Con valor = borrada (ver anonymizeForDeletion) — no se
     // elimina la fila de verdad porque las partidas de OTROS jugadores tienen una
@@ -80,33 +101,17 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getCountry() {
-        return country;
-    }
-
-    public String getAvatarUrl() {
-        return avatarUrl;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    /** Para los logros de antigüedad de cuenta (AchievementService) — nadie más lo necesitaba hasta ahora. */
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    public boolean isBot() {
+        return bot;
+    }
+
+    /** Solo lo llama BotAccountSeeder, una vez por cada BotDifficulty al arrancar la aplicación si la cuenta todavía no existe. */
+    public void markAsBot() {
+        this.bot = true;
     }
 
     /**
