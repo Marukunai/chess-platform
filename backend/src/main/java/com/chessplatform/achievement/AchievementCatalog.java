@@ -146,7 +146,30 @@ public final class AchievementCatalog {
                     UserStatsSnapshot::accountAgeDays),
             new AchievementDefinition("fiel-seguidor", "Fiel seguidor",
                     "Cumple 365 días desde que te registraste", AchievementCategory.PERFIL, 365,
-                    UserStatsSnapshot::accountAgeDays)
+                    UserStatsSnapshot::accountAgeDays),
+
+            // --- Contra el bot: partidas de práctica, aparte de todo lo de arriba a
+            // propósito — no cuentan para gamesPlayed/gamesWon ni ningún otro logro
+            // general, ver el javadoc de UserStatsSnapshot. Mismo espíritu que los
+            // logros "solo contra bots" del póker online.
+            new AchievementDefinition("vencer-bot-facil", "Primeros pasos",
+                    "Gana al bot en dificultad Fácil", AchievementCategory.BOTS, 1,
+                    UserStatsSnapshot::easyBotWins),
+            new AchievementDefinition("vencer-bot-medio", "Subiendo el listón",
+                    "Gana al bot en dificultad Media", AchievementCategory.BOTS, 1,
+                    UserStatsSnapshot::mediumBotWins),
+            new AchievementDefinition("vencer-bot-dificil", "Dale al motor",
+                    "Gana al bot en dificultad Difícil", AchievementCategory.BOTS, 1,
+                    UserStatsSnapshot::hardBotWins),
+            new AchievementDefinition("veterano-vs-bots", "Compañero de entrenamiento",
+                    "Gana 25 partidas contra el bot, en cualquier dificultad", AchievementCategory.BOTS, 25,
+                    s -> s.easyBotWins() + s.mediumBotWins() + s.hardBotWins()),
+            new AchievementDefinition("maestro-blitz-vs-bot", "Reflejos de acero",
+                    "Gana al bot en Difícil jugando blitz", AchievementCategory.BOTS, 1,
+                    UserStatsSnapshot::hardBotBlitzWins),
+            new AchievementDefinition("maestro-clasicas-vs-bot", "Paciencia infinita",
+                    "Gana al bot en Difícil jugando clásicas", AchievementCategory.BOTS, 1,
+                    UserStatsSnapshot::hardBotClassicalWins)
     );
 
     private AchievementCatalog() {

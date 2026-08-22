@@ -52,6 +52,15 @@ giphy:
   # dependa el resto de la plataforma. Consíguela gratis en developers.giphy.com.
   api-key: ${GIPHY_API_KEY:}
 
+stockfish:
+  # /usr/games/stockfish por defecto — así lo instala apt-get en la imagen base Ubuntu
+  # Jammy (ver backend/Dockerfile; Alpine se descartó porque Stockfish ni se empaqueta
+  # de forma estable ahí ni es del todo compatible con musl). Sin un binario válido en
+  # esta ruta, StockfishEngine falla al arrancar cualquier partida contra bot — a
+  # diferencia de Giphy, esto no tiene una "lista vacía" razonable de reserva: una
+  # partida contra bot sin motor no es una partida contra bot en absoluto.
+  path: ${STOCKFISH_PATH:/usr/games/stockfish}
+
 logging:
   level:
     com.chessplatform: DEBUG

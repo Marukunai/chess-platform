@@ -145,6 +145,10 @@ function respondToChallenge(accept) {
     stompClient.send('/app/challenge/respond', {}, JSON.stringify({ accept }));
 }
 
+function playVsBot(difficulty, color, timeControlPreset) {
+    stompClient.send('/app/bot/play', {}, JSON.stringify({ difficulty, color, timeControlPreset }));
+}
+
 function joinGame(gameId) {
     stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify({}));
 }
