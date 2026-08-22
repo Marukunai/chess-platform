@@ -72,7 +72,7 @@ class GameAbandonmentServiceTest {
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
         GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder,
-                presenceService, achievementUnlockService);
+                presenceService, achievementUnlockService, new com.chessplatform.bot.BotGameRegistry());
         abandonmentService = new GameAbandonmentService(sessionRegistry, gameEndNotifier);
     }
 

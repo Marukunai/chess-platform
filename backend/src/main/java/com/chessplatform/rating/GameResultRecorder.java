@@ -27,6 +27,12 @@ import java.util.stream.Collectors;
  * partida real, ya que ambos tuvieron que autenticarse para poder jugar), no se guarda
  * nada ni se actualiza ningún rating — se deja pasar sin más, sin tumbar el flujo de fin
  * de partida por esto.
+ *
+ * Partidas contra un bot (ver com.chessplatform.bot): la partida SÍ se guarda igual —
+ * quien jugó contra el bot puede reproducirla después, como cualquier otra partida de su
+ * historial — pero ningún rating se actualiza para ninguno de los dos lados. Son
+ * partidas de práctica, no deberían poder inflar (ni desinflar) el rating de nadie, y
+ * la cuenta del bot ni siquiera tiene un rating real del que partir.
  */
 @Component
 public class GameResultRecorder {
@@ -65,20 +71,22 @@ public class GameResultRecorder {
         }
         User white = maybeWhite.get();
         User black = maybeBlack.get();
+        boolean isBotGame = white.isBot() || black.isBot();
 
         // Cualquier partida real llega aquí con un control de tiempo que coincide con
         // una de las cuatro modalidades conocidas — matchmaking, revancha y reto pasan
         // los tres por TimeControl.presetNameFor() antes de crear la GameSession. Si
         // por lo que sea no coincidiera (no debería pasar nunca en la práctica), se
         // guarda la partida igualmente pero sin tocar ningún rating, en vez de reventar
-        // el fin de partida entero por esto.
+        // el fin de partida entero por esto. Lo mismo aplica, a propósito, si es una
+        // partida contra un bot — ver el javadoc de la clase.
         Optional<GameMode> maybeMode = TimeControl.presetNameFor(session.initialTime(), session.increment())
                 .map(GameMode::valueOf);
 
         double whiteChange = 0;
         double blackChange = 0;
 
-        if (maybeMode.isPresent()) {
+        if (maybeMode.isPresent() && !isBotGame) {
             GameMode mode = maybeMode.get();
             UserRating whiteRating = userRatingService.findOrDefault(white, mode);
             UserRating blackRating = userRatingService.findOrDefault(black, mode);

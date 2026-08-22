@@ -1,6 +1,11 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.achievement.AchievementUnlockService;
+import com.chessplatform.bot.BotDifficulty;
+import com.chessplatform.bot.BotGameInfo;
+import com.chessplatform.bot.BotGameRegistry;
+import com.chessplatform.bot.StockfishEngine;
+import com.chessplatform.engine.Color;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.rating.GameResultRecorder.RatingChanges;
@@ -19,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,14 +43,24 @@ class GameEndNotifierTest {
     @Mock
     private AchievementUnlockService achievementUnlockService;
 
+    @Mock
+    private StockfishEngine engine;
+
     private GameSessionRegistry sessionRegistry;
+    private BotGameRegistry botGameRegistry;
     private GameEndNotifier notifier;
 
     @BeforeEach
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
+        // BotGameRegistry REAL (no mock), vacío por defecto — para todos los tests que
+        // ya existían (partidas normales entre humanos), esto se comporta exactamente
+        // igual que antes de que existieran los bots, sin tener que tocar ni una
+        // aserción. Los tests nuevos de más abajo sí lo usan de verdad, registrando una
+        // partida contra bot antes de llamar a endGame().
+        botGameRegistry = new BotGameRegistry();
         notifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder, presenceService,
-                achievementUnlockService);
+                achievementUnlockService, botGameRegistry);
     }
 
     private static GameSession newSession() {
@@ -174,5 +190,55 @@ class GameEndNotifierTest {
 
         verify(achievementUnlockService).checkAndNotify("white-player");
         verify(achievementUnlockService).checkAndNotify("black-player");
+    }
+
+    @Test
+    void endGameClosesTheEngineWhenItWasAGameAgainstABot() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+        botGameRegistry.register(session.gameId(), new BotGameInfo(engine, Color.BLACK, BotDifficulty.EASY));
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        verify(engine).close();
+        assertThat(botGameRegistry.find(session.gameId())).isEmpty();
+    }
+
+    @Test
+    void endGameDoesNotNotifyPresenceForTheBotSide() {
+        GameSession session = newSession(); // black-player es el bot en este montaje
+        sessionRegistry.create(session);
+        botGameRegistry.register(session.gameId(), new BotGameInfo(engine, Color.BLACK, BotDifficulty.EASY));
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        verify(presenceService).notifyFriendsOfStatusChange("white-player");
+        verify(presenceService, never()).notifyFriendsOfStatusChange("black-player");
+    }
+
+    @Test
+    void endGameDoesNotCheckAchievementsForTheBotSide() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+        botGameRegistry.register(session.gameId(), new BotGameInfo(engine, Color.BLACK, BotDifficulty.EASY));
+
+        notifier.endGame(session, "1-0", "checkmate");
+
+        verify(achievementUnlockService).checkAndNotify("white-player");
+        verify(achievementUnlockService, never()).checkAndNotify("black-player");
+    }
+
+    @Test
+    void endGameStillNotifiesTheHumanNormallyEvenAgainstABot() {
+        GameSession session = newSession();
+        sessionRegistry.create(session);
+        botGameRegistry.register(session.gameId(), new BotGameInfo(engine, Color.WHITE, BotDifficulty.HARD)); // ahora el bot es blancas
+
+        notifier.endGame(session, "0-1", "checkmate");
+
+        verify(presenceService).notifyFriendsOfStatusChange("black-player");
+        verify(presenceService, never()).notifyFriendsOfStatusChange("white-player");
+        verify(achievementUnlockService).checkAndNotify("black-player");
+        verify(achievementUnlockService, never()).checkAndNotify("white-player");
     }
 }

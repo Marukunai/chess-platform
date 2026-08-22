@@ -1,6 +1,7 @@
 package com.chessplatform.realtime;
 
 import com.chessplatform.achievement.AchievementUnlockService;
+import com.chessplatform.bot.BotGameRegistry;
 import com.chessplatform.presence.PresenceService;
 import com.chessplatform.rating.GameResultRecorder;
 import com.chessplatform.realtime.dto.GameOverMessage;
@@ -74,7 +75,7 @@ class GameTimeoutServiceTest {
     void setUp() {
         sessionRegistry = new GameSessionRegistry();
         GameEndNotifier gameEndNotifier = new GameEndNotifier(sessionRegistry, messagingTemplate, gameResultRecorder,
-                presenceService, achievementUnlockService);
+                presenceService, achievementUnlockService, new BotGameRegistry());
         timeoutService = new GameTimeoutService(sessionRegistry, gameEndNotifier);
     }
 
