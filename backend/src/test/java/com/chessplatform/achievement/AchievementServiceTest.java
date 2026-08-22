@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +82,20 @@ class AchievementServiceTest {
         game.setResult(result);
         game.setReason(reason);
         return game;
+    }
+
+    private static Game gameOf(User white, User black, String result, String reason, String timeControlLabel) {
+        Game game = new Game(white, black, timeControlLabel);
+        game.setResult(result);
+        game.setReason(reason);
+        return game;
+    }
+
+    private static User botAccount(com.chessplatform.bot.BotDifficulty difficulty) {
+        User bot = new User(com.chessplatform.bot.BotAccountSeeder.usernameFor(difficulty), "hash");
+        setId(bot, "bot-" + difficulty.name().toLowerCase() + "-id");
+        bot.markAsBot();
+        return bot;
     }
 
     @Test
@@ -217,7 +232,7 @@ class AchievementServiceTest {
         setId(alice, "alice-id");
         User bob = new User("bob", "hash"); // ninguno
         setId(bob, "bob-id");
-        when(userRepository.findByDeletedAtIsNull()).thenReturn(List.of(bob, alice));
+        when(userRepository.findByDeletedAtIsNullAndBotFalse()).thenReturn(List.of(bob, alice));
 
         when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
                 .thenReturn(List.of(gameOf(alice, bob, "1-0", "resignation")));
@@ -229,8 +244,20 @@ class AchievementServiceTest {
 
         List<AchievementService.UserAchievementCount> ranked = service.leaderboard();
 
-        assertThat(ranked.getFirst().user().getUsername()).isEqualTo("alice");
-        assertThat(ranked.getFirst().unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
+        assertThat(ranked.get(0).user().getUsername()).isEqualTo("alice");
+        assertThat(ranked.get(0).unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
+    }
+
+    @Test
+    void leaderboardNeverAsksTheRepositoryForBotAccountsInTheFirstPlace() {
+        // findByDeletedAtIsNullAndBotFalse() ya excluye los bots en la propia consulta
+        // — este test solo confirma que el servicio llama a ESE método y no al genérico
+        // (que sí los incluiría), sin tener que montar cuentas de bot de verdad aquí.
+        when(userRepository.findByDeletedAtIsNullAndBotFalse()).thenReturn(List.of());
+
+        service.leaderboard();
+
+        verify(userRepository).findByDeletedAtIsNullAndBotFalse();
     }
 
     @Test
@@ -398,7 +425,7 @@ class AchievementServiceTest {
         when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
         when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
         when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.of(alice));
-        when(userRepository.countByDeletedAtIsNull()).thenReturn(10L);
+        when(userRepository.countByDeletedAtIsNullAndBotFalse()).thenReturn(10L);
         com.chessplatform.persistence.entity.UserAchievementUnlock unlock =
                 new com.chessplatform.persistence.entity.UserAchievementUnlock(alice, "primera-partida");
         setUnlockedAt(unlock, unlockedInstant);
@@ -431,7 +458,7 @@ class AchievementServiceTest {
         when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
         when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
         when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.empty());
-        when(userRepository.countByDeletedAtIsNull()).thenReturn(4L); // 1 de 4 == 25%
+        when(userRepository.countByDeletedAtIsNullAndBotFalse()).thenReturn(4L); // 1 de 4 == 25%
         when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of());
         when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull("primera-partida")).thenReturn(1L);
         when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.argThat(
@@ -448,6 +475,30 @@ class AchievementServiceTest {
     }
 
     @Test
+    void detailedProgressForNeverAsksTheRepositoryForBotAccountsWhenComputingRarity() {
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of());
+        when(friendshipRepository.findAcceptedFriendships("alice-id")).thenReturn(List.of());
+        when(directMessageRepository.countBySender_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countByRecipient_Id("alice-id")).thenReturn(0L);
+        when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
+        when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.empty());
+        when(userRepository.countByDeletedAtIsNullAndBotFalse()).thenReturn(1L);
+        when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of());
+        when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(0L);
+        when(unlockRepository.findFirstByAchievementIdOrderByUnlockedAtAsc(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Optional.empty());
+
+        service.detailedProgressFor("alice-id");
+
+        // La consulta que excluye bots es la que se usa como denominador — no el
+        // genérico countByDeletedAtIsNull() que sí los contaría.
+        verify(userRepository).countByDeletedAtIsNullAndBotFalse();
+    }
+
+    @Test
     void detailedProgressForIncludesWhoUnlockedItFirstAcrossAllUsers() {
         User bob = new User("bob", "hash");
         setId(bob, "bob-id");
@@ -459,7 +510,7 @@ class AchievementServiceTest {
         when(directMessageRepository.countDistinctConversationPartners("alice-id")).thenReturn(0L);
         when(userRatingRepository.findByUser_Id("alice-id")).thenReturn(List.of());
         when(userRepository.findById("alice-id")).thenReturn(java.util.Optional.empty());
-        when(userRepository.countByDeletedAtIsNull()).thenReturn(10L);
+        when(userRepository.countByDeletedAtIsNullAndBotFalse()).thenReturn(10L);
         when(unlockRepository.findByUser_Id("alice-id")).thenReturn(List.of());
         when(unlockRepository.countByAchievementIdAndUser_DeletedAtIsNull(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(0L);
@@ -486,5 +537,101 @@ class AchievementServiceTest {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void givenNoSocialOrRatingData(String userId) {
+        when(friendshipRepository.findAcceptedFriendships(userId)).thenReturn(List.of());
+        when(directMessageRepository.countBySender_Id(userId)).thenReturn(0L);
+        when(directMessageRepository.countByRecipient_Id(userId)).thenReturn(0L);
+        when(directMessageRepository.countDistinctConversationPartners(userId)).thenReturn(0L);
+        when(userRatingRepository.findByUser_Id(userId)).thenReturn(List.of());
+        when(userRepository.findById(userId)).thenReturn(java.util.Optional.empty());
+    }
+
+    @Test
+    void computeSnapshotExcludesGamesAgainstABotFromTheGeneralStats() {
+        User human = new User("alice", "hash");
+        setId(human, "alice-id");
+        User bot = botAccount(com.chessplatform.bot.BotDifficulty.EASY);
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(gameOf(human, bot, "1-0", "checkmate")));
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        // La partida contra el bot no cuenta para NADA de lo general — son partidas de
+        // práctica, aparte, ver el javadoc de UserStatsSnapshot.
+        assertThat(snapshot.gamesPlayed()).isZero();
+        assertThat(snapshot.gamesWon()).isZero();
+        assertThat(snapshot.checkmateWins()).isZero();
+    }
+
+    @Test
+    void computeSnapshotCountsAWinAgainstEachDifficultySeparately() {
+        User human = new User("alice", "hash");
+        setId(human, "alice-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.EASY), "1-0", "resignation"),
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.MEDIUM), "1-0", "resignation"),
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.HARD), "1-0", "resignation")
+                ));
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.easyBotWins()).isEqualTo(1);
+        assertThat(snapshot.mediumBotWins()).isEqualTo(1);
+        assertThat(snapshot.hardBotWins()).isEqualTo(1);
+    }
+
+    @Test
+    void computeSnapshotDoesNotCountLossesOrDrawsAgainstABotAsWins() {
+        User human = new User("alice", "hash");
+        setId(human, "alice-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(botAccount(com.chessplatform.bot.BotDifficulty.EASY), human, "1-0", "checkmate"), // pierde alice
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.EASY), "1/2-1/2", "agreement") // tablas
+                ));
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.easyBotWins()).isZero();
+    }
+
+    @Test
+    void computeSnapshotCountsHardBotWinsInBlitzSeparatelyFromOtherModes() {
+        User human = new User("alice", "hash");
+        setId(human, "alice-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.HARD), "1-0", "resignation", "5+3"), // blitz
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.HARD), "1-0", "resignation", "1+0") // bullet, no cuenta para el logro de blitz
+                ));
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.hardBotWins()).isEqualTo(2); // las dos cuentan como victoria contra difícil en general
+        assertThat(snapshot.hardBotBlitzWins()).isEqualTo(1); // pero solo una fue en blitz
+        assertThat(snapshot.hardBotClassicalWins()).isZero();
+    }
+
+    @Test
+    void computeSnapshotCountsHardBotWinsInClassicalSeparately() {
+        User human = new User("alice", "hash");
+        setId(human, "alice-id");
+        when(gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc("alice-id", "alice-id"))
+                .thenReturn(List.of(
+                        gameOf(human, botAccount(com.chessplatform.bot.BotDifficulty.HARD), "1-0", "resignation", "30+20")
+                ));
+        givenNoSocialOrRatingData("alice-id");
+
+        UserStatsSnapshot snapshot = service.computeSnapshot("alice-id");
+
+        assertThat(snapshot.hardBotClassicalWins()).isEqualTo(1);
+        assertThat(snapshot.hardBotBlitzWins()).isZero();
     }
 }

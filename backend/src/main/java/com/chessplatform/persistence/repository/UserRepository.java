@@ -15,14 +15,13 @@ public interface UserRepository extends JpaRepository<User, String> {
     // que ya no existe de verdad.
     List<User> findTop20ByUsernameContainingIgnoreCaseAndDeletedAtIsNull(String usernameFragment);
 
-    // Para el ranking global de logros (AchievementService) — hay que calcular el
-    // progreso de cada usuario activo para poder ordenarlos, no hay ningún contador
-    // aparte que consultar directamente (ver el ADR sobre por qué los logros se calculan
-    // al vuelo en vez de guardarse).
-    List<User> findByDeletedAtIsNull();
+    // Para el ranking global de logros (AchievementService) y para la rareza de cada
+    // logro — BotFalse excluye a las cuentas de bot (ver User.bot) de los dos: no son
+    // personas jugando de verdad, no tiene sentido que aparezcan en un ranking entre
+    // jugadores ni que cuenten para el porcentaje de "qué parte de los jugadores tiene
+    // este logro" (nunca se les comprueban logros — ver GameEndNotifier — así que
+    // dejarlos en el denominador solo abarataría artificialmente la rareza de todo).
+    List<User> findByDeletedAtIsNullAndBotFalse();
 
-    // Para la rareza de cada logro (AchievementService.detailedProgressFor) — cuántos
-    // hay en total sobre los que calcular el porcentaje. Un COUNT en vez de cargar la
-    // lista entera de findByDeletedAtIsNull() solo para contarla.
-    long countByDeletedAtIsNull();
+    long countByDeletedAtIsNullAndBotFalse();
 }

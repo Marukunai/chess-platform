@@ -1,5 +1,7 @@
 package com.chessplatform.achievement;
 
+import com.chessplatform.bot.BotAccountSeeder;
+import com.chessplatform.bot.BotDifficulty;
 import com.chessplatform.persistence.entity.Game;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.entity.UserAchievementUnlock;
@@ -41,6 +43,16 @@ import java.util.stream.Collectors;
 @Component
 public class AchievementService {
 
+    // Mismo formato que ya construye GameResultRecorder al guardar la partida
+    // ("%d+%d" con minutos+segundos) — los cuatro presets nunca cambian, así que esta
+    // correspondencia es segura sin tener que reconstruir Duration desde el texto guardado.
+    private static final Map<String, GameMode> TIME_CONTROL_LABEL_TO_MODE = Map.of(
+            "1+0", GameMode.BULLET,
+            "5+3", GameMode.BLITZ,
+            "10+5", GameMode.RAPID,
+            "30+20", GameMode.CLASSICAL
+    );
+
     private final GameRepository gameRepository;
     private final FriendshipRepository friendshipRepository;
     private final DirectMessageRepository directMessageRepository;
@@ -73,22 +85,56 @@ public class AchievementService {
     public UserStatsSnapshot computeSnapshot(String userId) {
         List<Game> games = gameRepository.findByWhitePlayer_IdOrBlackPlayer_IdOrderByPlayedAtDesc(userId, userId);
 
+        int gamesPlayed = 0; // excluye partidas contra bot a propósito — ver el javadoc de UserStatsSnapshot
         int gamesWon = 0;
         int gamesLost = 0;
         int gamesDrawn = 0;
         int stalemateDraws = 0;
         int checkmateWins = 0;
+        int easyBotWins = 0;
+        int mediumBotWins = 0;
+        int hardBotWins = 0;
+        int hardBotBlitzWins = 0;
+        int hardBotClassicalWins = 0;
+
         for (Game game : games) {
-            if ("1/2-1/2".equals(game.getResult())) {
+            boolean userIsWhite = userId.equals(game.getWhitePlayer().getId());
+            User opponent = userIsWhite ? game.getBlackPlayer() : game.getWhitePlayer();
+            boolean whiteWon = "1-0".equals(game.getResult());
+            boolean isDraw = "1/2-1/2".equals(game.getResult());
+            boolean userWon = !isDraw && (userIsWhite == whiteWon);
+
+            if (opponent.isBot()) {
+                // Partida de práctica — no cuenta para nada de lo general de arriba
+                // (gamesPlayed, gamesWon...), solo para su propia categoría de logros.
+                if (userWon) {
+                    Optional<BotDifficulty> maybeDifficulty = BotAccountSeeder.difficultyFor(opponent.getUsername());
+                    if (maybeDifficulty.isPresent()) {
+                        switch (maybeDifficulty.get()) {
+                            case EASY -> easyBotWins++;
+                            case MEDIUM -> mediumBotWins++;
+                            case HARD -> {
+                                hardBotWins++;
+                                GameMode mode = TIME_CONTROL_LABEL_TO_MODE.get(game.getTimeControl());
+                                if (mode == GameMode.BLITZ) {
+                                    hardBotBlitzWins++;
+                                } else if (mode == GameMode.CLASSICAL) {
+                                    hardBotClassicalWins++;
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+
+            gamesPlayed++;
+            if (isDraw) {
                 gamesDrawn++;
                 if ("stalemate".equals(game.getReason())) {
                     stalemateDraws++;
                 }
-                continue;
-            }
-            boolean userIsWhite = userId.equals(game.getWhitePlayer().getId());
-            boolean whiteWon = "1-0".equals(game.getResult());
-            if (userIsWhite == whiteWon) {
+            } else if (userWon) {
                 gamesWon++;
                 if ("checkmate".equals(game.getReason())) {
                     checkmateWins++;
@@ -119,9 +165,10 @@ public class AchievementService {
         int accountAgeDays = user.map(u -> (int) Duration.between(u.getCreatedAt(), Instant.now(clock)).toDays())
                 .orElse(0);
 
-        return new UserStatsSnapshot(games.size(), gamesWon, gamesLost, gamesDrawn, stalemateDraws, checkmateWins,
+        return new UserStatsSnapshot(gamesPlayed, gamesWon, gamesLost, gamesDrawn, stalemateDraws, checkmateWins,
                 friendsCount, (int) directMessagesSent, (int) directMessagesReceived, (int) distinctConversationPartners,
-                highestRating, modesPlayed, hasAvatarSet, hasCountrySet, accountAgeDays);
+                highestRating, modesPlayed, hasAvatarSet, hasCountrySet, accountAgeDays,
+                easyBotWins, mediumBotWins, hardBotWins, hardBotBlitzWins, hardBotClassicalWins);
     }
 
     public List<AchievementProgress> progressFor(String userId) {
@@ -136,9 +183,9 @@ public class AchievementService {
         return (int) AchievementCatalog.ALL.stream().filter(def -> def.isUnlockedFor(snapshot)).count();
     }
 
-    /** Para el ranking global — cada usuario activo con cuántos logros tiene desbloqueados, de más a menos. */
+    /** Para el ranking global — cada usuario activo (que no sea un bot) con cuántos logros tiene desbloqueados, de más a menos. */
     public List<UserAchievementCount> leaderboard() {
-        return userRepository.findByDeletedAtIsNull().stream()
+        return userRepository.findByDeletedAtIsNullAndBotFalse().stream()
                 .map(user -> new UserAchievementCount(user, unlockedCountFor(user.getId())))
                 .sorted(Comparator.comparingInt(UserAchievementCount::unlockedCount).reversed())
                 .toList();
@@ -160,7 +207,7 @@ public class AchievementService {
         UserStatsSnapshot snapshot = computeSnapshot(userId);
         Map<String, Instant> unlockedAtByAchievementId = unlockRepository.findByUser_Id(userId).stream()
                 .collect(Collectors.toMap(UserAchievementUnlock::getAchievementId, UserAchievementUnlock::getUnlockedAt));
-        long totalActiveUsers = userRepository.countByDeletedAtIsNull();
+        long totalActiveUsers = userRepository.countByDeletedAtIsNullAndBotFalse();
 
         return AchievementCatalog.ALL.stream()
                 .map(def -> {

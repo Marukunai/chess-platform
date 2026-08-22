@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AchievementDefinitionTest {
 
     private static UserStatsSnapshot snapshotWithGamesPlayed(int gamesPlayed) {
-        return new UserStatsSnapshot(gamesPlayed, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0);
+        return new UserStatsSnapshot(gamesPlayed, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0);
     }
 
     @Test
@@ -59,8 +59,8 @@ class AchievementDefinitionTest {
                 .filter(def -> def.id().equals("velocista"))
                 .findFirst().orElseThrow();
 
-        UserStatsSnapshot withoutBullet = new UserStatsSnapshot(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(GameMode.BLITZ), false, false, 0);
-        UserStatsSnapshot withBullet = new UserStatsSnapshot(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(GameMode.BULLET), false, false, 0);
+        UserStatsSnapshot withoutBullet = new UserStatsSnapshot(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(GameMode.BLITZ), false, false, 0, 0, 0, 0, 0, 0);
+        UserStatsSnapshot withBullet = new UserStatsSnapshot(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(GameMode.BULLET), false, false, 0, 0, 0, 0, 0, 0);
 
         assertThat(velocista.isUnlockedFor(withoutBullet)).isFalse();
         assertThat(velocista.isUnlockedFor(withBullet)).isTrue();

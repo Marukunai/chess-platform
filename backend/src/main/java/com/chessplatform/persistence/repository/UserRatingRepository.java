@@ -19,6 +19,11 @@ public interface UserRatingRepository extends JpaRepository<UserRating, String> 
     List<UserRating> findByUser_Id(String userId);
 
     // DeletedAtIsNull en la relación, mismo motivo que ya tenía el ranking único
-    // anterior: una cuenta borrada no debe aparecer en ningún ranking.
-    List<UserRating> findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode mode);
+    // anterior: una cuenta borrada no debe aparecer en ningún ranking. User_BotFalse
+    // añadido después de encontrar cuentas de bot coladas en el ranking en la
+    // práctica — GameResultRecorder nunca crea una fila de rating para un bot al jugar
+    // (las partidas contra bot no tocan rating en absoluto), así que en teoría esto
+    // nunca debería hacer falta, pero es barato añadirlo como cinturón de seguridad
+    // explícito en vez de confiar en esa garantía implícita para siempre.
+    List<UserRating> findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode mode);
 }

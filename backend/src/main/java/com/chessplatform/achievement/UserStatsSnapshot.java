@@ -15,6 +15,11 @@ import java.util.Set;
  * hasAvatarSet/hasCountrySet: booleanos, no contadores — los logros de perfil son
  * binarios ("¿lo has puesto o no?"), igual que los de "juega tu primera partida de
  * bullet" ya lo eran antes de esta ampliación.
+ *
+ * *BotWins: a propósito NO cuentan para gamesPlayed/gamesWon ni para ninguno de los
+ * demás campos generales de arriba — son logros de práctica, aparte, ver
+ * AchievementCategory.BOTS. hardBotBlitzWins/hardBotClassicalWins son un subconjunto de
+ * hardBotWins (ganarle al bot en Difícil, además jugando esa modalidad en concreto).
  */
 public record UserStatsSnapshot(
         int gamesPlayed,
@@ -31,6 +36,11 @@ public record UserStatsSnapshot(
         Set<GameMode> modesPlayed,
         boolean hasAvatarSet,
         boolean hasCountrySet,
-        int accountAgeDays
+        int accountAgeDays,
+        int easyBotWins,
+        int mediumBotWins,
+        int hardBotWins,
+        int hardBotBlitzWins,
+        int hardBotClassicalWins
 ) {
 }

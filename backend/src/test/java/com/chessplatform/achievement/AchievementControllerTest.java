@@ -41,7 +41,7 @@ class AchievementControllerTest {
 
     @Test
     void forUserMapsEachDetailedAchievementToItsResponseShape() {
-        UserStatsSnapshot snapshot = new UserStatsSnapshot(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0);
+        UserStatsSnapshot snapshot = new UserStatsSnapshot(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0);
         AchievementDefinition primeraPartida = AchievementCatalog.ALL.stream()
                 .filter(def -> def.id().equals("primera-partida"))
                 .findFirst().orElseThrow();
@@ -63,7 +63,7 @@ class AchievementControllerTest {
 
     @Test
     void forUserLeavesUnlockedAtAndFirstUnlockedByNullWhenNobodyHasItYet() {
-        UserStatsSnapshot snapshot = new UserStatsSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0);
+        UserStatsSnapshot snapshot = new UserStatsSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0);
         AchievementDefinition primeraPartida = AchievementCatalog.ALL.stream()
                 .filter(def -> def.id().equals("primera-partida"))
                 .findFirst().orElseThrow();

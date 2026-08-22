@@ -85,7 +85,7 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Modalidad desconocida: " + mode);
         }
 
-        List<UserRating> topRatings = userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(gameMode);
+        List<UserRating> topRatings = userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(gameMode);
         return IntStream.range(0, topRatings.size())
                 .mapToObj(i -> {
                     UserRating rating = topRatings.get(i);

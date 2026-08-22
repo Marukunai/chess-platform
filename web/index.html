@@ -102,6 +102,7 @@
                 </label>
                 <button id="find-match-btn" class="btn btn--primary btn--block">Buscar partida</button>
                 <p id="matchmaking-status" class="status-text"></p>
+                <button id="play-vs-bot-btn" class="btn btn--ghost btn--block">🤖 Jugar contra el bot</button>
 
                 <p class="lobby-section-label">Explorar</p>
                 <div class="lobby-nav-grid">
@@ -501,6 +502,42 @@
                 </label>
                 <button type="button" id="challenge-send-btn" class="btn btn--primary btn--block">Enviar reto</button>
                 <button type="button" id="challenge-cancel-btn" class="btn btn--ghost btn--block">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Elegir dificultad, color y control de tiempo antes de jugar contra el bot —
+             se abre desde el lobby, empieza la partida al instante, sin propuesta ni espera -->
+        <div id="bot-play-modal" class="modal-overlay" hidden>
+            <div class="modal-overlay__backdrop"></div>
+            <div class="modal-card">
+                <h2 class="modal-card__title">Jugar contra el bot</h2>
+                <label class="field">
+                    <span class="field__label">Dificultad</span>
+                    <select id="bot-play-difficulty-select">
+                        <option value="EASY">Fácil</option>
+                        <option value="MEDIUM" selected>Media</option>
+                        <option value="HARD">Difícil</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Color</span>
+                    <select id="bot-play-color-select">
+                        <option value="random" selected>Al azar</option>
+                        <option value="white">Blancas</option>
+                        <option value="black">Negras</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field__label">Control de tiempo</span>
+                    <select id="bot-play-time-control-select">
+                        <option value="BULLET">Bullet — 1+0</option>
+                        <option value="BLITZ" selected>Blitz — 5+3</option>
+                        <option value="RAPID">Rápidas — 10+5</option>
+                        <option value="CLASSICAL">Clásicas — 30+20</option>
+                    </select>
+                </label>
+                <button type="button" id="bot-play-start-btn" class="btn btn--primary btn--block">Jugar</button>
+                <button type="button" id="bot-play-cancel-btn" class="btn btn--ghost btn--block">Cancelar</button>
             </div>
         </div>
 

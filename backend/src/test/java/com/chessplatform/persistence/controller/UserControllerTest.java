@@ -107,15 +107,15 @@ class UserControllerTest {
         User bob = new User("bob", "hash");
         UserRating bobRating = new UserRating(bob, GameMode.BLITZ);
         bobRating.applyRatingUpdate(1600, 120, 0.06);
-        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ))
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode.BLITZ))
                 .thenReturn(List.of(aliceRating, bobRating));
 
         List<LeaderboardEntryResponse> leaderboard = controller.leaderboard("BLITZ");
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
-        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
-        assertThat(leaderboard.getFirst().rating()).isEqualTo(1800);
+        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
+        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
+        assertThat(leaderboard.get(0).rating()).isEqualTo(1800);
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
     }
@@ -126,12 +126,12 @@ class UserControllerTest {
         // resuelve una petición HTTP real — llamando al método Java directamente (como
         // en cualquiera de estos tests) ese valor por defecto no se aplica solo, así que
         // aquí se comprueba pasándolo explícito en vez de omitirlo.
-        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ))
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode.BLITZ))
                 .thenReturn(List.of());
 
         controller.leaderboard("BLITZ");
 
-        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.BLITZ);
+        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode.BLITZ);
     }
 
     @Test
@@ -144,12 +144,12 @@ class UserControllerTest {
 
     @Test
     void leaderboardIsCaseInsensitiveForTheModeParameter() {
-        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.RAPID))
+        when(userRatingRepository.findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode.RAPID))
                 .thenReturn(List.of());
 
         controller.leaderboard("rapid");
 
-        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullOrderByRatingDesc(GameMode.RAPID);
+        verify(userRatingRepository).findTop50ByModeAndUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc(GameMode.RAPID);
     }
 
     @Test

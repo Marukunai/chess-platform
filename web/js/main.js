@@ -933,6 +933,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    document.getElementById('play-vs-bot-btn').addEventListener('click', () => {
+        document.getElementById('bot-play-modal').hidden = false;
+    });
+
+    document.getElementById('bot-play-cancel-btn').addEventListener('click', () => {
+        document.getElementById('bot-play-modal').hidden = true;
+    });
+
+    document.getElementById('bot-play-start-btn').addEventListener('click', () => {
+        const difficulty = document.getElementById('bot-play-difficulty-select').value;
+        const color = document.getElementById('bot-play-color-select').value;
+        const timeControl = document.getElementById('bot-play-time-control-select').value;
+        playVsBot(difficulty, color, timeControl);
+        document.getElementById('bot-play-modal').hidden = true;
+        // La respuesta (MatchFoundMessage) llega por el mismo canal persistente que ya
+        // usan emparejamiento/revancha/reto — onMatchFound la recoge sin que haga
+        // falta ningún manejo aparte, ver handleUserChannelMessage. Si algo sale mal
+        // (dificultad desconocida, Stockfish no configurado...), el error también
+        // llega por ese mismo canal y se muestra solo, como cualquier otro.
+    });
+
     document.getElementById('resign-btn').addEventListener('click', () => {
         if (currentGameId) {
             sendResign(currentGameId);
