@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -25,6 +26,10 @@ import java.util.stream.Collectors;
  * más grande — la jugada que más empeoró la posición de quien la hizo, comparada con lo
  * mejor que tenía disponible — y, si supera un umbral mínimo, guarda esa posición como
  * puzzle nuevo.
+ *
+ * El análisis en sí (analyze()) es reutilizado también por PuzzleSeeder para sembrar
+ * puzzles a partir de secuencias de jugadas conocidas, no solo de partidas reales
+ * guardadas — la misma lógica de detección sirve para las dos cosas.
  *
  * @Async a propósito: analizar una partida entera (una evaluación del motor por cada
  * posición) tarda varios segundos — hacerlo dentro de GameEndNotifier.endGame()
@@ -80,7 +85,8 @@ public class PuzzleGenerationService {
         }
 
         try (StockfishEngine engine = engineFactory.create(stockfishPath)) {
-            analyzeAndSave(game, engine);
+            analyze(game.getMoveList(), game.getReason(), game.getId(), engine)
+                    .ifPresent(puzzleRepository::save);
         } catch (Exception e) {
             // Generar puzzles es una mejora sobre lo que ya existe, no algo de lo que
             // dependa el resto de la plataforma — un fallo aquí (el motor se cae a
@@ -89,13 +95,33 @@ public class PuzzleGenerationService {
         }
     }
 
-    private void analyzeAndSave(Game game, StockfishEngine engine) throws java.io.IOException {
-        GameReplayService.ReplayResult replay = gameReplayService.reconstructReplay(game.getMoveList());
+    /**
+     * El análisis en sí, separado de generateFromGame() para que PuzzleSeeder pueda
+     * reutilizarlo tal cual sobre secuencias de jugadas conocidas (no partidas reales
+     * guardadas) — la misma lógica sirve para las dos cosas, la única diferencia es de
+     * dónde viene la lista de jugadas y qué sourceGameId lleva el resultado (null para
+     * los sembrados, ver Puzzle.sourceGameId).
+     *
+     * @param sourceGameId el id de la partida de origen, o null si viene de una
+     *                      secuencia sembrada a mano (ver PuzzleSeeder)
+     * @return el puzzle detectado, o vacío si no hubo ningún error lo bastante grande
+     */
+    Optional<Puzzle> analyze(String moveList, String reason, String sourceGameId, StockfishEngine engine) throws java.io.IOException {
+        GameReplayService.ReplayResult replay = gameReplayService.reconstructReplay(moveList);
         List<String> positions = replay.fenPositions(); // posición 0 = inicial, posición i = tras la jugada i
 
         if (positions.size() < 2) {
-            return;
+            return Optional.empty();
         }
+
+        // La última posición NO puede ser candidata a puzzle si terminó sin ninguna
+        // jugada legal de por medio (jaque mate o ahogado) — no habría ninguna
+        // "solución" que dar. Para cualquier otro motivo de fin (rendición, tiempo,
+        // tablas... o null, para las secuencias sembradas que no terminan de verdad,
+        // simplemente se detienen en un punto interesante), esa posición SÍ sigue
+        // siendo un candidato válido como cualquier otra.
+        boolean lastPositionHasNoLegalMoves = "checkmate".equals(reason) || "stalemate".equals(reason);
+        int exclusiveUpperBound = lastPositionHasNoLegalMoves ? positions.size() - 1 : positions.size();
 
         // La evaluación de "después de la jugada anterior" ES la evaluación de "antes
         // de la jugada siguiente" — la misma posición, el mismo jugador en turno. Se
@@ -107,7 +133,7 @@ public class PuzzleGenerationService {
         int biggestDrop = 0;
         int puzzlePositionIndex = -1;
 
-        for (int i = 1; i < positions.size(); i++) {
+        for (int i = 1; i < exclusiveUpperBound; i++) {
             int evalBeforeForMover = toComparableScore(currentEval);
 
             currentEval = engine.evaluate(positions.get(i), EVAL_MOVETIME_MS);
@@ -121,13 +147,13 @@ public class PuzzleGenerationService {
         }
 
         if (puzzlePositionIndex == -1) {
-            return; // ningún error lo bastante grande en toda la partida — no pasa nada, no todas las partidas dan un puzzle
+            return Optional.empty(); // ningún error lo bastante grande — no pasa nada, no todas las partidas (ni secuencias) dan un puzzle
         }
 
         String puzzleFen = positions.get(puzzlePositionIndex);
         EngineEvaluation puzzleEval = engine.evaluate(puzzleFen, EVAL_MOVETIME_MS);
         if (puzzleEval.bestMoveUci() == null) {
-            return; // no debería pasar (ya sabemos que hay jugadas legales, si no no habría llegado hasta aquí), pero por seguridad
+            return Optional.empty(); // no debería pasar (ya excluimos la única posición que podría no tener jugadas legales), pero por seguridad
         }
 
         // Reconstruir el tablero real justo hasta la posición del puzzle (no toda la
@@ -136,14 +162,14 @@ public class PuzzleGenerationService {
         // ningún motor de reglas propio (ver ADR-011), así que el puzzle tiene que
         // llevar esta información consigo, calculada aquí una sola vez.
         Board board = Board.initial();
-        List<Move> moves = parseMoveList(game.getMoveList());
+        List<Move> moves = parseMoveList(moveList);
         for (int i = 0; i < puzzlePositionIndex; i++) {
             board.applyMove(moves.get(i));
         }
         String legalMovesUci = board.legalMoves().stream().map(Move::toUci).collect(Collectors.joining(" "));
 
-        Puzzle puzzle = new Puzzle(game.getId(), puzzleFen, sideToMoveFromFen(puzzleFen), puzzleEval.bestMoveUci(), legalMovesUci);
-        puzzleRepository.save(puzzle);
+        return Optional.of(new Puzzle(sourceGameId, puzzleFen, sideToMoveFromFen(puzzleFen),
+                puzzleEval.bestMoveUci(), legalMovesUci));
     }
 
     private List<Move> parseMoveList(String moveList) {

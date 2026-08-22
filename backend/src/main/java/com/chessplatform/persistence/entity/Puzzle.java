@@ -10,13 +10,15 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * Una posición táctica sacada de una partida real ya jugada — generada sola, en
- * segundo plano, justo después de que esa partida terminara (ver
- * puzzle.PuzzleGenerationService). Un único movimiento como solución, no una línea
- * forzada completa — detectar que la CONTINUACIÓN completa siga siendo forzada
- * necesitaría analizar varias jugadas más por delante, y para una primera versión "aquí
- * hay una jugada claramente mejor que las demás" ya es un puzzle de verdad, aunque no
- * sea de varios movimientos.
+ * Una posición táctica — casi siempre sacada de una partida real ya jugada, generada
+ * sola en segundo plano justo después de que esa partida terminara (ver
+ * puzzle.PuzzleGenerationService); algunas, la primera tanda, sembradas a mano a partir
+ * de secuencias de jugadas conocidas para no depender solo de que se jueguen partidas
+ * de verdad para tener contenido (ver puzzle.PuzzleSeeder) — sourceGameId es null en
+ * ese caso. Un único movimiento como solución, no una línea forzada completa —
+ * detectar que la CONTINUACIÓN completa siga siendo forzada necesitaría analizar varias
+ * jugadas más por delante, y para una primera versión "aquí hay una jugada claramente
+ * mejor que las demás" ya es un puzzle de verdad, aunque no sea de varios movimientos.
  *
  * sourceGameId no es una relación @ManyToOne a propósito: si la partida de origen se
  * borrara algún día (no hay ningún camino para eso todavía, pero por si acaso), el
@@ -32,7 +34,9 @@ public class Puzzle {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(name = "source_game_id", nullable = false)
+    // Nullable a propósito — los puzzles sembrados a mano (ver PuzzleSeeder) no vienen
+    // de ninguna partida real, así que no tienen nada que poner aquí.
+    @Column(name = "source_game_id")
     private String sourceGameId;
 
     @Column(nullable = false)

@@ -41,7 +41,7 @@ class AchievementControllerTest {
 
     @Test
     void forUserMapsEachDetailedAchievementToItsResponseShape() {
-        UserStatsSnapshot snapshot = new UserStatsSnapshot(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0);
+        UserStatsSnapshot snapshot = new UserStatsSnapshot(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0, 0, 1500);
         AchievementDefinition primeraPartida = AchievementCatalog.ALL.stream()
                 .filter(def -> def.id().equals("primera-partida"))
                 .findFirst().orElseThrow();
@@ -52,18 +52,18 @@ class AchievementControllerTest {
         List<AchievementProgressResponse> response = controller.forUser("alice-id");
 
         assertThat(response).hasSize(1);
-        assertThat(response.getFirst().id()).isEqualTo("primera-partida");
-        assertThat(response.getFirst().currentProgress()).isEqualTo(1);
-        assertThat(response.getFirst().target()).isEqualTo(1);
-        assertThat(response.getFirst().unlocked()).isTrue();
-        assertThat(response.getFirst().unlockedAt()).isEqualTo(unlockedAt.toString());
-        assertThat(response.getFirst().rarityPercent()).isEqualTo(12.5);
-        assertThat(response.getFirst().firstUnlockedByUsername()).isEqualTo("bob");
+        assertThat(response.get(0).id()).isEqualTo("primera-partida");
+        assertThat(response.get(0).currentProgress()).isEqualTo(1);
+        assertThat(response.get(0).target()).isEqualTo(1);
+        assertThat(response.get(0).unlocked()).isTrue();
+        assertThat(response.get(0).unlockedAt()).isEqualTo(unlockedAt.toString());
+        assertThat(response.get(0).rarityPercent()).isEqualTo(12.5);
+        assertThat(response.get(0).firstUnlockedByUsername()).isEqualTo("bob");
     }
 
     @Test
     void forUserLeavesUnlockedAtAndFirstUnlockedByNullWhenNobodyHasItYet() {
-        UserStatsSnapshot snapshot = new UserStatsSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0);
+        UserStatsSnapshot snapshot = new UserStatsSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500, Set.of(), false, false, 0, 0, 0, 0, 0, 0, 0, 1500);
         AchievementDefinition primeraPartida = AchievementCatalog.ALL.stream()
                 .filter(def -> def.id().equals("primera-partida"))
                 .findFirst().orElseThrow();
@@ -72,8 +72,8 @@ class AchievementControllerTest {
 
         List<AchievementProgressResponse> response = controller.forUser("alice-id");
 
-        assertThat(response.getFirst().unlockedAt()).isNull();
-        assertThat(response.getFirst().firstUnlockedByUsername()).isNull();
+        assertThat(response.get(0).unlockedAt()).isNull();
+        assertThat(response.get(0).firstUnlockedByUsername()).isNull();
     }
 
     @Test
@@ -90,10 +90,10 @@ class AchievementControllerTest {
         List<AchievementLeaderboardEntryResponse> leaderboard = controller.leaderboard();
 
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.getFirst().rank()).isEqualTo(1);
-        assertThat(leaderboard.getFirst().username()).isEqualTo("alice");
-        assertThat(leaderboard.getFirst().unlockedCount()).isEqualTo(15);
-        assertThat(leaderboard.getFirst().totalCount()).isEqualTo(AchievementCatalog.ALL.size());
+        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
+        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
+        assertThat(leaderboard.get(0).unlockedCount()).isEqualTo(15);
+        assertThat(leaderboard.get(0).totalCount()).isEqualTo(AchievementCatalog.ALL.size());
         assertThat(leaderboard.get(1).rank()).isEqualTo(2);
         assertThat(leaderboard.get(1).username()).isEqualTo("bob");
     }

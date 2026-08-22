@@ -20,6 +20,12 @@ import java.util.Set;
  * demás campos generales de arriba — son logros de práctica, aparte, ver
  * AchievementCategory.BOTS. hardBotBlitzWins/hardBotClassicalWins son un subconjunto de
  * hardBotWins (ganarle al bot en Difícil, además jugando esa modalidad en concreto).
+ *
+ * puzzlesSolved/puzzleRating: de UserPuzzleAttempt/UserPuzzleRating, no de Game — un
+ * sistema completamente aparte (ver puzzle.PuzzleController). puzzleRating parte de
+ * 1500 (el valor Glicko-2 por defecto) para quien nunca ha resuelto ninguno, igual que
+ * highestRating ya hacía con el rating de partidas — ningún logro de umbral por encima
+ * de 1500 se desbloquearía antes de tiempo por esto.
  */
 public record UserStatsSnapshot(
         int gamesPlayed,
@@ -41,6 +47,8 @@ public record UserStatsSnapshot(
         int mediumBotWins,
         int hardBotWins,
         int hardBotBlitzWins,
-        int hardBotClassicalWins
+        int hardBotClassicalWins,
+        int puzzlesSolved,
+        int puzzleRating
 ) {
 }

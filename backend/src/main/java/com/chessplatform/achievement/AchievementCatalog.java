@@ -169,7 +169,26 @@ public final class AchievementCatalog {
                     UserStatsSnapshot::hardBotBlitzWins),
             new AchievementDefinition("maestro-clasicas-vs-bot", "Paciencia infinita",
                     "Gana al bot en Difícil jugando clásicas", AchievementCategory.BOTS, 1,
-                    UserStatsSnapshot::hardBotClassicalWins)
+                    UserStatsSnapshot::hardBotClassicalWins),
+
+            // --- Puzzles: generados solos tras cada partida (o de la siembra inicial),
+            // resolverlos es un sistema completamente aparte de jugar partidas de
+            // verdad — ver puzzle.PuzzleController.
+            new AchievementDefinition("primer-puzzle", "Rompecabezas",
+                    "Resuelve tu primer puzzle", AchievementCategory.PUZZLES, 1,
+                    UserStatsSnapshot::puzzlesSolved),
+            new AchievementDefinition("puzzle-rush", "Puzzle rush",
+                    "Resuelve 50 puzzles", AchievementCategory.PUZZLES, 50,
+                    UserStatsSnapshot::puzzlesSolved),
+            new AchievementDefinition("puzzle-maraton", "Maratón táctico",
+                    "Resuelve 200 puzzles", AchievementCategory.PUZZLES, 200,
+                    UserStatsSnapshot::puzzlesSolved),
+            new AchievementDefinition("mente-tactica", "Mente táctica",
+                    "Alcanza 1800 de rating en puzzles", AchievementCategory.PUZZLES, 1800,
+                    UserStatsSnapshot::puzzleRating),
+            new AchievementDefinition("gran-tactico", "Gran táctico",
+                    "Alcanza 2200 de rating en puzzles", AchievementCategory.PUZZLES, 2200,
+                    UserStatsSnapshot::puzzleRating)
     );
 
     private AchievementCatalog() {

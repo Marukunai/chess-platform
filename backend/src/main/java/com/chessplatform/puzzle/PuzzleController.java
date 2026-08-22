@@ -1,5 +1,6 @@
 package com.chessplatform.puzzle;
 
+import com.chessplatform.achievement.AchievementUnlockService;
 import com.chessplatform.persistence.entity.Puzzle;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.entity.UserPuzzleAttempt;
@@ -44,17 +45,19 @@ public class PuzzleController {
     private final UserPuzzleRatingService userPuzzleRatingService;
     private final UserRepository userRepository;
     private final GlickoRatingService ratingService;
+    private final AchievementUnlockService achievementUnlockService;
 
     public PuzzleController(PuzzleRepository puzzleRepository, UserPuzzleAttemptRepository attemptRepository,
                             UserPuzzleRatingRepository userPuzzleRatingRepository,
                             UserPuzzleRatingService userPuzzleRatingService, UserRepository userRepository,
-                            GlickoRatingService ratingService) {
+                            GlickoRatingService ratingService, AchievementUnlockService achievementUnlockService) {
         this.puzzleRepository = puzzleRepository;
         this.attemptRepository = attemptRepository;
         this.userPuzzleRatingRepository = userPuzzleRatingRepository;
         this.userPuzzleRatingService = userPuzzleRatingService;
         this.userRepository = userRepository;
         this.ratingService = ratingService;
+        this.achievementUnlockService = achievementUnlockService;
     }
 
     @GetMapping("/next")
@@ -107,6 +110,12 @@ public class PuzzleController {
         puzzleRepository.save(puzzle);
 
         attemptRepository.save(new UserPuzzleAttempt(user, puzzle, correct));
+
+        // Al final de todo, con el intento ya registrado y el rating ya actualizado —
+        // igual que GameEndNotifier lo hace al terminar una partida, solo que aquí
+        // hace falta llamarlo explícitamente porque resolver un puzzle no pasa por
+        // GameEndNotifier en absoluto (es un sistema completamente aparte).
+        achievementUnlockService.checkAndNotify(user.getId());
 
         int ratingChange = (int) Math.round(userAfter.rating() - userBefore.rating());
         return new PuzzleAttemptResponse(correct, puzzle.getSolutionUci(), (int) Math.round(userAfter.rating()), ratingChange);

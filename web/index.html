@@ -122,9 +122,13 @@
                         <span class="lobby-nav-tile__icon">📜</span>
                         <span class="lobby-nav-tile__label">Historial</span>
                     </button>
-                    <button id="achievements-btn" class="lobby-nav-tile lobby-nav-tile--wide">
+                    <button id="achievements-btn" class="lobby-nav-tile">
                         <span class="lobby-nav-tile__icon">🎖️</span>
                         <span class="lobby-nav-tile__label">Logros</span>
+                    </button>
+                    <button id="puzzles-btn" class="lobby-nav-tile">
+                        <span class="lobby-nav-tile__icon">🧩</span>
+                        <span class="lobby-nav-tile__label">Puzzles</span>
                     </button>
                 </div>
 
@@ -662,6 +666,31 @@
                 </aside>
             </main>
         </section>
+
+        <!-- Pantalla de puzzles -->
+        <section id="puzzle-screen" class="screen" hidden>
+            <main class="table">
+                <div id="puzzle-board" class="board"></div>
+
+                <aside class="sidebar">
+                    <div class="card">
+                        <h2 class="card__title">Puzzle</h2>
+                        <p id="puzzle-turn-label" class="turn-indicator"></p>
+                        <p id="puzzle-rating-label" class="status-text"></p>
+
+                        <div id="puzzle-feedback" class="puzzle-feedback" hidden>
+                            <p id="puzzle-feedback-result" class="puzzle-feedback__result"></p>
+                            <p id="puzzle-feedback-solution" class="puzzle-feedback__solution"></p>
+                            <p id="puzzle-feedback-rating-change" class="puzzle-feedback__rating-change"></p>
+                        </div>
+
+                        <button id="puzzle-next-btn" class="btn btn--primary btn--block" hidden>Siguiente
+                            puzzle</button>
+                        <button id="puzzle-back-btn" class="btn btn--ghost btn--block">Volver al lobby</button>
+                    </div>
+                </aside>
+            </main>
+        </section>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
@@ -675,6 +704,7 @@
     <script src="js/history.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/achievements.js"></script>
+    <script src="js/puzzles.js"></script>
     <script src="js/friendship.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/main.js"></script>

@@ -2338,3 +2338,34 @@ a {
 .achievement-row--almost .achievement-row__progress-fill {
     background: var(--brass-bright);
 }
+
+/* ---- Feedback al resolver un puzzle ---- */
+
+.puzzle-feedback {
+    margin: 1rem 0;
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius);
+    background: var(--felt);
+    border: 1px solid var(--parchment-dim);
+}
+
+.puzzle-feedback__result {
+    margin: 0 0 0.4rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.puzzle-feedback__result--correct {
+    color: var(--verdigris);
+}
+
+.puzzle-feedback__result--incorrect {
+    color: var(--garnet);
+}
+
+.puzzle-feedback__solution,
+.puzzle-feedback__rating-change {
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+}

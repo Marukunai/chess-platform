@@ -48,6 +48,9 @@ class PuzzleControllerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.chessplatform.achievement.AchievementUnlockService achievementUnlockService;
+
     private UserPuzzleRatingService userPuzzleRatingService;
     private PuzzleController controller;
 
@@ -58,7 +61,7 @@ class PuzzleControllerTest {
         // que el cableado completo funciona.
         userPuzzleRatingService = new UserPuzzleRatingService(userPuzzleRatingRepository);
         controller = new PuzzleController(puzzleRepository, attemptRepository, userPuzzleRatingRepository,
-                userPuzzleRatingService, userRepository, new GlickoRatingService());
+                userPuzzleRatingService, userRepository, new GlickoRatingService(), achievementUnlockService);
     }
 
     private static Authentication authFor(String userId) {
@@ -248,5 +251,21 @@ class PuzzleControllerTest {
         controller.next(authFor("alice-id"));
 
         verify(puzzleRepository).findClosestByRatingExcludingAttemptedByUser("alice-id", 1800.0);
+    }
+
+    @Test
+    void attemptChecksAchievementsAfterRecordingTheAttempt() {
+        User user = new User("alice", "hash");
+        setId(user, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        setPuzzleId(puzzle, "puzzle-id");
+        when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
+        when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
+        when(userPuzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(Optional.empty());
+
+        controller.attempt("puzzle-id", new PuzzleAttemptRequest("e2e4"), authFor("alice-id"));
+
+        verify(achievementUnlockService).checkAndNotify("alice-id");
     }
 }
