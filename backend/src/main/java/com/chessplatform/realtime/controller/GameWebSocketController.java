@@ -1,26 +1,32 @@
 package com.chessplatform.realtime.controller;
 
-import com.chessplatform.engine.Board;
+import com.chessplatform.bot.BotMoveService;
 import com.chessplatform.engine.Color;
 import com.chessplatform.engine.Move;
 import com.chessplatform.realtime.GameEndNotifier;
 import com.chessplatform.realtime.GameSession;
 import com.chessplatform.realtime.GameSessionRegistry;
-import com.chessplatform.realtime.dto.*;
+import com.chessplatform.realtime.GameStateBroadcaster;
+import com.chessplatform.realtime.dto.ChatMessage;
+import com.chessplatform.realtime.dto.ChatSendMessage;
+import com.chessplatform.realtime.dto.DrawOfferMessage;
+import com.chessplatform.realtime.dto.DrawResponseMessage;
+import com.chessplatform.realtime.dto.ErrorMessage;
+import com.chessplatform.realtime.dto.MoveMessage;
+import com.chessplatform.realtime.dto.ResignMessage;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.List;
 import java.util.Optional;
 
 /**
  * Punto de entrada STOMP para mensajes de partida.
  *
  * Los clientes se suscriben a /topic/game/{gameId} y envían jugadas a
- * /app/game/{gameId}/move. El Principal de cada method lo resuelve Spring
+ * /app/game/{gameId}/move. El Principal de cada método lo resuelve Spring
  * automáticamente a partir de lo que StompAuthChannelInterceptor fijó durante el CONNECT
  * (ver realtime/config) — no hace falta revalidar el token aquí, solo comprobar que la
  * identidad ya verificada corresponde al jugador que debería estar moviendo.
@@ -36,13 +42,19 @@ public class GameWebSocketController {
     private final GameSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameEndNotifier gameEndNotifier;
+    private final GameStateBroadcaster gameStateBroadcaster;
+    private final BotMoveService botMoveService;
 
     public GameWebSocketController(GameSessionRegistry sessionRegistry,
                                    SimpMessagingTemplate messagingTemplate,
-                                   GameEndNotifier gameEndNotifier) {
+                                   GameEndNotifier gameEndNotifier,
+                                   GameStateBroadcaster gameStateBroadcaster,
+                                   BotMoveService botMoveService) {
         this.sessionRegistry = sessionRegistry;
         this.messagingTemplate = messagingTemplate;
         this.gameEndNotifier = gameEndNotifier;
+        this.gameStateBroadcaster = gameStateBroadcaster;
+        this.botMoveService = botMoveService;
     }
 
     @MessageMapping("/game/{gameId}/move")
@@ -79,7 +91,13 @@ public class GameWebSocketController {
             }
 
             session.applyMove(move); // ya deja limpia cualquier oferta de tablas pendiente
-            broadcastUpdatedState(session);
+            gameStateBroadcaster.broadcastAndCheckEnd(session);
+            // Si esto es una partida contra bot y ahora le toca a él, se lo pide al
+            // motor y aplica su respuesta aquí mismo, dentro del mismo bloque
+            // synchronized — el bot nunca "compite" con una jugada humana casi
+            // simultánea sobre la misma partida, porque no hay ningún humano al otro
+            // lado que pudiera mandar una.
+            botMoveService.maybeTriggerBotMove(session);
         }
     }
 
@@ -92,7 +110,7 @@ public class GameWebSocketController {
         }
         GameSession session = maybeSession.get();
         synchronized (session) {
-            broadcastUpdatedState(session);
+            gameStateBroadcaster.broadcastAndCheckEnd(session);
         }
     }
 
@@ -241,51 +259,6 @@ public class GameWebSocketController {
             return Color.BLACK;
         }
         return null;
-    }
-
-    /**
-     * Calcula legalMoves() e isInCheck() UNA sola vez, manda SIEMPRE el estado
-     * actualizado (para que el cliente vea la jugada que se acaba de hacer — incluida la
-     * que da jaque mate — antes de que llegue el aviso de fin de partida) y decide con
-     * eso si además hay que terminar la partida. Reutilizado tanto tras aplicar una
-     * jugada como al unirse a una partida ya en curso.
-     */
-    private void broadcastUpdatedState(GameSession session) {
-        Board board = session.board();
-        String gameId = session.gameId();
-
-        List<Move> legalMoves = board.legalMoves();
-        boolean inCheck = board.isInCheck(board.turn());
-
-        // "+"/"#" en la notación de la última jugada — se calcula aquí, reutilizando el
-        // legalMoves()/isInCheck() que de todas formas hace falta para decidir el fin de
-        // partida, en vez de que Board tenga que repetir ese cálculo (caro: simula cada
-        // jugada pseudo-legal) solo para anotar la notación en cada jugada.
-        if (inCheck) {
-            board.annotateLastMove(legalMoves.isEmpty() ? "#" : "+");
-        }
-
-        messagingTemplate.convertAndSend(
-                "/topic/game/%s".formatted(gameId),
-                GameStateSyncMessage.from(session, legalMoves, inCheck)
-        );
-
-        if (board.isDrawByFiftyMoveRule()) {
-            gameEndNotifier.endGame(session, "1/2-1/2", "fifty-move-rule");
-            return;
-        }
-        if (board.isDrawByRepetition()) {
-            gameEndNotifier.endGame(session, "1/2-1/2", "threefold-repetition");
-            return;
-        }
-        if (legalMoves.isEmpty()) {
-            String result = inCheck
-                    ? (board.turn() == Color.WHITE ? "0-1" : "1-0")
-                    : "1/2-1/2";
-            String reason = inCheck ? "checkmate" : "stalemate";
-
-            gameEndNotifier.endGame(session, result, reason);
-        }
     }
 
     private void broadcastDrawStatus(GameSession session) {
