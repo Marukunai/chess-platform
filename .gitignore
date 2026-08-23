@@ -43,3 +43,4 @@ docker-compose.override.yml
 
 # ---- OS ----
 Thumbs.db
+docs/estado-del-proyecto.md
