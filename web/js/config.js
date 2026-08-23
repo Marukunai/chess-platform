@@ -6,8 +6,6 @@ const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hos
 
 const BACKEND_HTTP_URL = IS_LOCAL
     ? 'http://localhost:8080'
-    // TODO: sustituir por la URL real tras el primer despliegue en Render
-    // (algo como https://chess-platform-backend.onrender.com).
-    : 'https://chess-platform-backend.onrender.com';
+    : 'https://chess-platform-backend-7ju8.onrender.com';
 
 const BACKEND_WS_URL = `${BACKEND_HTTP_URL}/ws`;
