@@ -163,13 +163,15 @@ public class PuzzleGenerationService {
         // llevar esta información consigo, calculada aquí una sola vez.
         Board board = Board.initial();
         List<Move> moves = parseMoveList(moveList);
-        for (int i = 0; i < puzzlePositionIndex; i++) {
-            board.applyMove(moves.get(i));
+        List<Move> movesUpToPuzzlePosition = moves.subList(0, puzzlePositionIndex);
+        for (Move move : movesUpToPuzzlePosition) {
+            board.applyMove(move);
         }
         String legalMovesUci = board.legalMoves().stream().map(Move::toUci).collect(Collectors.joining(" "));
+        String movesUpToPositionUci = movesUpToPuzzlePosition.stream().map(Move::toUci).collect(Collectors.joining(" "));
 
         return Optional.of(new Puzzle(sourceGameId, puzzleFen, sideToMoveFromFen(puzzleFen),
-                puzzleEval.bestMoveUci(), legalMovesUci));
+                puzzleEval.bestMoveUci(), legalMovesUci, movesUpToPositionUci));
     }
 
     private List<Move> parseMoveList(String moveList) {

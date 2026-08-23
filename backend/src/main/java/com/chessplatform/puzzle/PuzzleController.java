@@ -1,6 +1,9 @@
 package com.chessplatform.puzzle;
 
 import com.chessplatform.achievement.AchievementUnlockService;
+import com.chessplatform.engine.Board;
+import com.chessplatform.engine.Move;
+import com.chessplatform.persistence.dto.LeaderboardEntryResponse;
 import com.chessplatform.persistence.entity.Puzzle;
 import com.chessplatform.persistence.entity.User;
 import com.chessplatform.persistence.entity.UserPuzzleAttempt;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Resolver puzzles — a diferencia del resto de la plataforma (partidas, chat...), esto
@@ -58,6 +62,24 @@ public class PuzzleController {
         this.userRepository = userRepository;
         this.ratingService = ratingService;
         this.achievementUnlockService = achievementUnlockService;
+    }
+
+    /**
+     * Ranking por rating de puzzles — público, a diferencia de /next y /attempt, que sí
+     * necesitan identidad (aquí solo se está leyendo, mismo criterio que el ranking de
+     * rating de partidas). Ver SecurityConfig, que lo añade explícitamente al permitAll
+     * en vez de abrir todo /api/puzzles/** (los otros dos sí deben seguir protegidos).
+     */
+    @GetMapping("/leaderboard")
+    public List<LeaderboardEntryResponse> leaderboard() {
+        List<UserPuzzleRating> topRatings = userPuzzleRatingRepository.findTop50ByUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc();
+        return IntStream.range(0, topRatings.size())
+                .mapToObj(i -> {
+                    UserPuzzleRating rating = topRatings.get(i);
+                    return new LeaderboardEntryResponse(i + 1, rating.getUser().getId(), rating.getUser().getUsername(),
+                            (int) Math.round(rating.getRating()));
+                })
+                .toList();
     }
 
     @GetMapping("/next")
@@ -117,8 +139,29 @@ public class PuzzleController {
         // GameEndNotifier en absoluto (es un sistema completamente aparte).
         achievementUnlockService.checkAndNotify(user.getId());
 
+        // La posición DESPUÉS de la jugada correcta, siempre — aciertes o falles, es
+        // lo que hay que enseñar sobre el tablero para que se vea la táctica
+        // ejecutarse de verdad, no solo leerla en texto. Reconstruir desde
+        // movesUpToPosition (no desde el FEN guardado directamente) porque Board no
+        // sabe reconstruirse desde un FEN arbitrario — ver el javadoc de
+        // Puzzle.movesUpToPosition.
+        String resultingFen = resultingFenAfterSolution(puzzle);
+
         int ratingChange = (int) Math.round(userAfter.rating() - userBefore.rating());
-        return new PuzzleAttemptResponse(correct, puzzle.getSolutionUci(), (int) Math.round(userAfter.rating()), ratingChange);
+        return new PuzzleAttemptResponse(correct, puzzle.getSolutionUci(), resultingFen,
+                (int) Math.round(userAfter.rating()), ratingChange);
+    }
+
+    private String resultingFenAfterSolution(Puzzle puzzle) {
+        Board board = Board.initial();
+        String movesUpToPosition = puzzle.getMovesUpToPosition();
+        if (movesUpToPosition != null && !movesUpToPosition.isBlank()) {
+            for (String moveUci : movesUpToPosition.trim().split(" ")) {
+                board.applyMove(Move.fromUci(moveUci));
+            }
+        }
+        board.applyMove(Move.fromUci(puzzle.getSolutionUci()));
+        return board.toFen();
     }
 
     private User requireUser(Authentication authentication) {

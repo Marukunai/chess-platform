@@ -50,6 +50,17 @@ public class Puzzle {
     @Column(name = "solution_uci", nullable = false)
     private String solutionUci;
 
+    // Las jugadas UCI (separadas por espacio) desde la posición inicial hasta llegar
+    // aquí — no basta con guardar solo el FEN final: para poder enseñar la jugada
+    // resuelta sobre el tablero después de un intento (ver PuzzleController.attempt())
+    // hace falta reconstruir un Board real y aplicarle una jugada más encima, y Board
+    // no sabe reconstruirse desde un FEN arbitrario (ver el ADR sobre por qué se
+    // sembraron los puzzles como secuencias de jugadas en vez de posiciones sueltas).
+    // Vacío ("") es válido — significa que la posición del puzzle ES la inicial, sin
+    // ninguna jugada de por medio (no pasa en la práctica, pero por completitud).
+    @Column(name = "moves_up_to_position", nullable = false)
+    private String movesUpToPosition;
+
     // Las jugadas legales de la posición, en UCI separadas por espacio — el cliente web
     // no tiene ningún motor de reglas propio (ver ADR-011), así que el puzzle tiene que
     // llevar esta información consigo. Se calcula UNA vez, al generar el puzzle (ver
@@ -78,12 +89,14 @@ public class Puzzle {
         // JPA
     }
 
-    public Puzzle(String sourceGameId, String fen, String sideToMove, String solutionUci, String legalMovesUci) {
+    public Puzzle(String sourceGameId, String fen, String sideToMove, String solutionUci, String legalMovesUci,
+                  String movesUpToPosition) {
         this.sourceGameId = sourceGameId;
         this.fen = fen;
         this.sideToMove = sideToMove;
         this.solutionUci = solutionUci;
         this.legalMovesUci = legalMovesUci;
+        this.movesUpToPosition = movesUpToPosition;
     }
 
     public String getId() {
@@ -108,6 +121,10 @@ public class Puzzle {
 
     public String getLegalMovesUci() {
         return legalMovesUci;
+    }
+
+    public String getMovesUpToPosition() {
+        return movesUpToPosition;
     }
 
     public double getRating() {
