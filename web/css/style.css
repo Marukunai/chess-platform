@@ -2369,3 +2369,89 @@ a {
     font-size: 0.85rem;
     color: var(--parchment-dim);
 }
+
+/* ---- Revisión de partida: barra de evaluación, material, clasificación de jugadas ---- */
+
+.replay-board-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+}
+
+.eval-bar {
+    position: relative;
+    width: 26px;
+    background: var(--parchment-dim);
+    /* representa la ventaja de negras, arriba */
+    border-radius: var(--radius-sm, 4px);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.eval-bar__fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    /* JS ajusta esto según la evaluación — blancas siempre abajo, creciendo hacia arriba */
+    background: var(--parchment);
+    transition: height 0.2s ease;
+}
+
+.eval-bar__label {
+    position: absolute;
+    left: 50%;
+    bottom: 0.35rem;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--ink);
+    z-index: 1;
+}
+
+.replay-material {
+    margin: 0.35rem 0;
+    font-size: 0.85rem;
+    color: var(--parchment-dim);
+}
+
+/* Clasificación de cada jugada en la planilla — mismos colores que ya usa el resto de
+   la app para "bueno"/"malo" (verdigris/granate), más un tono intermedio para las
+   imprecisiones, así no hay que inventar una paleta nueva solo para esto. */
+
+.scoresheet__move--best,
+.scoresheet__move--good {
+    color: var(--verdigris);
+}
+
+.scoresheet__move--inaccuracy {
+    color: var(--brass-bright);
+}
+
+.scoresheet__move--mistake {
+    color: var(--garnet);
+}
+
+.scoresheet__move--blunder {
+    color: var(--garnet);
+    font-weight: 700;
+}
+
+/* ---- Pista al resolver un puzzle ---- */
+
+.puzzle-hint-text {
+    margin: 0.5rem 0 0;
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--radius-sm);
+    background: var(--felt);
+    border: 1px dashed var(--brass);
+    font-size: 0.85rem;
+    color: var(--brass-bright);
+}
+
+.puzzle-review-nav {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--felt-border);
+}

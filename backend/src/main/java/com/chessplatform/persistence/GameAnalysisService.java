@@ -91,7 +91,7 @@ public class GameAnalysisService {
             // mueve EN ESA posición (así lo da el motor) — se convierte a la
             // perspectiva de blancas al construir cada MoveAnalysis, para que la barra
             // de evaluación en el cliente no tenga que preocuparse de a quién le tocaba.
-            EngineEvaluation currentEval = engine.evaluate(positions.get(0), EVAL_MOVETIME_MS);
+            EngineEvaluation currentEval = engine.evaluate(positions.getFirst(), EVAL_MOVETIME_MS);
 
             for (int i = 1; i < positions.size(); i++) {
                 int evalBeforeForMover = toComparableScore(currentEval);

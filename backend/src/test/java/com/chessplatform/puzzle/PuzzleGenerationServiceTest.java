@@ -123,13 +123,16 @@ class PuzzleGenerationServiceTest {
         // Posición inicial: 0 (blancas). Tras e2e4: -20 desde el punto de vista de
         // negras (normal, blancas ligeramente mejor). Tras e7e5: +500 desde el punto de
         // vista de blancas — un swing enorme a favor de blancas, negras acaban de
-        // cometer "el error" en este montaje sintético. Cuarta llamada: la
-        // re-evaluación de esa misma posición para sacar la jugada solución.
+        // cometer "el error" en este montaje sintético. Las dos últimas son de
+        // buildSolutionLine: la jugada solución (Dh5, legal de verdad desde esta
+        // posición) y la evaluación de después, que aquí se mantiene modesta a
+        // propósito para que la línea se corte en una sola jugada.
         when(engine.evaluate(anyString(), anyInt())).thenReturn(
                 new EngineEvaluation(null, 0, null),
                 new EngineEvaluation(null, -20, null),
                 new EngineEvaluation(null, 500, null),
-                new EngineEvaluation("d1h5", 500, null)
+                new EngineEvaluation("d1h5", 500, null),
+                new EngineEvaluation(null, 100, null)
         );
 
         service.generateFromGame(gameWithMoves("e2e4 e7e5"));
@@ -138,7 +141,7 @@ class PuzzleGenerationServiceTest {
         verify(puzzleRepository).save(saved.capture());
         assertThat(saved.getValue().getSourceGameId()).isEqualTo("game-id");
         assertThat(saved.getValue().getSideToMove()).isEqualTo("white"); // le toca a blancas castigar el error
-        assertThat(saved.getValue().getSolutionUci()).isEqualTo("d1h5");
+        assertThat(saved.getValue().getSolutionUci()).isEqualTo("d1h5"); // una sola jugada — la ventaja tras jugarla no es lo bastante clara como para forzar otra
         // Calculadas con el motor de reglas real (Board/Move), no con Stockfish
         // mockeado — deberían ser las jugadas legales de verdad tras 1.e4 e5.
         assertThat(saved.getValue().getLegalMovesUci()).isNotBlank();
@@ -153,13 +156,15 @@ class PuzzleGenerationServiceTest {
         // toComparableScore/-toComparableScore, ver el código): drop_1 = 0+350=350
         // (primer candidato, supera el umbral), drop_2 = 350-300=50 (no supera),
         // drop_3 = -300+1150=850 (el más grande de los dos, este es el que debería
-        // quedarse).
+        // quedarse). Las dos últimas son de buildSolutionLine, con la ventaja tras la
+        // jugada solución mantenida modesta a propósito para que la línea no se alargue.
         when(engine.evaluate(anyString(), anyInt())).thenReturn(
                 new EngineEvaluation(null, 0, null),      // posición inicial
                 new EngineEvaluation(null, 350, null),    // tras jugada 1 — drop de 350, primer candidato
                 new EngineEvaluation(null, -300, null),   // tras jugada 2 — drop de 50, no supera el umbral
                 new EngineEvaluation(null, 1150, null),   // tras jugada 3 — drop de 850, el más grande
-                new EngineEvaluation("d8h4", 1150, null)  // solución de esa posición
+                new EngineEvaluation("d8h4", 1150, null), // solución de esa posición (Dh4, legal de verdad tras 1.e4 e5 2.Cf3)
+                new EngineEvaluation(null, 50, null)      // evaluación tras jugarla — modesta, corta la línea en una sola jugada
         );
 
         service.generateFromGame(gameWithMoves("e2e4 e7e5 g1f3"));
@@ -230,7 +235,8 @@ class PuzzleGenerationServiceTest {
                 new EngineEvaluation(null, 0, null),     // posición inicial
                 new EngineEvaluation(null, -20, null),   // tras 1. e2e4 — normal
                 new EngineEvaluation(null, 500, null),   // tras 1... e7e5 — AQUÍ está el error de verdad
-                new EngineEvaluation("d1h5", 500, null)  // solución de esa posición (la re-evaluación de después)
+                new EngineEvaluation("d1h5", 500, null), // solución de esa posición (Dh5, legal de verdad aquí)
+                new EngineEvaluation(null, 100, null)    // evaluación tras jugarla — modesta, corta la línea en una sola jugada
         );
 
         // Tres jugadas — la partida "termina en mate" en la tercera, pero el error de
@@ -241,5 +247,34 @@ class PuzzleGenerationServiceTest {
         ArgumentCaptor<Puzzle> saved = ArgumentCaptor.forClass(Puzzle.class);
         verify(puzzleRepository).save(saved.capture());
         assertThat(saved.getValue().getSolutionUci()).isEqualTo("d1h5");
+    }
+
+    @Test
+    void generateFromGameExtendsTheLineWhenTheAdvantageStaysClearAfterTheFirstMove() throws IOException {
+        PuzzleGenerationService service = newService("/usr/games/stockfish");
+        when(engineFactory.create(anyString())).thenReturn(engine);
+        // Igual que el test anterior hasta encontrar el swing, pero esta vez la
+        // evaluación TRAS la jugada solución se mantiene enorme (el rival sigue
+        // claramente perdiendo) — debería añadir la respuesta del rival a la línea, en
+        // vez de cortarla en una sola jugada. El sexto valor (sin bestMoveUci) hace que
+        // el bucle se pare justo al intentar buscar una SEGUNDA jugada del que resuelve
+        // — así la línea queda en exactamente 2 jugadas (la propia + la respuesta),
+        // sin depender de si el motor encontraría o no una tercera de verdad.
+        when(engine.evaluate(anyString(), anyInt())).thenReturn(
+                new EngineEvaluation(null, 0, null),
+                new EngineEvaluation(null, -20, null),
+                new EngineEvaluation(null, 500, null),
+                new EngineEvaluation("d1h5", 500, null),   // primera jugada del que resuelve (Dh5)
+                new EngineEvaluation("g8f6", -600, null),  // tras Dh5, negras siguen muy perdidas (-600 desde su perspectiva) -> se extiende; g8f6 es la respuesta del rival (Cf6, legal de verdad aquí)
+                new EngineEvaluation(null, 50, null)       // sin bestMoveUci -> el bucle se corta al buscar una segunda jugada del que resuelve
+        );
+
+        service.generateFromGame(gameWithMoves("e2e4 e7e5 g1f3", "checkmate"));
+
+        ArgumentCaptor<Puzzle> saved = ArgumentCaptor.forClass(Puzzle.class);
+        verify(puzzleRepository).save(saved.capture());
+        // Dos jugadas en la línea: la del que resuelve (Dh5) y la respuesta forzada del
+        // rival (Cf6) — a diferencia de los otros tests, donde se corta en una sola.
+        assertThat(saved.getValue().getSolutionUci()).isEqualTo("d1h5 g8f6");
     }
 }

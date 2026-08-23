@@ -434,6 +434,17 @@
                         </table>
                     </div>
 
+                    <!-- Mirar atrás durante la partida en vivo — solo cambia lo que se
+                         VE, nunca interfiere con la partida real: mover solo funciona
+                         estando en la posición actual (ver onMoveAttempt en main.js) -->
+                    <div class="controls controls--split">
+                        <button id="game-nav-prev-btn" class="btn btn--ghost">&#9664; Anterior</button>
+                        <button id="game-nav-next-btn" class="btn btn--ghost">Siguiente &#9654;</button>
+                    </div>
+                    <p id="game-nav-counter" class="turn-indicator"></p>
+                    <button id="game-return-to-live-btn" class="btn btn--primary btn--block" hidden>Volver a la posición
+                        actual</button>
+
                     <div class="chat">
                         <div id="chat-log" class="chat__log"></div>
                         <button type="button" id="mute-opponent-btn" class="chat__mute-btn">🔇 Silenciar al
@@ -640,11 +651,21 @@
         <!-- Pantalla de reproducción de una partida -->
         <section id="replay-screen" class="screen" hidden>
             <main class="table">
-                <div id="replay-board" class="board"></div>
+                <div class="replay-board-wrap">
+                    <div id="replay-eval-bar" class="eval-bar" hidden>
+                        <div id="replay-eval-bar-fill" class="eval-bar__fill"></div>
+                        <span id="replay-eval-bar-label" class="eval-bar__label"></span>
+                    </div>
+                    <div id="replay-board" class="board"></div>
+                </div>
 
                 <aside class="sidebar">
                     <p id="replay-info" class="replay-info"></p>
                     <p id="replay-move-counter" class="turn-indicator"></p>
+                    <p id="replay-material" class="replay-material"></p>
+
+                    <button id="replay-analyze-btn" class="btn btn--ghost btn--block">Analizar partida con el
+                        motor</button>
 
                     <div class="scoresheet-wrap">
                         <table class="scoresheet">
@@ -679,10 +700,24 @@
                         <p id="puzzle-turn-label" class="turn-indicator"></p>
                         <p id="puzzle-rating-label" class="status-text"></p>
 
+                        <button id="puzzle-hint-btn" class="btn btn--ghost btn--block" hidden>💡 Pista</button>
+                        <p id="puzzle-hint-text" class="puzzle-hint-text" hidden></p>
+
                         <div id="puzzle-feedback" class="puzzle-feedback" hidden>
                             <p id="puzzle-feedback-result" class="puzzle-feedback__result"></p>
                             <p id="puzzle-feedback-solution" class="puzzle-feedback__solution"></p>
                             <p id="puzzle-feedback-rating-change" class="puzzle-feedback__rating-change"></p>
+                        </div>
+
+                        <!-- Navegación por la línea de solución completa, jugada a
+                             jugada — solo tiene sentido una vez cerrado el intento
+                             (ver puzzles.js), oculta hasta entonces -->
+                        <div id="puzzle-review-nav" class="puzzle-review-nav" hidden>
+                            <p id="puzzle-review-counter" class="turn-indicator"></p>
+                            <div class="controls controls--split">
+                                <button id="puzzle-review-prev-btn" class="btn btn--ghost">&#9664; Anterior</button>
+                                <button id="puzzle-review-next-btn" class="btn btn--ghost">Siguiente &#9654;</button>
+                            </div>
                         </div>
 
                         <button id="puzzle-next-btn" class="btn btn--primary btn--block" hidden>Siguiente

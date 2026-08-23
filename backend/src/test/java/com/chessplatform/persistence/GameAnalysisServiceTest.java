@@ -73,7 +73,7 @@ class GameAnalysisServiceTest {
         assertThat(analysis).hasSize(2);
         // Jugada 1 (1.e4, de blancas): el eval que llega tras aplicarla está desde el
         // punto de vista de NEGRAS (les toca mover) — hay que invertir el signo.
-        assertThat(analysis.get(0).evalCentipawns()).isEqualTo(50);
+        assertThat(analysis.getFirst().evalCentipawns()).isEqualTo(50);
         // Jugada 2 (1...e5, de negras): el eval que llega tras aplicarla ya está desde
         // el punto de vista de BLANCAS (les toca mover) — no hace falta invertir nada.
         assertThat(analysis.get(1).evalCentipawns()).isEqualTo(30);
@@ -91,7 +91,7 @@ class GameAnalysisServiceTest {
 
         List<GameAnalysisService.MoveAnalysis> analysis = service.analyze("e2e4");
 
-        assertThat(analysis.get(0).classification()).isEqualTo("best");
+        assertThat(analysis.getFirst().classification()).isEqualTo("best");
     }
 
     @Test
@@ -106,7 +106,7 @@ class GameAnalysisServiceTest {
 
         List<GameAnalysisService.MoveAnalysis> analysis = service.analyze("e2e4");
 
-        assertThat(analysis.get(0).classification()).isEqualTo("blunder");
+        assertThat(analysis.getFirst().classification()).isEqualTo("blunder");
     }
 
     @Test
@@ -121,7 +121,7 @@ class GameAnalysisServiceTest {
 
         List<GameAnalysisService.MoveAnalysis> analysis = service.analyze("e2e4");
 
-        assertThat(analysis.get(0).classification()).isEqualTo("mistake");
+        assertThat(analysis.getFirst().classification()).isEqualTo("mistake");
     }
 
     @Test
@@ -136,7 +136,7 @@ class GameAnalysisServiceTest {
 
         List<GameAnalysisService.MoveAnalysis> analysis = service.analyze("e2e4");
 
-        assertThat(analysis.get(0).classification()).isEqualTo("inaccuracy");
+        assertThat(analysis.getFirst().classification()).isEqualTo("inaccuracy");
     }
 
     @Test
@@ -153,7 +153,7 @@ class GameAnalysisServiceTest {
 
         assertThat(analysis).extracting(GameAnalysisService.MoveAnalysis::notation)
                 .containsExactly("e4", "e5");
-        assertThat(analysis.get(0).moveNumber()).isEqualTo(1);
+        assertThat(analysis.getFirst().moveNumber()).isEqualTo(1);
         assertThat(analysis.get(1).moveNumber()).isEqualTo(2);
     }
 
