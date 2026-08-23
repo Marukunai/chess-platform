@@ -50,6 +50,11 @@ public class SecurityConfig {
                         // JwtAuthenticationFilter ya hacía falta — ver su javadoc y el
                         // de más abajo.
                         .requestMatchers(HttpMethod.GET, "/api/games/**", "/api/users/**", "/api/achievements/**").permitAll()
+                        // Ranking de puzzles, público igual que los de arriba — pero
+                        // solo esta ruta en concreto, no todo /api/puzzles/**: /next y
+                        // /attempt sí necesitan identidad de verdad (quién eres decide
+                        // qué te toca ver y actualiza TU rating), ver PuzzleController.
+                        .requestMatchers(HttpMethod.GET, "/api/puzzles/leaderboard").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

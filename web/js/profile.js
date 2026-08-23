@@ -58,7 +58,12 @@ async function deleteAccount(userId, password) {
 }
 
 async function fetchLeaderboard(mode) {
-    const response = await fetch(`${BACKEND_HTTP_URL}/api/users/leaderboard?mode=${encodeURIComponent(mode)}`);
+    // El ranking de puzzles no es una modalidad de partida (BULLET/BLITZ/...) — vive en
+    // su propio endpoint sin parámetro, ver PuzzleController.leaderboard().
+    const url = mode === 'PUZZLES'
+        ? `${BACKEND_HTTP_URL}/api/puzzles/leaderboard`
+        : `${BACKEND_HTTP_URL}/api/users/leaderboard?mode=${encodeURIComponent(mode)}`;
+    const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Error ${response.status} al cargar el ranking`);
     }

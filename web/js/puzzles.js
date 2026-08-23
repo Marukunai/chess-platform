@@ -10,6 +10,7 @@
  */
 
 let currentPuzzleId = null;
+let currentPuzzleOrientation = 'white'; // se conserva tras el intento, para que el tablero no gire justo al enseñar la solución
 
 const PROMOTION_TYPE_TO_UCI_LETTER = { QUEEN: 'q', ROOK: 'r', BISHOP: 'b', KNIGHT: 'n' };
 
@@ -64,10 +65,15 @@ async function loadNextPuzzle() {
     if (!puzzle) {
         document.getElementById('puzzle-turn-label').textContent =
             'Todavía no hay puzzles disponibles — se generan solos tras cada partida jugada, vuelve más tarde';
+        // Limpiar el tablero, no dejar la posición del último puzzle intentado
+        // puesta ahí con pinta de seguir pendiente — confunde, parece que todavía
+        // queda algo por resolver cuando no es así.
+        renderBoard('8/8/8/8/8/8/8/8 w - - 0 1', [], 'puzzle-board');
         return;
     }
 
     currentPuzzleId = puzzle.puzzleId;
+    currentPuzzleOrientation = puzzle.sideToMove;
     myColor = puzzle.sideToMove; // para que board.js sepa de quién son las piezas que se pueden mover
     renderBoard(puzzle.fen, puzzle.legalMovesUci, 'puzzle-board', null, null, puzzle.sideToMove);
 
@@ -115,4 +121,11 @@ function showPuzzleFeedback(result) {
 
     feedback.hidden = false;
     document.getElementById('puzzle-next-btn').hidden = false;
+
+    // La posición DESPUÉS de la jugada correcta, siempre — aciertes o falles, es lo
+    // que hay que ver ejecutarse sobre el tablero para que el puzzle enseñe algo de
+    // verdad, no solo un texto con las coordenadas. Sin jugadas legales (ya se acabó
+    // el intento) y misma orientación de antes, para que el tablero no gire justo al
+    // enseñar la solución.
+    renderBoard(result.resultingFen, [], 'puzzle-board', null, null, currentPuzzleOrientation);
 }

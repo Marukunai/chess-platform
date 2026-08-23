@@ -86,8 +86,8 @@ class PuzzleSeederTest {
         PuzzleSeeder seeder = newSeeder("/usr/games/stockfish");
         when(puzzleRepository.existsBySourceGameIdIsNull()).thenReturn(false);
         // La primera vez que se pide un motor, falla; las siguientes, funciona — con
-        // dos secuencias sembradas, esto simula que la primera falla y la segunda
-        // debería intentarse igualmente.
+        // diez secuencias sembradas, esto simula que la primera falla y las demás
+        // deberían intentarse igualmente.
         when(engineFactory.create(anyString()))
                 .thenThrow(new IOException("fallo simulado"))
                 .thenReturn(engine);
@@ -97,7 +97,7 @@ class PuzzleSeederTest {
         // No debería propagar la excepción de la primera secuencia.
         seeder.seedPuzzles();
 
-        verify(engineFactory, org.mockito.Mockito.times(2)).create(anyString());
+        verify(engineFactory, org.mockito.Mockito.times(10)).create(anyString());
     }
 
     @Test
@@ -118,6 +118,24 @@ class PuzzleSeederTest {
     private void assertThatAllSavedPuzzlesHaveNoSourceGame(java.util.List<Puzzle> puzzles) {
         for (Puzzle puzzle : puzzles) {
             org.assertj.core.api.Assertions.assertThat(puzzle.getSourceGameId()).isNull();
+        }
+    }
+
+    @Test
+    void everySeedSequenceIsSyntacticallyPlayableFromTheInitialPosition() {
+        // No confirma legalidad completa (Board.applyMove() tampoco lo hace, ver su
+        // javadoc), pero SÍ confirma que cada jugada tiene una pieza de verdad en su
+        // casilla de origen — el error más probable al convertir a mano una apertura
+        // conocida a UCI (una casilla mal escrita, una jugada de más o de menos). Sin
+        // esto, un error así no daría ningún fallo visible: se guardaría un puzzle con
+        // una posición corrupta camuflada de válida.
+        for (String moveList : PuzzleSeeder.seedMoveListsForTesting()) {
+            com.chessplatform.engine.Board board = com.chessplatform.engine.Board.initial();
+            for (String moveUci : moveList.trim().split(" ")) {
+                com.chessplatform.engine.Move move = com.chessplatform.engine.Move.fromUci(moveUci);
+                org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> board.applyMove(move),
+                        () -> "Jugada sin pieza de origen real: " + moveUci + " en la secuencia: " + moveList);
+            }
         }
     }
 }

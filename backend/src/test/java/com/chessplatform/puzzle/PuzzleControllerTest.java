@@ -114,7 +114,7 @@ class PuzzleControllerTest {
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
         when(userPuzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(Optional.empty()); // 1500 por defecto
-        Puzzle puzzle = new Puzzle("game-id", "algún-fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "algún-fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findClosestByRatingExcludingAttemptedByUser(eq("alice-id"), anyDouble()))
                 .thenReturn(List.of(puzzle));
@@ -143,7 +143,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(true);
@@ -158,7 +158,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -176,7 +176,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -194,7 +194,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -210,7 +210,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -226,7 +226,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -246,7 +246,7 @@ class PuzzleControllerTest {
         existingRating.applyRatingUpdate(1800, 100, 0.05);
         when(userPuzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(Optional.of(existingRating));
         when(puzzleRepository.findClosestByRatingExcludingAttemptedByUser(eq("alice-id"), anyDouble()))
-                .thenReturn(List.of(new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4")));
+                .thenReturn(List.of(new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "")));
 
         controller.next(authFor("alice-id"));
 
@@ -258,7 +258,7 @@ class PuzzleControllerTest {
         User user = new User("alice", "hash");
         setId(user, "alice-id");
         when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
-        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4");
+        Puzzle puzzle = new Puzzle("game-id", "fen", "white", "e2e4", "e2e4 d2d4", "");
         setPuzzleId(puzzle, "puzzle-id");
         when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
         when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
@@ -267,5 +267,76 @@ class PuzzleControllerTest {
         controller.attempt("puzzle-id", new PuzzleAttemptRequest("e2e4"), authFor("alice-id"));
 
         verify(achievementUnlockService).checkAndNotify("alice-id");
+    }
+
+    @Test
+    void attemptReturnsThePositionAfterTheSolutionMove() {
+        User user = new User("alice", "hash");
+        setId(user, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
+        // movesUpToPosition vacío == la posición del puzzle ES la inicial; la solución
+        // "e2e4" es una jugada legal de verdad desde ahí, así que el tablero
+        // reconstruido debería reflejar 1.e4 tal cual.
+        Puzzle puzzle = new Puzzle("game-id", "posición-inicial", "white", "e2e4", "e2e4 d2d4", "");
+        setPuzzleId(puzzle, "puzzle-id");
+        when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
+        when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
+        when(userPuzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(Optional.empty());
+
+        PuzzleAttemptResponse response = controller.attempt("puzzle-id", new PuzzleAttemptRequest("e2e4"), authFor("alice-id"));
+
+        assertThat(response.resultingFen()).contains("4P3"); // el peón blanco ya está en e4
+        assertThat(response.resultingFen()).contains(" b "); // le toca a negras tras la jugada de blancas
+    }
+
+    @Test
+    void attemptReturnsTheSolutionPositionEvenWhenTheAttemptWasWrong() {
+        User user = new User("alice", "hash");
+        setId(user, "alice-id");
+        when(userRepository.findById("alice-id")).thenReturn(Optional.of(user));
+        Puzzle puzzle = new Puzzle("game-id", "posición-inicial", "white", "e2e4", "e2e4 d2d4", "");
+        setPuzzleId(puzzle, "puzzle-id");
+        when(puzzleRepository.findById("puzzle-id")).thenReturn(Optional.of(puzzle));
+        when(attemptRepository.existsByUser_IdAndPuzzle_Id("alice-id", "puzzle-id")).thenReturn(false);
+        when(userPuzzleRatingRepository.findByUser_Id("alice-id")).thenReturn(Optional.empty());
+
+        // Falla a propósito (d2d4 en vez de la solución e2e4) — la posición que se
+        // enseña sigue siendo la de la SOLUCIÓN, no la del intento fallido: es lo que
+        // hay que aprender, no el propio error.
+        PuzzleAttemptResponse response = controller.attempt("puzzle-id", new PuzzleAttemptRequest("d2d4"), authFor("alice-id"));
+
+        assertThat(response.correct()).isFalse();
+        assertThat(response.resultingFen()).contains("4P3");
+    }
+
+    @Test
+    void leaderboardReturnsEntriesRankedByRatingDescending() {
+        User alice = new User("alice", "hash");
+        setId(alice, "alice-id");
+        User bob = new User("bob", "hash");
+        setId(bob, "bob-id");
+        UserPuzzleRating aliceRating = new UserPuzzleRating(alice);
+        aliceRating.applyRatingUpdate(2100, 80, 0.05);
+        UserPuzzleRating bobRating = new UserPuzzleRating(bob);
+        bobRating.applyRatingUpdate(1750, 100, 0.05);
+        when(userPuzzleRatingRepository.findTop50ByUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc())
+                .thenReturn(java.util.List.of(aliceRating, bobRating));
+
+        java.util.List<com.chessplatform.persistence.dto.LeaderboardEntryResponse> leaderboard = controller.leaderboard();
+
+        assertThat(leaderboard).hasSize(2);
+        assertThat(leaderboard.get(0).rank()).isEqualTo(1);
+        assertThat(leaderboard.get(0).username()).isEqualTo("alice");
+        assertThat(leaderboard.get(0).rating()).isEqualTo(2100);
+        assertThat(leaderboard.get(1).rank()).isEqualTo(2);
+        assertThat(leaderboard.get(1).username()).isEqualTo("bob");
+    }
+
+    @Test
+    void leaderboardReturnsAnEmptyListWhenNobodyHasSolvedAPuzzleYet() {
+        when(userPuzzleRatingRepository.findTop50ByUser_DeletedAtIsNullAndUser_BotFalseOrderByRatingDesc())
+                .thenReturn(java.util.List.of());
+
+        assertThat(controller.leaderboard()).isEmpty();
     }
 }
