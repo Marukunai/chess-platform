@@ -66,7 +66,7 @@ class GameHistoryControllerTest {
         List<GameSummaryResponse> history = controller.historyForUser("user-1");
 
         assertThat(history).hasSize(1);
-        GameSummaryResponse summary = history.get(0);
+        GameSummaryResponse summary = history.getFirst();
         assertThat(summary.whiteUsername()).isEqualTo("alice");
         assertThat(summary.blackUsername()).isEqualTo("bob");
         assertThat(summary.result()).isEqualTo("1-0");
@@ -163,8 +163,8 @@ class GameHistoryControllerTest {
 
         assertThat(response.gameId()).isEqualTo("game-1");
         assertThat(response.moves()).hasSize(2);
-        assertThat(response.moves().get(0).notation()).isEqualTo("e4");
-        assertThat(response.moves().get(0).classification()).isEqualTo("best");
+        assertThat(response.moves().getFirst().notation()).isEqualTo("e4");
+        assertThat(response.moves().getFirst().classification()).isEqualTo("best");
     }
 
     @Test

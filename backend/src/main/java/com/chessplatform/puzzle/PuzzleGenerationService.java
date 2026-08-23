@@ -128,7 +128,7 @@ public class PuzzleGenerationService {
         // reutiliza de una iteración a la siguiente en vez de volver a pedírsela al
         // motor, así solo hace falta una evaluación por posición (N+1 en total para
         // una partida de N jugadas), no dos.
-        EngineEvaluation currentEval = engine.evaluate(positions.get(0), EVAL_MOVETIME_MS);
+        EngineEvaluation currentEval = engine.evaluate(positions.getFirst(), EVAL_MOVETIME_MS);
 
         int biggestDrop = 0;
         int puzzlePositionIndex = -1;
@@ -151,10 +151,6 @@ public class PuzzleGenerationService {
         }
 
         String puzzleFen = positions.get(puzzlePositionIndex);
-        EngineEvaluation puzzleEval = engine.evaluate(puzzleFen, EVAL_MOVETIME_MS);
-        if (puzzleEval.bestMoveUci() == null) {
-            return Optional.empty(); // no debería pasar (ya excluimos la única posición que podría no tener jugadas legales), pero por seguridad
-        }
 
         // Reconstruir el tablero real justo hasta la posición del puzzle (no toda la
         // partida otra vez con el motor, solo aplicar jugadas sobre un tablero nuevo,
@@ -170,8 +166,78 @@ public class PuzzleGenerationService {
         String legalMovesUci = board.legalMoves().stream().map(Move::toUci).collect(Collectors.joining(" "));
         String movesUpToPositionUci = movesUpToPuzzlePosition.stream().map(Move::toUci).collect(Collectors.joining(" "));
 
+        // La línea de solución — reutiliza el MISMO tablero (ya en la posición del
+        // puzzle), extendiéndolo hacia delante si la ventaja sigue siendo clara tras la
+        // primera jugada. Un puzzle de una sola jugada (la inmensa mayoría) es
+        // simplemente una línea de longitud 1 — ningún cambio de formato, solo depende
+        // de cuánto dé de sí la posición. La propia construcción de la línea ya
+        // comprueba si hay alguna jugada legal en la primera vuelta (no debería pasar,
+        // ya se excluyó la única posición que podría no tenerlas, pero por seguridad).
+        List<String> solutionLine = buildSolutionLine(board, engine);
+        if (solutionLine.isEmpty()) {
+            return Optional.empty();
+        }
+        String solutionUci = String.join(" ", solutionLine);
+
         return Optional.of(new Puzzle(sourceGameId, puzzleFen, sideToMoveFromFen(puzzleFen),
-                puzzleEval.bestMoveUci(), legalMovesUci, movesUpToPositionUci));
+                solutionUci, legalMovesUci, movesUpToPositionUci));
+    }
+
+    // Como mucho dos jugadas del que resuelve por puzzle — suficiente para dar
+    // variedad sin alargar demasiado el análisis ni complicar la experiencia.
+    private static final int MAX_SOLVER_MOVES = 2;
+
+    // Mismo umbral que BLUNDER_THRESHOLD_CENTIPAWNS — solo merece la pena forzar una
+    // segunda jugada del que resuelve si la posición sigue siendo claramente ganadora,
+    // no simplemente "buena". Por debajo de esto, la línea se corta en una jugada.
+    private static final int EXTEND_LINE_THRESHOLD = 300;
+
+    /**
+     * Construye la línea de solución completa a partir de la posición del puzzle —
+     * alterna jugada del que resuelve / respuesta del rival (la mejor que encuentre el
+     * motor, se añade a la línea para poder animarla pero nunca hay que acertarla, solo
+     * las jugadas del que resuelve cuentan como intento). Se detiene en cuanto se
+     * entrega mate, se llega al máximo de jugadas, o la ventaja deja de ser lo bastante
+     * clara como para seguir forzando.
+     *
+     * Recibe el tablero YA en la posición del puzzle (reutilizado, no uno nuevo) y lo
+     * deja mutado al final de la línea construida — quien llama no necesita el tablero
+     * para nada más después de esto.
+     */
+    private List<String> buildSolutionLine(Board board, StockfishEngine engine) throws java.io.IOException {
+        List<String> line = new java.util.ArrayList<>();
+
+        for (int solverMoveCount = 0; solverMoveCount < MAX_SOLVER_MOVES; solverMoveCount++) {
+            EngineEvaluation solverEval = engine.evaluate(board.toFen(), EVAL_MOVETIME_MS);
+            if (solverEval.bestMoveUci() == null) {
+                break; // no debería pasar en la primera vuelta (ya se comprobó antes de llamar), pero si se llega aquí sin jugadas, se corta
+            }
+            Move solverMove = Move.fromUci(solverEval.bestMoveUci());
+            line.add(solverEval.bestMoveUci());
+            board.applyMove(solverMove);
+
+            if (board.legalMoves().isEmpty()) {
+                break; // mate (o ahogado, aunque un ahogado aquí no tendría sentido tras un error del rival) — línea completa
+            }
+
+            // ¿Merece la pena forzar otra jugada más? Si la ventaja para el que
+            // resuelve ya no es claramente ganadora, se corta aquí — no hace falta
+            // exigir una segunda jugada en una posición ya solo "buena".
+            EngineEvaluation positionEval = engine.evaluate(board.toFen(), EVAL_MOVETIME_MS);
+            int scoreForOpponent = toComparableScore(positionEval); // el rival es quien mueve ahora en esta posición
+            if (-scoreForOpponent < EXTEND_LINE_THRESHOLD || positionEval.bestMoveUci() == null) {
+                break;
+            }
+
+            // La respuesta del rival — se añade a la línea para poder animarla al
+            // completar el paso anterior, pero nunca es algo que el que resuelve tenga
+            // que acertar (es la jugada del propio motor, forzada por definición aquí).
+            Move opponentReply = Move.fromUci(positionEval.bestMoveUci());
+            line.add(positionEval.bestMoveUci());
+            board.applyMove(opponentReply);
+        }
+
+        return line;
     }
 
     private List<Move> parseMoveList(String moveList) {

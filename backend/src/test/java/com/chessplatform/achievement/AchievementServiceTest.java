@@ -250,8 +250,8 @@ class AchievementServiceTest {
 
         List<AchievementService.UserAchievementCount> ranked = service.leaderboard();
 
-        assertThat(ranked.get(0).user().getUsername()).isEqualTo("alice");
-        assertThat(ranked.get(0).unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
+        assertThat(ranked.getFirst().user().getUsername()).isEqualTo("alice");
+        assertThat(ranked.getFirst().unlockedCount()).isGreaterThan(ranked.get(1).unlockedCount());
     }
 
     @Test

@@ -3,6 +3,14 @@
 
 let currentGameId = null;
 let currentTurn = null;
+
+// Mirar atrás durante una partida en vivo, sin interferir con jugar de verdad — se
+// separa "el estado REAL de la partida" (latestGameState, lo último que llegó por
+// WebSocket) de "lo que se está VIENDO en el tablero ahora mismo" (gameViewIndex).
+// Mover solo funciona estando en la posición actual, ver onMoveAttempt más abajo.
+let gameFenHistory = []; // un FEN por posición, se va rellenando con cada sincronización de estado que llega
+let gameViewIndex = -1; // -1 hasta la primera sincronización; después, qué posición del historial se está viendo
+let latestGameState = null; // el último GameStateSyncMessage de verdad — hace falta su jugadas legales/jaque/animación para volver a la posición actual con todo su contexto intacto
 let gameSubscription = null;
 let matchmakingSubscription = null;
 let userChannelSubscription = null;
@@ -270,14 +278,81 @@ function handleStateSync(state) {
     // de tablas aparte.
     hideDrawOfferBanner();
 
+    // Esto sí se actualiza siempre, se esté viendo la posición real o mirando atrás —
+    // la planilla entera y el aviso de jaque reflejan el estado REAL de la partida,
+    // no dependen de qué posición se tenga puesta en el tablero en este momento.
+    renderScoresheet('move-list', state.movesNotation);
+    document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
+
+    // Se guarda ANTES de decidir si se pinta o no — el historial crece con cada
+    // sincronización llegue cuando llegue, esté alguien mirando atrás o no.
+    latestGameState = state;
+    const wasViewingLive = gameViewIndex === gameFenHistory.length - 1; // -1 al principio == length 0 == también "en directo" por definición
+    gameFenHistory.push(state.boardFen);
+
+    if (wasViewingLive) {
+        // Estaba en la posición real -> la partida avanza y el tablero avanza con
+        // ella, tal cual se comportaba siempre antes de que existiera esto.
+        gameViewIndex = gameFenHistory.length - 1;
+        renderLiveGamePosition();
+    } else {
+        // Mirando atrás -> el tablero se queda quieto donde está, no se le impone la
+        // jugada nueva de golpe; solo se refleja que ya hay una posición más
+        // esperando al volver.
+        updateGameNavControls();
+    }
+}
+
+/** Pinta la posición REAL de la partida (la última que llegó), con todo su contexto — jugadas legales si te toca, jaque, animación de la última jugada. Reutilizado tanto al llegar una sincronización nueva estando ya en directo, como al pulsar "Volver a la posición actual" tras haber estado mirando atrás. */
+function renderLiveGamePosition() {
+    const state = latestGameState;
+    const isMyTurn = state.turn === myColor;
     const checkedColor = state.status === 'CHECK' ? state.turn : null;
     const lastMove = buildLastMoveForAnimation(state);
     // Solo se pasan las jugadas legales cuando es tu turno — así el tablero queda de
     // solo lectura mientras mueve el rival, sin necesidad de otra comprobación.
     renderBoard(state.boardFen, isMyTurn ? state.legalMovesUci : [], 'board', checkedColor, lastMove, myColor || 'white');
-    renderScoresheet('move-list', state.movesNotation);
+    updateGameNavControls();
+}
 
-    document.getElementById('game-message').textContent = state.status === 'CHECK' ? '¡Jaque!' : '';
+/** Pinta una posición del historial SIN el contexto de la real (nunca jugadas legales, nunca resaltado de jaque) — mirar atrás es de solo lectura a propósito, no una forma alternativa de mover. */
+function renderGameHistoryPosition() {
+    renderBoard(gameFenHistory[gameViewIndex], [], 'board', null, null, myColor || 'white');
+    updateGameNavControls();
+}
+
+function updateGameNavControls() {
+    const isAtLive = gameViewIndex === gameFenHistory.length - 1;
+    document.getElementById('game-nav-counter').textContent =
+        gameFenHistory.length > 0 ? `Posición ${gameViewIndex + 1} / ${gameFenHistory.length}` : '';
+    document.getElementById('game-return-to-live-btn').hidden = isAtLive;
+}
+
+function gameNavGoToPrevious() {
+    if (gameViewIndex > 0) {
+        gameViewIndex--;
+        renderGameHistoryPosition();
+    }
+}
+
+function gameNavGoToNext() {
+    if (gameViewIndex >= gameFenHistory.length - 1) {
+        return;
+    }
+    gameViewIndex++;
+    if (gameViewIndex === gameFenHistory.length - 1) {
+        renderLiveGamePosition(); // se llegó de vuelta a la posición real, con todo su contexto
+    } else {
+        renderGameHistoryPosition();
+    }
+}
+
+function returnToLiveGamePosition() {
+    if (gameFenHistory.length === 0) {
+        return;
+    }
+    gameViewIndex = gameFenHistory.length - 1;
+    renderLiveGamePosition();
 }
 
 /** { to, wasCapture } para animar en board.js, o null si todavía no se ha jugado nada. */
@@ -766,6 +841,15 @@ function enterGameScreen(gameId, color) {
     storeActiveGame(gameId, color);
     showScreen('game-screen');
 
+    // Historial de posiciones para poder mirar atrás durante la partida — partida
+    // nueva (o reconexión a una en curso), historial vacío hasta que llegue la
+    // primera sincronización de estado.
+    gameFenHistory = [];
+    gameViewIndex = -1;
+    latestGameState = null;
+    document.getElementById('game-return-to-live-btn').hidden = true;
+    document.getElementById('game-nav-counter').textContent = '';
+
     if (gameId !== mutedInGameId) {
         // Partida distinta de aquella en la que se silenció a alguien (o nunca hubo
         // ningún silencio) — de verdad es una partida nueva, toca resetear.
@@ -877,6 +961,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentPuzzleId) {
             handlePuzzleMoveAttempt(move);
         } else if (currentGameId) {
+            // Red de seguridad, no la comprobación principal — mirar atrás ya se
+            // pinta sin jugadas legales (ver renderGameHistoryPosition), así que
+            // board.js normalmente ni siquiera llega a llamar a esto en ese caso.
+            // Pero por si acaso, más vale no mandar una jugada sobre una posición
+            // que no es la real.
+            if (gameViewIndex !== gameFenHistory.length - 1) {
+                showTransientNotice('Estás mirando una jugada anterior — vuelve a la posición actual para mover');
+                return;
+            }
             sendMove(currentGameId, move);
         }
     };
@@ -958,6 +1051,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // (dificultad desconocida, Stockfish no configurado...), el error también
         // llega por ese mismo canal y se muestra solo, como cualquier otro.
     });
+
+    const gameNavPrevBtn = document.getElementById('game-nav-prev-btn');
+    if (gameNavPrevBtn) {
+        gameNavPrevBtn.addEventListener('click', gameNavGoToPrevious);
+    }
+
+    const gameNavNextBtn = document.getElementById('game-nav-next-btn');
+    if (gameNavNextBtn) {
+        gameNavNextBtn.addEventListener('click', gameNavGoToNext);
+    }
+
+    const gameReturnToLiveBtn = document.getElementById('game-return-to-live-btn');
+    if (gameReturnToLiveBtn) {
+        gameReturnToLiveBtn.addEventListener('click', returnToLiveGamePosition);
+    }
 
     document.getElementById('resign-btn').addEventListener('click', () => {
         if (currentGameId) {
@@ -1087,6 +1195,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('replay-prev-btn').addEventListener('click', replayGoToPrevious);
     document.getElementById('replay-next-btn').addEventListener('click', replayGoToNext);
+    // getElementById(...).addEventListener(...) directo: si el elemento no existe (por
+    // ejemplo, un index.html desincronizado del que trae este main.js), .addEventListener
+    // sobre null revienta el script ENTERO a partir de aquí — todos los botones
+    // registrados después de esta línea se quedan sin conectar, aunque ellos mismos
+    // estén perfectamente bien. Comprobar antes de usarlo evita que un solo elemento
+    // que falte se lleve por delante el resto de la pantalla.
+    const replayAnalyzeBtn = document.getElementById('replay-analyze-btn');
+    if (replayAnalyzeBtn) {
+        replayAnalyzeBtn.addEventListener('click', analyzeCurrentReplay);
+    }
 
     document.getElementById('return-to-game-btn').addEventListener('click', returnToActiveGame);
 
@@ -1284,6 +1402,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('puzzle-next-btn').addEventListener('click', () => {
         loadNextPuzzle();
     });
+
+    // getElementById(...).addEventListener(...) con comprobación antes, no directo —
+    // si el elemento no existiera por lo que sea, esto no debería llevarse por
+    // delante el resto de botones que se registran después (ver el mismo criterio ya
+    // aplicado más abajo con replay-analyze-btn).
+    const puzzleHintBtn = document.getElementById('puzzle-hint-btn');
+    if (puzzleHintBtn) {
+        puzzleHintBtn.addEventListener('click', requestPuzzleHint);
+    }
+
+    const puzzleReviewPrevBtn = document.getElementById('puzzle-review-prev-btn');
+    if (puzzleReviewPrevBtn) {
+        puzzleReviewPrevBtn.addEventListener('click', reviewGoToPrevious);
+    }
+
+    const puzzleReviewNextBtn = document.getElementById('puzzle-review-next-btn');
+    if (puzzleReviewNextBtn) {
+        puzzleReviewNextBtn.addEventListener('click', reviewGoToNext);
+    }
 
     document.getElementById('puzzle-back-btn').addEventListener('click', () => {
         currentPuzzleId = null;
