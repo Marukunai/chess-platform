@@ -102,6 +102,12 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With", "Accept"));
         configuration.setAllowCredentials(true);
+        // Sin esto, el navegador vuelve a mandar la petición preflight (OPTIONS) en
+        // cada llamada real, aunque el resultado no haya cambiado — con niveles
+        // gratuitos ya de por sí lentos (Render/Neon se "duermen" con inactividad),
+        // ese viaje de ida y vuelta extra en CADA petición se nota. Una hora es de
+        // sobra: esta configuración casi nunca cambia en caliente.
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
